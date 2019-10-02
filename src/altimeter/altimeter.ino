@@ -128,6 +128,11 @@ void loop() {
   float lastShownAltitude = 0.0f;
   byte backLight = 0;
 
+  pinMode(PIN_SOUND, OUTPUT);
+  tone(PIN_SOUND, 440);
+  delay(10000);
+  noTone(PIN_SOUND);
+
 //  delay(3000);
 //  Serial.println("OpenAltimeter boolstrap loader v0.1");  // Print "Hello World" to the Serial Monitor
 //  delay(2000);
@@ -206,11 +211,11 @@ void loop() {
 
     u8g2.firstPage();
     do {
-      u8g2.setFont(font_status_line);
+      u8g2.setFont(u8g2_font_4x6_tn);
       u8g2.setCursor(0,6);
       rtc.get_time();
-      sprintf(buf32, "%02d.%02d.%04d %02d:%02d",
-        rtc.day, rtc.month, rtc.year, rtc.hour, rtc.minute);
+      sprintf(buf32, "%02d.%02d.%04d %02d%c%02d",
+        rtc.day, rtc.month, rtc.year, rtc.hour, rtc.second & 1 ? ' ' : ':', rtc.minute);
       u8g2.print(buf32);
       u8g2.setCursor(u8g2.getDisplayWidth() - 16, 6);
       short rel_voltage = (short)round(((battVoltage - 3.6) / (4.16 - 3.6)) * 100);
