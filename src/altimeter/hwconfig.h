@@ -1,0 +1,30 @@
+#ifndef __in_hwconfig_inc
+#define __in_hwconfig_inc
+
+// Pins
+#define PIN_HWPWR 8
+#define PIN_LIGHT 4
+#define PIN_R 6
+#define PIN_G 9
+#define PIN_B 10
+#define PIN_BTN1 A3
+#define PIN_BTN2 A2
+#define PIN_BTN3 A1
+#define PIN_BAT_SENSE A0
+#define PIN_SOUND 5
+#define PIN_INTERRUPT 7
+#define WAKE_INTERRUPT 6
+
+// Configure RGB LED. Define one of the following
+#define LED_COMMON_CATHODE
+//#define LED_COMMON_ANODE
+
+// Configure display. Use one of the following
+#include "display_nokia5110.h"
+//#include "display_HX1230.h"
+
+// Configure RTC. Refer to i2c scan to determine correct address
+//#define RTC_I2C_ADDRESS 0xA0
+#include "PCF8583.h"
+
+#endif
