@@ -19,12 +19,14 @@
 #define LED_COMMON_CATHODE
 //#define LED_COMMON_ANODE
 
+
 // Configure display. Use one of the following
-#include "display_nokia5110.h"
-//#include "display_HX1230.h"
+#define DISPLAY_NOKIA
+//#define DISPLAY_HX1230
+#include "display.h"
+
 
 // Configure RTC. Refer to i2c scan to determine correct address
-//#define RTC_I2C_ADDRESS 0xA0
 #include "PCF8583.h"
 
 #endif

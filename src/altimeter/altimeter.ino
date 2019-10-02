@@ -9,6 +9,11 @@
 MPL3115A2 myPressure;
 PCF8583 rtc;
 
+const uint8_t bdf_font[42] U8X8_FONT_SECTION("font_status_line") = 
+  "\1\3\4\2\4\4\1\1\5\10\7\0\0\5\377\5\377\0\0\0\0\0\15\0\13\210\343G&\322\211t"
+  "\42\5\0\0\0\4\377\377\0";
+
+
 char buf8[8];
 char buf16[16];
 char buf32[32];
@@ -201,7 +206,7 @@ void loop() {
 
     u8g2.firstPage();
     do {
-      u8g2.setFont(u8g2_font_4x6_tn);
+      u8g2.setFont(font_status_line);
       u8g2.setCursor(0,6);
       rtc.get_time();
       sprintf(buf32, "%02d.%02d.%04d %02d:%02d",
