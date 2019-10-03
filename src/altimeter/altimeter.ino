@@ -126,7 +126,7 @@ void loop() {
   rtc.month = 10;
   rtc.year = 2019;
   rtc.hour = 11;
-  rtc.minute = 9;
+  rtc.minute = 33;
   rtc.set_time();
 */  
   float zeroAltitude = 0.0;
@@ -215,9 +215,9 @@ void loop() {
 
     if ((step & 31) == 0) {
       batt = analogRead(A0);
-      battVoltage = (4.16 * (float)batt) / 217;
+      battVoltage = (4.20 * (float)batt) / 219;
     }
-    short rel_voltage = (short)round(((battVoltage - 3.6) / (4.16 - 3.6)) * 100);
+    short rel_voltage = (short)round(((battVoltage - 3.6) / (4.20 - 3.6)) * 100);
     if (rel_voltage < 0) rel_voltage = 0;
     if (rel_voltage > 100) rel_voltage = 100;
 
