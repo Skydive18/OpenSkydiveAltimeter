@@ -13,7 +13,6 @@ const uint8_t bdf_font[42] U8X8_FONT_SECTION("font_status_line") =
   "\1\3\4\2\4\4\1\1\5\10\7\0\0\5\377\5\377\0\0\0\0\0\15\0\13\210\343G&\322\211t"
   "\42\5\0\0\0\4\377\377\0";
 
-
 char buf8[8];
 char buf16[16];
 char buf32[32];
@@ -122,6 +121,14 @@ void setup() {
 //}
 
 void loop() {
+/*
+  rtc.day = 3;
+  rtc.month = 10;
+  rtc.year = 2019;
+  rtc.hour = 11;
+  rtc.minute = 9;
+  rtc.set_time();
+*/  
   float zeroAltitude = 0.0;
   EEPROM.get(0, zeroAltitude);
   
@@ -130,7 +137,7 @@ void loop() {
 
   pinMode(PIN_SOUND, OUTPUT);
   tone(PIN_SOUND, 440);
-  delay(10000);
+  delay(250);
   noTone(PIN_SOUND);
 
 //  delay(3000);
@@ -170,6 +177,8 @@ void loop() {
   u8g2.setFont(u8g2_font_helvB10_tr);
   ShowText(0, 24, PSTR("Ni Hao!"));
   delay(3000);
+
+  int batt = 0;
   
   do {
     float altitude = myPressure.readAltitude();
@@ -185,7 +194,7 @@ void loop() {
       lastShownAltitude = altitude;
     }
   
-//    float temperature = myPressure.readTemp();
+    int temperature = (int)myPressure.readTemp();
 
     if (!digitalRead(PIN_BTN1)) {
       backLight = !backLight;
@@ -205,22 +214,23 @@ void loop() {
     }
 
     if ((step & 31) == 0) {
-      int batt = analogRead(A0);
+      batt = analogRead(A0);
       battVoltage = (4.16 * (float)batt) / 217;
     }
+    short rel_voltage = (short)round(((battVoltage - 3.6) / (4.16 - 3.6)) * 100);
+    if (rel_voltage < 0) rel_voltage = 0;
+    if (rel_voltage > 100) rel_voltage = 100;
+
+    rtc.get_time();
 
     u8g2.firstPage();
     do {
       u8g2.setFont(u8g2_font_4x6_tn);
       u8g2.setCursor(0,6);
-      rtc.get_time();
       sprintf(buf32, "%02d.%02d.%04d %02d%c%02d",
         rtc.day, rtc.month, rtc.year, rtc.hour, rtc.second & 1 ? ' ' : ':', rtc.minute);
       u8g2.print(buf32);
       u8g2.setCursor(u8g2.getDisplayWidth() - 16, 6);
-      short rel_voltage = (short)round(((battVoltage - 3.6) / (4.16 - 3.6)) * 100);
-      if (rel_voltage < 0) rel_voltage = 0;
-      if (rel_voltage > 100) rel_voltage = 100;
       sprintf(buf8, "%3d%c", rel_voltage, powerMode ? '*' : '-');
       u8g2.print(buf8);
       
@@ -228,8 +238,14 @@ void loop() {
       u8g2.setFont(u8g2_font_logisoso30_tn);
       
       sprintf(buf8, "%4d", (int)round(lastShownAltitude));
-      u8g2.setCursor(0,42);
+      u8g2.setCursor(0,40);
       u8g2.print(buf8);
+
+      dtostrf(battVoltage, 4, 2, buf16);
+      sprintf(buf32, "%d %s %d", batt, buf16, temperature);
+      u8g2.setFont(u8g2_font_4x6_tn);
+      u8g2.setCursor(0,47);
+      u8g2.print(buf32);
 
     } while ( u8g2.nextPage() );
     
