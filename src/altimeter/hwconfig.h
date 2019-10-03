@@ -23,8 +23,12 @@
 // Configure display. Use one of the following
 #define DISPLAY_NOKIA
 //#define DISPLAY_HX1230
-#include "display.h"
-
+// Use these macros if display light is turned on with logic 0
+#define DISPLAY_LIGHT_OFF digitalWrite(PIN_LIGHT,1)
+#define DISPLAY_LIGHT_ON digitalWrite(PIN_LIGHT,0)
+// Use these macros if display light is turned on with logic 1
+//#define DISPLAY_LIGHT_OFF digitalWrite(PIN_LIGHT,0)
+//#define DISPLAY_LIGHT_ON digitalWrite(PIN_LIGHT,1)
 
 // Configure RTC. Refer to i2c scan to determine correct address
 #include "PCF8583.h"

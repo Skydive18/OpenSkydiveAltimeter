@@ -3,8 +3,10 @@
 #include <SPI.h>
 #include <Wire.h>
 #include "osaMPL3115A2.h"
-
 #include "hwconfig.h"
+#include "led.h"
+#include "keyboard.h"
+#include "display.h"
 
 MPL3115A2 myPressure;
 PCF8583 rtc;
@@ -22,7 +24,6 @@ char buf16[16];
 char buf32[32];
 byte step = 0;
 byte powerMode = 0;
-byte wakeCondition = 0;
 
 void DoDrawStr(byte x, byte y, char *buf) {
   u8g2.firstPage();
@@ -48,25 +49,21 @@ void ShowText(const byte x, const byte y, const char* text, bool grow = true)
 }
 
 void SleepForewer() {
-  digitalWrite(PIN_G, 0);
+  DISPLAY_LIGHT_ON;
   u8g2.setFont(u8g2_font_helvB10_tr);
   char *sayonara = PSTR("Sayonara )");
-  digitalWrite(PIN_R, 1);
   ShowText(0, 24, sayonara);
-  delay(3000);
+  delay(2500);
   for (byte i = 0; i < 5; ++i) {
-    DoDrawStr(0, 24, "");
-    digitalWrite(PIN_R, 0);
-    delay(200);
-    digitalWrite(PIN_R, 1);
     ShowText(0, 24, sayonara, false);
+    delay(200);
+    DoDrawStr(0, 24, "");
     delay(200);
   }
   
+  DISPLAY_LIGHT_OFF;
+  
   digitalWrite(PIN_HWPWR, 0);
-  digitalWrite(PIN_R, 0);
-  digitalWrite(PIN_B, 0);
-  digitalWrite(PIN_LIGHT, 1);
   digitalWrite(PIN_SOUND, 0);
   // turn off i2c
   pinMode(2, INPUT);
@@ -84,56 +81,63 @@ void SleepForewer() {
     attachInterrupt(digitalPinToInterrupt(7), wake, LOW);
     LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
     detachInterrupt(digitalPinToInterrupt(7));
-  } while (!wakeCondition);
+  } while (!checkWakeCondition());
   resetFunc();
 }
 
-void wake ()
+void wake() {}
+
+byte checkWakeCondition ()
 {
-  wakeCondition = 0;
   // Determine wake condition
   pinMode(PIN_BTN1, INPUT_PULLUP);
   delay(20);
-  if (!digitalRead(PIN_BTN1)) {
-    // Wake by awake button
-    digitalWrite(PIN_B, 1);
-    for (byte i = 0; i < 150; ++i) {
-      if (digitalRead(PIN_BTN1)) {
-        digitalWrite(PIN_B, 0);
-        return;
-      }
-      delay(20);
+  if (BTN1_PRESSED) {
+    // Wake by awake button. Should be kept pressed for 3s
+    LED_show(0, 0, 80, 400);
+    for (byte i = 1; i < 193; ++i) {
+      if (BTN1_RELEASED)
+        return 0;
+      if (! (i & 63))
+        LED_show(0, 80, 0, 200);
+      delay(15);
     }
-    digitalWrite(PIN_B, 0);
-    wakeCondition = 1;
+    return 1;
   }
 }
 
 void setup() {
-  // put your setup code here, to run once:
+  pinMode(PIN_HWPWR, OUTPUT);
   Serial.begin(9600); // Console
 
+  LED_init();
+
+  pinMode(PIN_SOUND, OUTPUT);
+  digitalWrite(PIN_SOUND, 0);
+
   // Turn ON hardware
-  pinMode(PIN_HWPWR, OUTPUT);
   digitalWrite(PIN_HWPWR, 1);
 
   Wire.begin();
   u8g2.begin();
-  myPressure.begin(); // Get sensor online
-
+  //u8g2.enableUTF8Print();    // enable UTF8 support for the Arduino print() function
+  pinMode(PIN_LIGHT, OUTPUT);
+  u8g2.setFont(u8g2_font_helvB10_tr);
+  DISPLAY_LIGHT_ON;
+  ShowText(0, 24, PSTR("Ni Hao!"));
+  delay(3000);
+  for (byte i = 0; i < 5; ++i) {
+    LED_show(0, 80, 0, 100);
+    delay(250);
+  }
+  DISPLAY_LIGHT_OFF;
+ 
   //Configure the sensor
-
-  myPressure.setOversampleRate(5); // Set Oversample to the recommended 128
+  myPressure.begin(); // Get sensor online
+  myPressure.setOversampleRate(5); // Set Oversample то 32
   myPressure.enableEventFlags(); // Enable all three pressure and temp event flags 
   myPressure.setModeAltimeter(); // Measure altitude above sea level in meters
   
-  pinMode(PIN_R, OUTPUT);
-  pinMode(PIN_G, OUTPUT);
-  pinMode(PIN_B, OUTPUT);
-
-  pinMode(PIN_LIGHT, OUTPUT);
-  digitalWrite(PIN_LIGHT, 1);
-
   pinMode(PIN_BTN1, INPUT_PULLUP);
   pinMode(PIN_BTN2, INPUT_PULLUP);
   pinMode(PIN_BTN3, INPUT_PULLUP);
@@ -148,7 +152,6 @@ void loop() {
   rtc.minute = 33;
   rtc.set_time();
 */
-
   int zeroAltitude = 0;
   EEPROM.get(0, zeroAltitude);
   
@@ -177,28 +180,16 @@ void loop() {
   Serial.println (" device(s).");
 */
 
-  //u8g2.enableUTF8Print();    // enable UTF8 support for the Arduino print() function
-
-  float battVoltage;
-
-  u8g2.setFont(u8g2_font_helvB10_tr);
-  digitalWrite(PIN_G, 1);
-  ShowText(0, 24, PSTR("Ni Hao!"));
-  delay(3000);
-  digitalWrite(PIN_G, 0);
-
   int batt = 0;
   
   do {
-
     int altitude = myPressure.readAltitude();
-    if (! digitalRead(PIN_BTN2)) {
+    if (BTN2_PRESSED) {
       zeroAltitude = altitude;
       EEPROM.put(0, zeroAltitude);
       lastShownAltitude = 0;
-      digitalWrite(PIN_G, 1);
-      while (!digitalRead(PIN_BTN2)); // wait for button release
-      digitalWrite(PIN_G, 0);
+      LED_show(0, 80, 0, 300);
+      while (BTN2_PRESSED); // wait for button release
     }
     altitude -= zeroAltitude;
 
@@ -218,23 +209,25 @@ void loop() {
       lastShownAltitude = altitude;
     }
   
-    if (!digitalRead(PIN_BTN1)) {
+    if (BTN1_PRESSED) {
       backLight = !backLight;
       digitalWrite(PIN_LIGHT, !backLight);
-      while (!digitalRead(PIN_BTN1)); // wait for button release
+      while (BTN1_PRESSED); // wait for button release
     }
 
-    if (!digitalRead(PIN_BTN3)) {
-      unsigned long millis1 = millis();
-      digitalWrite(PIN_G, 1);
-      while (!digitalRead(PIN_BTN3)){
+    if (BTN3_PRESSED) {
+      LED_show(0, 80, 0, 300);
+      byte i = 0;
+      while (BTN3_PRESSED){
         // wait for button release
-        delay(50);
-        if ((millis() - millis1) > 5000) {
+        delay(15);
+        ++i;
+        if (! (i & 63))
+          LED_show(255, 0, 0, 150);
+        if (i > 192) {
           SleepForewer();
         }
       }
-      digitalWrite(PIN_G, 0);
       powerMode = !powerMode;
       step = 0;
     }
