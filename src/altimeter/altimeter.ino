@@ -2,22 +2,27 @@
 #include <LowPower.h>
 #include <SPI.h>
 #include <Wire.h>
-#include "SparkFunMPL3115A2.h"
+#include "osaMPL3115A2.h"
 
 #include "hwconfig.h"
 
 MPL3115A2 myPressure;
 PCF8583 rtc;
+void(* resetFunc) (void) = 0;
 
-const uint8_t bdf_font[42] U8X8_FONT_SECTION("font_status_line") = 
-  "\1\3\4\2\4\4\1\1\5\10\7\0\0\5\377\5\377\0\0\0\0\0\15\0\13\210\343G&\322\211t"
-  "\42\5\0\0\0\4\377\377\0";
+const uint8_t font_status_line[155] U8X8_FONT_SECTION("font_status_line") = 
+  "\22\0\2\2\3\3\2\3\4\4\5\0\0\5\377\5\377\0\0\0\0\0~ \4\200d#\10\254\344T"
+  "\34\217\0%\10\253d\62j\243\0*\7\253dR\265\32-\5\213f\6.\5\311d\2/\7\253d"
+  "\253\62\2\60\7\253\344*\253\2\61\7\253\344\222\254\6\62\7\253\344\232)\15\63\10\253df\312`\1"
+  "\64\10\253d\222\32\261\0\65\10\253dF\324`\1\66\7\253\344\246j\1\67\10\253df*#\0\70"
+  "\7\253\344Vk\1\71\7\253\344Zr\1:\6\341db\0\0\0\0\4\377\377\0";
 
 char buf8[8];
 char buf16[16];
 char buf32[32];
-int step = 0;
-int powerMode = 0;
+byte step = 0;
+byte powerMode = 0;
+byte wakeCondition = 0;
 
 void DoDrawStr(byte x, byte y, char *buf) {
   u8g2.firstPage();
@@ -43,20 +48,23 @@ void ShowText(const byte x, const byte y, const char* text, bool grow = true)
 }
 
 void SleepForewer() {
+  digitalWrite(PIN_G, 0);
   u8g2.setFont(u8g2_font_helvB10_tr);
   char *sayonara = PSTR("Sayonara )");
+  digitalWrite(PIN_R, 1);
   ShowText(0, 24, sayonara);
   delay(3000);
   for (byte i = 0; i < 5; ++i) {
     DoDrawStr(0, 24, "");
+    digitalWrite(PIN_R, 0);
     delay(200);
+    digitalWrite(PIN_R, 1);
     ShowText(0, 24, sayonara, false);
     delay(200);
   }
   
   digitalWrite(PIN_HWPWR, 0);
   digitalWrite(PIN_R, 0);
-  digitalWrite(PIN_G, 0);
   digitalWrite(PIN_B, 0);
   digitalWrite(PIN_LIGHT, 1);
   digitalWrite(PIN_SOUND, 0);
@@ -72,11 +80,33 @@ void SleepForewer() {
   // Enable interrupt pin to wake me
   pinMode(PIN_INTERRUPT, INPUT_PULLUP);
 
-  LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
+  do {
+    attachInterrupt(digitalPinToInterrupt(7), wake, LOW);
+    LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
+    detachInterrupt(digitalPinToInterrupt(7));
+  } while (!wakeCondition);
+  resetFunc();
 }
 
 void wake ()
 {
+  wakeCondition = 0;
+  // Determine wake condition
+  pinMode(PIN_BTN1, INPUT_PULLUP);
+  delay(20);
+  if (!digitalRead(PIN_BTN1)) {
+    // Wake by awake button
+    digitalWrite(PIN_B, 1);
+    for (byte i = 0; i < 150; ++i) {
+      if (digitalRead(PIN_BTN1)) {
+        digitalWrite(PIN_B, 0);
+        return;
+      }
+      delay(20);
+    }
+    digitalWrite(PIN_B, 0);
+    wakeCondition = 1;
+  }
 }
 
 void setup() {
@@ -109,17 +139,6 @@ void setup() {
   pinMode(PIN_BTN3, INPUT_PULLUP);
 }
 
-//void testLED()
-//{
-//  for (byte i = 7; i < 8; i--)
-//  {
-//    digitalWrite(PIN_R, i & 1);
-//    digitalWrite(PIN_G, (i >> 1) & 1);
-//    digitalWrite(PIN_B, (i >> 2) & 1);
-//    delay(2000);
-//  }
-//}
-
 void loop() {
 /*
   rtc.day = 3;
@@ -128,25 +147,13 @@ void loop() {
   rtc.hour = 11;
   rtc.minute = 33;
   rtc.set_time();
-*/  
-  float zeroAltitude = 0.0;
+*/
+
+  int zeroAltitude = 0;
   EEPROM.get(0, zeroAltitude);
   
-  float lastShownAltitude = 0.0f;
+  int lastShownAltitude = 0;
   byte backLight = 0;
-
-  pinMode(PIN_SOUND, OUTPUT);
-  tone(PIN_SOUND, 440);
-  delay(250);
-  noTone(PIN_SOUND);
-
-//  delay(3000);
-//  Serial.println("OpenAltimeter boolstrap loader v0.1");  // Print "Hello World" to the Serial Monitor
-//  delay(2000);
-
-  // LED test
-//  Serial.println("LED test");  // Print "Hello World" to the Serial Monitor
-//  testLED();
 
 /*
   Serial.println("Scanning I2C Bus...");
@@ -175,27 +182,42 @@ void loop() {
   float battVoltage;
 
   u8g2.setFont(u8g2_font_helvB10_tr);
+  digitalWrite(PIN_G, 1);
   ShowText(0, 24, PSTR("Ni Hao!"));
   delay(3000);
+  digitalWrite(PIN_G, 0);
 
   int batt = 0;
   
   do {
-    float altitude = myPressure.readAltitude();
+
+    int altitude = myPressure.readAltitude();
     if (! digitalRead(PIN_BTN2)) {
       zeroAltitude = altitude;
       EEPROM.put(0, zeroAltitude);
       lastShownAltitude = 0;
+      digitalWrite(PIN_G, 1);
       while (!digitalRead(PIN_BTN2)); // wait for button release
+      digitalWrite(PIN_G, 0);
     }
     altitude -= zeroAltitude;
 
-    if (abs(altitude - lastShownAltitude) >= 2) {
+    if ((step & 31) == 0) {
+      batt = analogRead(A0);
+      lastShownAltitude = 0;
+    }
+    if (step > 180)
+      powerMode = 1;
+      
+    short rel_voltage = (short)round((batt-188)*3.23f);
+    if (rel_voltage < 0) rel_voltage = 0;
+    if (rel_voltage > 100) rel_voltage = 100;
+
+    int altDiff = altitude - lastShownAltitude;
+    if (altDiff > 1 || altDiff < -1) {
       lastShownAltitude = altitude;
     }
   
-    int temperature = (int)myPressure.readTemp();
-
     if (!digitalRead(PIN_BTN1)) {
       backLight = !backLight;
       digitalWrite(PIN_LIGHT, !backLight);
@@ -204,48 +226,42 @@ void loop() {
 
     if (!digitalRead(PIN_BTN3)) {
       unsigned long millis1 = millis();
+      digitalWrite(PIN_G, 1);
       while (!digitalRead(PIN_BTN3)){
         // wait for button release
         delay(50);
-        if ((millis() - millis1) > 5000)
-        SleepForewer();
+        if ((millis() - millis1) > 5000) {
+          SleepForewer();
+        }
       }
+      digitalWrite(PIN_G, 0);
       powerMode = !powerMode;
+      step = 0;
     }
-
-    if ((step & 31) == 0) {
-      batt = analogRead(A0);
-      battVoltage = (4.20 * (float)batt) / 219;
-    }
-    short rel_voltage = (short)round(((battVoltage - 3.6) / (4.20 - 3.6)) * 100);
-    if (rel_voltage < 0) rel_voltage = 0;
-    if (rel_voltage > 100) rel_voltage = 100;
 
     rtc.get_time();
 
     u8g2.firstPage();
     do {
-      u8g2.setFont(u8g2_font_4x6_tn);
+      u8g2.setFont(font_status_line);
       u8g2.setCursor(0,6);
       sprintf(buf32, "%02d.%02d.%04d %02d%c%02d",
         rtc.day, rtc.month, rtc.year, rtc.hour, rtc.second & 1 ? ' ' : ':', rtc.minute);
       u8g2.print(buf32);
       u8g2.setCursor(u8g2.getDisplayWidth() - 16, 6);
-      sprintf(buf8, "%3d%c", rel_voltage, powerMode ? '*' : '-');
+      sprintf(buf8, "%3d%c", rel_voltage, powerMode ? '#' : '%');
       u8g2.print(buf8);
       
 //      u8g2.setFont(u8g2_font_5x7_t_cyrillic);
       u8g2.setFont(u8g2_font_logisoso30_tn);
       
-      sprintf(buf8, "%4d", (int)round(lastShownAltitude));
+      sprintf(buf8, "%4d", lastShownAltitude);
       u8g2.setCursor(0,40);
       u8g2.print(buf8);
 
-      dtostrf(battVoltage, 4, 2, buf16);
-      sprintf(buf32, "%d %s %d", batt, buf16, temperature);
-      u8g2.setFont(u8g2_font_4x6_tn);
+      u8g2.setFont(font_status_line);
       u8g2.setCursor(0,47);
-      u8g2.print(buf32);
+      u8g2.print(batt);
 
     } while ( u8g2.nextPage() );
     
@@ -257,7 +273,6 @@ void loop() {
     else
       delay(500);
       
-    //detachInterrupt(WAKE_INTERRUPT);
     step++;
   } while(1);
 }
