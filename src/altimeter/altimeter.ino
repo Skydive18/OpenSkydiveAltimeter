@@ -19,11 +19,30 @@ const uint8_t font_status_line[155] U8X8_FONT_SECTION("font_status_line") =
   "\64\10\253d\222\32\261\0\65\10\253dF\324`\1\66\7\253\344\246j\1\67\10\253df*#\0\70"
   "\7\253\344Vk\1\71\7\253\344Zr\1:\6\341db\0\0\0\0\4\377\377\0";
 
+/*
+const uint8_t font_altitude[362] U8G2_FONT_SECTION("font_altitude") = 
+  "\15\0\4\4\4\5\4\5\6\21\34\0\0\34\371\34\0\0\0\0\0\1M \6\0\20\316\0-\10;"
+  "\70\317\360\301\0.\12E\26\256\42$\305\10\0\60\33\317\25\316U\60\325\232\26fV\251J\226\377\317"
+  "T\251Zc\242\315\252t\207\0\61\16\310\35\316S\223\7\17\320\324\377\377\1\62!\317\25\316e.\325"
+  "\232&eV\351*Y\11a%\213\226,i\262J\223\225\226\254\264d\321\7\37\63\37\317\25\316\360\323"
+  "\222EKVZ\262R\223\350\222\226-Z\226N\253 T\302\11#u\246\0\64!\317\25\316E\264\246"
+  "DkJ\264\246D\253 U\202\24\21BE\10\25!\364\340\273\242d\351\10\0\65\37\317\25\316\360\7"
+  "E\353T\25\233&.\314\224(\245\252,\335\246R\265\306D\233U\351\16\1\66%\317\25\316t.\325"
+  "\232\26fJ\224R\225\226\266l\232\270\60S\242\224\252d\71S\245jM\221\66\253\322\35\2\67\33\317"
+  "\25\316\360\7\304R\225 U\264\312\242\265,Z\313\242U\26\255e\321\232\1\70(\317\25\316e.\325"
+  "\232&eVi\226\225\252\22e\212\264Y\264\246I\231\22\245\64\313JU\211\62&\332\254Jh\10\0"
+  "\71\42\317\25\316e.\325\232\26fVi\226W\252J\224\61\341\244\15[\332\246R\265\306D\233U\351"
+  "\16\1\0\0\0\4\377\377\0";
+*/
+
 char buf8[8];
-char buf16[16];
 char buf32[32];
-byte step = 0;
+byte bstep = 0;
 byte powerMode = 0;
+int altitude;
+int zeroAltitude;
+int lastShownAltitude = 0;
+byte backLight = 0;
 
 void DoDrawStr(byte x, byte y, char *buf) {
   u8g2.firstPage();
@@ -35,17 +54,13 @@ void DoDrawStr(byte x, byte y, char *buf) {
 void ShowText(const byte x, const byte y, const char* text, bool grow = true)
 {
   byte maxlen = strlen_P(text);
-  if (!maxlen)
-    return;
-  char *buf = new char[maxlen+1];
   for (byte i = (grow ? 1 : maxlen); i <= maxlen; i++) {
-    strncpy_P(buf, text, i);
-    buf[i] = 0;
-    DoDrawStr(x, y, buf);
+    strncpy_P(buf32, text, i);
+    buf32[i] = 0;
+    DoDrawStr(x, y, buf32);
     if (grow)
       delay(400);
   }
-  delete[] buf;
 }
 
 void SleepForewer() {
@@ -118,13 +133,12 @@ void setup() {
   // Turn ON hardware
   digitalWrite(PIN_HWPWR, 1);
 
-  Wire.begin();
-  u8g2.begin();
-  //u8g2.enableUTF8Print();    // enable UTF8 support for the Arduino print() function
+  u8g2.begin(PIN_BTN2, PIN_BTN3, PIN_BTN1);
+  u8g2.enableUTF8Print();    // enable UTF8 support for the Arduino print() function
   pinMode(PIN_LIGHT, OUTPUT);
   u8g2.setFont(u8g2_font_helvB10_tr);
   DISPLAY_LIGHT_ON;
-  ShowText(0, 24, PSTR("Ni Hao!"));
+  ShowText(16, 30, PSTR("Ni Hao!"));
   delay(3000);
   for (byte i = 0; i < 5; ++i) {
     LED_show(0, 80, 0, 100);
@@ -134,14 +148,31 @@ void setup() {
  
   //Configure the sensor
   myPressure.begin(); // Get sensor online
-  myPressure.setOversampleRate(5); // Set Oversample то 32
-  myPressure.enableEventFlags(); // Enable all three pressure and temp event flags 
-  myPressure.setModeAltimeter(); // Measure altitude above sea level in meters
+  myPressure.setOversampleRate(6); // Set Oversample то 64
   
   pinMode(PIN_BTN1, INPUT_PULLUP);
   pinMode(PIN_BTN2, INPUT_PULLUP);
   pinMode(PIN_BTN3, INPUT_PULLUP);
 }
+
+void userMenu() {
+  u8g2.setFont(u8g2_font_5x8_t_cyrillic);
+  short event = u8g2.userInterfaceSelectionList("Меню", 1, "Выход\nСброс на 0\nЖурнал прыжков\nСигналы\nНастройки");
+  switch (event) {
+    case 2: {
+      zeroAltitude = altitude;
+      rtc.save_int(0, zeroAltitude);
+      lastShownAltitude = 0;
+      break;
+    }
+    case 5: {
+      short eventSettings = u8g2.userInterfaceSelectionList("Настройки", 1, "Выход\nВремя\nДата\nБудильник\nТекущая высота\nАвтовыключение");
+    }
+    default:
+      break;
+  }
+}
+
 
 void loop() {
 /*
@@ -152,12 +183,9 @@ void loop() {
   rtc.minute = 33;
   rtc.set_time();
 */
-  int zeroAltitude = 0;
-  EEPROM.get(0, zeroAltitude);
+  zeroAltitude = rtc.load_int(0);
+  //EEPROM.get(0, zeroAltitude);
   
-  int lastShownAltitude = 0;
-  byte backLight = 0;
-
 /*
   Serial.println("Scanning I2C Bus...");
   int i2cCount = 0;
@@ -183,21 +211,20 @@ void loop() {
   int batt = 0;
   
   do {
-    int altitude = myPressure.readAltitude();
+    altitude = myPressure.readAltitude();
+
     if (BTN2_PRESSED) {
-      zeroAltitude = altitude;
-      EEPROM.put(0, zeroAltitude);
-      lastShownAltitude = 0;
-      LED_show(0, 80, 0, 300);
+      LED_show(0, 80, 0, 200);
       while (BTN2_PRESSED); // wait for button release
+      userMenu();
     }
     altitude -= zeroAltitude;
 
-    if ((step & 31) == 0) {
+    if ((bstep & 31) == 0) {
       batt = analogRead(A0);
       lastShownAltitude = 0;
     }
-    if (step > 180)
+    if (bstep > 180)
       powerMode = 1;
       
     short rel_voltage = (short)round((batt-188)*3.23f);
@@ -229,7 +256,7 @@ void loop() {
         }
       }
       powerMode = !powerMode;
-      step = 0;
+      bstep = 0;
     }
 
     rtc.get_time();
@@ -239,22 +266,25 @@ void loop() {
       u8g2.setFont(font_status_line);
       u8g2.setCursor(0,6);
       sprintf(buf32, "%02d.%02d.%04d %02d%c%02d",
-        rtc.day, rtc.month, rtc.year, rtc.hour, rtc.second & 1 ? ' ' : ':', rtc.minute);
+        rtc.day, rtc.month, rtc.year, rtc.hour, bstep & 1 ? ' ' : ':', rtc.minute);
       u8g2.print(buf32);
-      u8g2.setCursor(u8g2.getDisplayWidth() - 16, 6);
+      u8g2.setCursor(DISPLAY_WIDTH - 16, 6);
       sprintf(buf8, "%3d%c", rel_voltage, powerMode ? '#' : '%');
       u8g2.print(buf8);
+      u8g2.drawHLine(0, 7, DISPLAY_WIDTH-1);
       
 //      u8g2.setFont(u8g2_font_5x7_t_cyrillic);
-      u8g2.setFont(u8g2_font_logisoso30_tn);
+//      u8g2.setFont(u8g2_font_logisoso30_tn);
+      u8g2.setFont(u8g2_font_logisoso28_tn);
       
       sprintf(buf8, "%4d", lastShownAltitude);
-      u8g2.setCursor(0,40);
+      u8g2.setCursor(0,38);
       u8g2.print(buf8);
+      u8g2.drawHLine(0, DISPLAY_HEIGHT-8, DISPLAY_WIDTH-1);
 
-      u8g2.setFont(font_status_line);
-      u8g2.setCursor(0,47);
-      u8g2.print(batt);
+//      u8g2.setFont(font_status_line);
+//      u8g2.setCursor(0,47);
+//      u8g2.print(batt);
 
     } while ( u8g2.nextPage() );
     
@@ -266,6 +296,6 @@ void loop() {
     else
       delay(500);
       
-    step++;
+    bstep++;
   } while(1);
 }

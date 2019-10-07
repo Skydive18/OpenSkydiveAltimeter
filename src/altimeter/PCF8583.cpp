@@ -131,6 +131,23 @@ void PCF8583::set_daily_alarm() {
   Wire.endTransmission();
 }
 
+void PCF8583::save_int(const byte &address, const int &data) {
+  Wire.beginTransmission(0x50);
+  Wire.write(0x12+address);
+  Wire.write(data);
+  Wire.write(data >> 8);
+  Wire.endTransmission();
+}
+
+int PCF8583::load_int(const byte &address) {
+  Wire.beginTransmission(0x50);
+  Wire.write(0x12+address);
+  Wire.endTransmission();
+  Wire.requestFrom(0x50, 2);
+  return (Wire.read() | (Wire.read() << 8));
+}
+
+
 short PCF8583::bcd_to_short(byte bcd){
   return ((bcd >> 4) * 10) + (bcd & 0x0f);
 }

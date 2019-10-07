@@ -34,6 +34,9 @@ class PCF8583 {
     void set_daily_alarm();
     short bcd_to_short(byte bcd);
     byte int_to_bcd(short in);
+
+    void save_int(const byte &address, const int &data);
+    int load_int(const byte &address);
 };
 
 

@@ -46,6 +46,8 @@ MPL3115A2::MPL3115A2()
 void MPL3115A2::begin(void)
 {
   Wire.begin();
+  IIC_Write(CTRL_REG1, IIC_Read(CTRL_REG1) | 0x80);
+  IIC_Write(PT_DATA_CFG, 0x07);  
 }
 
 
@@ -138,6 +140,7 @@ float MPL3115A2::readPressure()
 }
 */
 
+/*
 float MPL3115A2::readTemp()
 {
     if(IIC_Read(STATUS) & (1<<1) == 0) toggleOneShot(); //Toggle the OST bit causing the sensor to immediately take another reading
@@ -189,6 +192,7 @@ float MPL3115A2::readTemp()
     
     return(temperature);
 }
+*/
 
 /*
 //Give me temperature in fahrenheit!
@@ -208,16 +212,6 @@ void MPL3115A2::setModeBarometer()
   IIC_Write(CTRL_REG1, tempSetting);
 }
 */
-
-//Sets the mode to Altimeter
-//CTRL_REG1, ALT bit
-void MPL3115A2::setModeAltimeter()
-{
-  byte tempSetting = IIC_Read(CTRL_REG1); //Read current settings
-  tempSetting |= (1<<7); //Set ALT bit
-  IIC_Write(CTRL_REG1, tempSetting);
-}
-
 
 //Puts the sensor in standby mode
 //This is needed so that we can modify the major control registers
@@ -250,13 +244,6 @@ void MPL3115A2::setOversampleRate(byte sampleRate)
   tempSetting &= B11000111; //Clear out old OS bits
   tempSetting |= sampleRate; //Mask in new OS bits
   IIC_Write(CTRL_REG1, tempSetting);
-}
-
-//Enables the pressure and temp measurement event flags so that we can
-//test against them. This is recommended in datasheet during setup.
-void MPL3115A2::enableEventFlags()
-{
-  IIC_Write(PT_DATA_CFG, 0x07); // Enable all three pressure and temp event flags 
 }
 
 //Clears then sets the OST bit which causes the sensor to immediately take another reading
@@ -292,4 +279,3 @@ void MPL3115A2::IIC_Write(byte regAddr, byte value)
   Wire.write(value);
   Wire.endTransmission(true);
 }
-
