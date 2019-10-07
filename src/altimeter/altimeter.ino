@@ -44,6 +44,38 @@ int zeroAltitude;
 int lastShownAltitude = 0;
 byte backLight = 0;
 
+struct {
+  float battGranulationF;
+  unsigned int battGranulationD;
+  unsigned short jumpCount; // 0-100
+  unsigned short nextJumpPtr; // Pointer to next stored jump if count == 100
+} settings;
+
+typedef struct {
+  // Timestamp
+  uint32_t month  : 4;   // 1..12 [4 bits]
+  uint32_t date   : 5;   // 1..31 [5 bits]
+  uint32_t hour   : 5;   // 00..23 [5 bits]
+  uint32_t minute : 6;   // 00..59 [6 bits]
+  uint32_t second : 6;   // 00..59 [6 bits]  
+  // Jump data
+  uint32_t exitAltitude : 11; // Exit altitude / 4, meters (0..8191)
+  uint32_t deployAltitude : 11; // Deploy altitude / 4, meters (0..8191)
+  uint32_t freefallTime : 10; // Freefall time, seconds (0..512)
+  unsigned short maxFreefallSpeedMS; // Max freefall speed, m/s
+} JUMP; // structure size: 9 bytes
+
+typedef struct {
+  byte blue_th;
+  byte green_th;
+  byte yellow_th;
+  byte red_th;
+} LED_PROFILE;
+
+#define LED_PROFILES_START 100
+#define JOURNAL_START 124
+
+
 void DoDrawStr(byte x, byte y, char *buf) {
   u8g2.firstPage();
   do {
@@ -77,6 +109,8 @@ void SleepForewer() {
   }
   
   DISPLAY_LIGHT_OFF;
+
+  rtc.disableSeedInterrupt();
   
   digitalWrite(PIN_HWPWR, 0);
   digitalWrite(PIN_SOUND, 0);
@@ -100,7 +134,9 @@ void SleepForewer() {
   resetFunc();
 }
 
-void wake() {}
+void wake() {
+
+}
 
 byte checkWakeCondition ()
 {
@@ -119,6 +155,8 @@ byte checkWakeCondition ()
     }
     return 1;
   }
+
+  return 0;
 }
 
 void setup() {
@@ -132,6 +170,7 @@ void setup() {
 
   // Turn ON hardware
   digitalWrite(PIN_HWPWR, 1);
+  rtc.begin();
 
   u8g2.begin(PIN_BTN2, PIN_BTN3, PIN_BTN1);
   u8g2.enableUTF8Print();    // enable UTF8 support for the Arduino print() function
@@ -153,11 +192,13 @@ void setup() {
   pinMode(PIN_BTN1, INPUT_PULLUP);
   pinMode(PIN_BTN2, INPUT_PULLUP);
   pinMode(PIN_BTN3, INPUT_PULLUP);
+
+  pinMode(PIN_INTERRUPT, INPUT_PULLUP);
 }
 
 void userMenu() {
   u8g2.setFont(u8g2_font_5x8_t_cyrillic);
-  short event = u8g2.userInterfaceSelectionList("Меню", 1, "Выход\nСброс на 0\nЖурнал прыжков\nСигналы\nНастройки");
+  short event = u8g2.userInterfaceSelectionList("Меню", 1, "Выход\nСброс на ноль\nЖурнал прыжков\nСигналы\nНастройки\nВыключение");
   switch (event) {
     case 2: {
       zeroAltitude = altitude;
@@ -167,7 +208,10 @@ void userMenu() {
     }
     case 5: {
       short eventSettings = u8g2.userInterfaceSelectionList("Настройки", 1, "Выход\nВремя\nДата\nБудильник\nТекущая высота\nАвтовыключение");
+      break;
     }
+    case 6:
+      SleepForewer();
     default:
       break;
   }
@@ -242,6 +286,7 @@ void loop() {
       while (BTN1_PRESSED); // wait for button release
     }
 
+/*
     if (BTN3_PRESSED) {
       LED_show(0, 80, 0, 300);
       byte i = 0;
@@ -258,6 +303,7 @@ void loop() {
       powerMode = !powerMode;
       bstep = 0;
     }
+*/
 
     rtc.get_time();
 
@@ -269,7 +315,7 @@ void loop() {
         rtc.day, rtc.month, rtc.year, rtc.hour, bstep & 1 ? ' ' : ':', rtc.minute);
       u8g2.print(buf32);
       u8g2.setCursor(DISPLAY_WIDTH - 16, 6);
-      sprintf(buf8, "%3d%c", rel_voltage, powerMode ? '#' : '%');
+      sprintf(buf8, "%3d%%", rel_voltage);
       u8g2.print(buf8);
       u8g2.drawHLine(0, 7, DISPLAY_WIDTH-1);
       
@@ -284,17 +330,20 @@ void loop() {
 
 //      u8g2.setFont(font_status_line);
 //      u8g2.setCursor(0,47);
-//      u8g2.print(batt);
+//      u8g2.print(rtc.ssecond);
 
     } while ( u8g2.nextPage() );
     
     //delay(500);
     //attachInterrupt(WAKE_INTERRUPT, wakeUp, LOW);
     
-    if (powerMode)
-      LowPower.powerDown(SLEEP_500MS, ADC_OFF, BOD_OFF);
-    else
-      delay(500);
+    if (!powerMode) {
+      rtc.enableSeedInterrupt();
+    }
+    attachInterrupt(digitalPinToInterrupt(7), wake, LOW);
+    LowPower.powerDown(SLEEP_4S, ADC_OFF, BOD_OFF);
+    detachInterrupt(digitalPinToInterrupt(7));
+    rtc.disableSeedInterrupt();
       
     bstep++;
   } while(1);

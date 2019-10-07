@@ -1,3 +1,5 @@
+!Charset UTF-8
+
 * Настройка Arduino IDE для поддержки Arduino Pro Micro.
 
 Статья на английском языке и все необходимые драйвера и дополнения для Arduino IDE

@@ -5,7 +5,6 @@
 #include <Wire.h>
 
 class PCF8583 {
-    short dow;
   public:
     short ssecond;
     short second;
@@ -21,15 +20,17 @@ class PCF8583 {
     short alarm_hour;
     short alarm_day;
 
+    void enableSeedInterrupt();
+    void disableSeedInterrupt();
+    bool seedInterruptOccur();
+    
     PCF8583();
+    void begin();
     void init ();
     
     void get_time();
     void set_time();
     void get_alarm();
-    short get_day_of_week() const {
-      return dow;
-    }    
 
     void set_daily_alarm();
     short bcd_to_short(byte bcd);
@@ -37,7 +38,14 @@ class PCF8583 {
 
     void save_int(const byte &address, const int &data);
     int load_int(const byte &address);
+private:
+    byte status_register;
+    byte readStatusRegister();
+    byte alarm_register;
+    void writeAlarmControlRegister();
+    // seed-generator related
+    byte seed_id; // : 1;
 };
 
 
-#endif  //PCF8583_H
+#endif  // __in_PCF8583_h
