@@ -1,7 +1,9 @@
 #ifndef __in_hwconfig_inc
 #define __in_hwconfig_inc
 
-// Pins
+#define EPOCH 2016
+
+// Pins for Arduino Pro Micro
 #define PIN_HWPWR 8
 #define PIN_LIGHT 4
 #define PIN_R 6
@@ -13,7 +15,11 @@
 #define PIN_BAT_SENSE A0
 #define PIN_SOUND 5
 #define PIN_INTERRUPT 7
-#define WAKE_INTERRUPT 6
+
+// Address of LED profiles in NVRAM
+#define LED_PROFILES_START 100
+// Address of logbook in NVRAM
+#define LOGBOOK_START 124
 
 // Configure RGB LED. Define one of the following
 #define LED_COMMON_CATHODE

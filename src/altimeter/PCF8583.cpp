@@ -9,20 +9,20 @@ namespace {
 }
 
 PCF8583::PCF8583() {
-  status_register = 0;
-  alarm_register = 0;
+    status_register = 0;
+    alarm_register = 0;
 }
 
 void PCF8583::begin() {
-  Wire.begin();
+    Wire.begin();
 }
 
 // initialization 
 void PCF8583::init() {
-  Wire.beginTransmission(0x50);
-  Wire.write(0x00);
-  Wire.write(status_register);   // Set alarm on int\ will turn to vcc
-  Wire.endTransmission();
+    Wire.beginTransmission(0x50);
+    Wire.write(0x00);
+    Wire.write(status_register);   // Set alarm on int\ will turn to vcc
+    Wire.endTransmission();
 }
 
 void PCF8583::get_time() {
@@ -47,7 +47,6 @@ void PCF8583::get_time() {
   Wire.write(0x10);
   Wire.endTransmission();
   Wire.requestFrom(0x50, 2);
-  year_base = 0;
   year_base = Wire.read();
   year_base = year_base << 8;
   year_base = year_base | Wire.read();
@@ -113,18 +112,18 @@ bool PCF8583::seedInterruptOccur() {
 }
 
 byte PCF8583::readStatusRegister() {
-  Wire.beginTransmission(0x50);
-  Wire.write(0x00);
-  Wire.endTransmission();
-  Wire.requestFrom(0x50, 1);
-  return Wire.read();
+    Wire.beginTransmission(0x50);
+    Wire.write(0x00);
+    Wire.endTransmission();
+    Wire.requestFrom(0x50, 1);
+    return Wire.read();
 }
 
 void PCF8583::writeAlarmControlRegister() {
-  Wire.beginTransmission(0x50);
-  Wire.write(0x08);
-  Wire.write(alarm_register);
-  Wire.endTransmission();
+    Wire.beginTransmission(0x50);
+    Wire.write(0x08);
+    Wire.write(alarm_register);
+    Wire.endTransmission();
 }
 
 //Get the alarm at 0x09 adress
@@ -162,26 +161,26 @@ void PCF8583::set_daily_alarm() {
 }
 
 void PCF8583::save_int(const byte &address, const int &data) {
-  Wire.beginTransmission(0x50);
-  Wire.write(0x12+address);
-  Wire.write(data);
-  Wire.write(data >> 8);
-  Wire.endTransmission();
+    Wire.beginTransmission(0x50);
+    Wire.write(0x12+address);
+    Wire.write(data);
+    Wire.write(data >> 8);
+    Wire.endTransmission();
 }
 
 int PCF8583::load_int(const byte &address) {
-  Wire.beginTransmission(0x50);
-  Wire.write(0x12+address);
-  Wire.endTransmission();
-  Wire.requestFrom(0x50, 2);
-  return (Wire.read() | (Wire.read() << 8));
+    Wire.beginTransmission(0x50);
+    Wire.write(0x12+address);
+    Wire.endTransmission();
+    Wire.requestFrom(0x50, 2);
+    return (Wire.read() | (Wire.read() << 8));
 }
 
 
 short PCF8583::bcd_to_short(byte bcd){
-  return ((bcd >> 4) * 10) + (bcd & 0x0f);
+    return ((bcd >> 4) * 10) + (bcd & 0x0f);
 }
 
 byte PCF8583::int_to_bcd(short in){
-  return ((in / 10) << 4) + (in % 10);
+    return ((in / 10) << 4) + (in % 10);
 }
