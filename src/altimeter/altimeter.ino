@@ -49,13 +49,14 @@ uint32_t bstep = 0; // global heartbeat counter
 uint32_t bstepInCurrentMode; //heartbeat counter since mode changed
 byte vspeedPtr = 0; // pointer to write to vspeed buffer
 int currentVspeed;
-short averageSpeed;
+short averageSpeed8;
 short averageSpeed32;
 short averageSpeed2;
 
 // ********* Main power move flag
 byte powerMode;
 byte previousPowerMode;
+bool INTACK;
 
 int altitude; // currently measured altitude, relative to zeroAltitude
 int previousAltitude; // Previously measured altitude, relative to zeroAltitude
@@ -89,13 +90,13 @@ bool processAltitudeChange() {
     else
         currentVspeed /= 4; // 4s granularity
     vspeed[vspeedPtr & (VSPEED_LENGTH - 1)] = (short)currentVspeed;
-    averageSpeed = (powerMode != MODE_PREFILL) ? getAverageVspeed(8) : 0;
+    vspeedPtr++;
+    averageSpeed8 = (powerMode != MODE_PREFILL) ? getAverageVspeed(8) : 0;
     averageSpeed2 = (powerMode != MODE_PREFILL) ? getAverageVspeed(2) : 0;
     averageSpeed32 = (powerMode != MODE_PREFILL) ? getAverageVspeed(32) : 0;
-    vspeedPtr++;
 
     // Strictly set freefall in automatic modes if vspeed < freefall_th
-    if (powerMode != MODE_DUMB && powerMode != MODE_PREFILL && powerMode != MODE_FREEFALL && averageSpeed < -25) {
+    if (powerMode != MODE_DUMB && powerMode != MODE_PREFILL && powerMode != MODE_FREEFALL && averageSpeed8 < -25) {
         powerMode = MODE_FREEFALL;
         return true;
     }
@@ -113,7 +114,7 @@ bool processAltitudeChange() {
         
         case MODE_ON_EARTH:
             // Altitude granularity is 4s
-            if ( (altitude > 250) || (altitude > 30 && averageSpeed > 1) )
+            if ( (altitude > 250) || (altitude > 30 && averageSpeed8 > 1) )
                 powerMode = MODE_IN_AIRPLANE;
             else
                 break;
@@ -193,7 +194,7 @@ void ShowLEDs(bool powerModeChanged) {
                     if (altitude > 900) {
                         LED_show(0, (bstep & 15) ? 0 : 255, 0); // green blinks once per 8s above 900m
                     } else {
-                        LED_show((bstep & 15) ? 0 : 255, (bstep & 15) ? 0 : 160, 0); // yellow blinks once per 8s between 300m and 900m
+                        LED_show((bstep & 15) ? 0 : 255, (bstep & 15) ? 0 : 80, 0); // yellow blinks once per 8s between 300m and 900m
                     }
                 }
             } else {
@@ -215,6 +216,13 @@ void ShowLEDs(bool powerModeChanged) {
         case MODE_PREFILL:
             LED_show((bstep & 3) ? 0 : 255, 0, 0); // red blinks once per 2s until prefill finished
             return;
+
+        case MODE_ON_EARTH:
+            if (bstepInCurrentMode < 8) {
+                LED_show(0, (bstepInCurrentMode & 1) ? 0 : 80, 0); // green blinks to indicate that altimeter is ready
+                return;
+            }
+            break;
     }
 
     airplane_300m = 0;
@@ -280,7 +288,7 @@ void SleepForever() {
     resetFunc();
 }
 
-void wake() {}
+void wake() { INTACK = true; }
 
 byte checkWakeCondition ()
 {
@@ -345,7 +353,7 @@ void setup() {
 
     //Configure the sensor
     myPressure.begin(); // Get sensor online
-    myPressure.setOversampleRate(6); // Set Oversample то 64
+    myPressure.setOversampleRate(5);
 
     // Configure keyboard
     pinMode(PIN_BTN1, INPUT_PULLUP);
@@ -366,10 +374,6 @@ void setup() {
     DISPLAY_LIGHT_ON;
     ShowText(16, 30, PSTR("Ni Hao!"));
     off_4s;
-    for (byte i = 0; i < 5; ++i) {
-        LED_show(0, 80, 0, 100);
-        off_250ms;
-    }
     DISPLAY_LIGHT_OFF;
 }
 
@@ -427,7 +431,7 @@ void loop() {
     previousPowerMode = powerMode;
 
     // Backlight button
-    if (BTN1_PRESSED) {
+    if (BTN1_PRESSED && BTN2_RELEASED) {
         backLight = !backLight;
         digitalWrite(PIN_LIGHT, !backLight);
         while (BTN1_PRESSED); // wait for button release
@@ -454,43 +458,8 @@ void loop() {
     
     // Jitter compensation
     int altDiff = altitude - lastShownAltitude;
-    if (altDiff > 2 || altDiff < -2 || averageSpeed > 1 || averageSpeed < -1) {
+    if (altDiff > 2 || altDiff < -2 || averageSpeed8 > 1 || averageSpeed8 < -1)
         lastShownAltitude = altitude;
-    }
-
-    u8g2.firstPage();
-    do {
-        u8g2.setFont(font_status_line);
-        u8g2.setCursor(0,6);
-        sprintf_P(bigbuf, PSTR("%02d.%02d.%04d %02d%c%02d"), rtc.day, rtc.month, rtc.year, rtc.hour, bstep & 1 ? ' ' : ':', rtc.minute);
-        u8g2.print(bigbuf);
-        u8g2.setCursor(DISPLAY_WIDTH - 16, 6);
-        sprintf_P(buf8, PSTR("%3d%%"), rel_voltage);
-        u8g2.print(buf8);
-
-        u8g2.drawHLine(0, 7, DISPLAY_WIDTH-1);
-
-        u8g2.setFont(font_altitude);
-        sprintf_P(buf8, PSTR("%4d"), lastShownAltitude);
-        u8g2.setCursor(0,38);
-        u8g2.print(buf8);
-
-        u8g2.drawHLine(0, DISPLAY_HEIGHT-8, DISPLAY_WIDTH-1);
-
-        sprintf_P(buf8, PSTR("-%1d- % 3d % 3d % 3d % 3d"), powerMode, currentVspeed, averageSpeed, averageSpeed2, averageSpeed32);
-        u8g2.setFont(font_status_line);
-        u8g2.setCursor(0,47);
-        u8g2.print(buf8);
-
-    } while ( u8g2.nextPage() );
-  
-    if (powerMode /*!= ON_EARTH*/) {
-        rtc.enableSeedInterrupt();
-    }
-    attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
-    LowPower.powerDown(SLEEP_4S, ADC_OFF, BOD_OFF);
-    detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
-    rtc.disableSeedInterrupt();
 
     bool powerModeChanged = processAltitudeChange() || (powerMode != previousPowerMode);
     if (powerModeChanged)
@@ -500,5 +469,56 @@ void loop() {
 
     ShowLEDs(powerModeChanged);
 
+    if (!powerMode || (bstep & 1))
+    // Refresh display once per second
+    {
+        u8g2.firstPage();
+        do {
+            u8g2.setFont(font_status_line);
+            u8g2.setCursor(0,6);
+            sprintf_P(bigbuf, PSTR("%02d.%02d.%04d %02d%c%02d"), rtc.day, rtc.month, rtc.year, rtc.hour, bstepInCurrentMode & 2 ? ' ' : ':', rtc.minute);
+            u8g2.print(bigbuf);
+            u8g2.setCursor(DISPLAY_WIDTH - 16, 6);
+            sprintf_P(buf8, PSTR("%3d%%"), rel_voltage);
+            u8g2.print(buf8);
+    
+            u8g2.drawHLine(0, 7, DISPLAY_WIDTH-1);
+    
+            u8g2.setFont(font_altitude);
+            sprintf_P(buf8, PSTR("%4d"), lastShownAltitude);
+            u8g2.setCursor(0,38);
+            u8g2.print(buf8);
+    
+            u8g2.drawHLine(0, DISPLAY_HEIGHT-8, DISPLAY_WIDTH-1);
+    
+            sprintf_P(buf8, PSTR("-%1d- % 3d % 3d % 3d % 3d"), powerMode, currentVspeed, averageSpeed2, averageSpeed8, averageSpeed32);
+            u8g2.setFont(font_status_line);
+            u8g2.setCursor(0,47);
+            u8g2.print(buf8);
+    
+        } while ( u8g2.nextPage() );
+    }
+  
+    if (powerMode /*!= ON_EARTH*/ || bstepInCurrentMode < 50) {
+        rtc.enableSeedInterrupt();
+    } else {
+        bstep += 7; // 4s granularity
+    }
+
+    INTACK = false;
+    attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
+    if (IsPWMActive()) {
+        // When PWM led control is active, we cannot go into power down mode -
+        // it will stop timers and break PWM control.
+        for (int intcounter = 0; intcounter < 800; ++intcounter) {
+            if (INTACK)
+                break;
+            delay(5);
+        }
+    } else {
+        off_4s;
+    }
+    detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
+    rtc.disableSeedInterrupt();
     bstep++;
 }

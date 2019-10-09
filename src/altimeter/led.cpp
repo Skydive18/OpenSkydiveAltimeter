@@ -2,6 +2,8 @@
 #include "hwconfig.h"
 #include "led.h"
 
+bool pwm_active = false;
+
 #ifdef LED_COMMON_CATHODE
 void LED_showOne(byte pin, byte color) {
     if (color == 0) {
@@ -10,6 +12,7 @@ void LED_showOne(byte pin, byte color) {
         digitalWrite(pin, 1);
     } else {
         analogWrite(pin, color);
+        pwm_active = true;
     }
 }
 #else
@@ -27,6 +30,7 @@ void LED_showOne(byte pin, byte color) {
 #endif
 
 void LED_show(byte red, byte green, byte blue, int delayMs = 0) {
+    pwm_active = false;
     LED_showOne(PIN_R, red);
     LED_showOne(PIN_G, green);
     LED_showOne(PIN_B, blue);
@@ -35,6 +39,7 @@ void LED_show(byte red, byte green, byte blue, int delayMs = 0) {
         LED_showOne(PIN_R, 0);
         LED_showOne(PIN_G, 0);
         LED_showOne(PIN_B, 0);
+        pwm_active = false;
     }
 }
 
@@ -43,4 +48,8 @@ void LED_init() {
     pinMode(PIN_G, OUTPUT);
     pinMode(PIN_B, OUTPUT);
     LED_show(0, 0, 0);
+}
+
+bool IsPWMActive() {
+    return pwm_active;
 }
