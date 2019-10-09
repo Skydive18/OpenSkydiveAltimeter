@@ -211,6 +211,10 @@ void ShowLEDs(bool powerModeChanged) {
                 LED_show(0, 0, 255); // blue ligth between 1500 and 1200m
             }
             return;
+
+        case MODE_PREFILL:
+            LED_show((bstep & 3) ? 0 : 255, 0, 0); // red blinks once per 2s until prefill finished
+            return;
     }
 
     airplane_300m = 0;
