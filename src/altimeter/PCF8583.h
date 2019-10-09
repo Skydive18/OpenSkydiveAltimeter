@@ -4,6 +4,12 @@
 #include <Arduino.h>
 #include <Wire.h>
 
+// Addressing in RAM, altimeter runtime parameters
+#define ADDR_ZERO_ALTITUDE 0x12
+#define ADDR_POWERMODE 0x14
+
+#define RTC_ADDRESS 0x50
+
 class PCF8583 {
   public:
     short ssecond;
@@ -18,11 +24,9 @@ class PCF8583 {
     short alarm_second;
     short alarm_minute;
     short alarm_hour;
-    short alarm_day;
 
     void enableSeedInterrupt();
     void disableSeedInterrupt();
-    bool seedInterruptOccur();
     
     PCF8583();
     void begin();
@@ -36,15 +40,11 @@ class PCF8583 {
     short bcd_to_short(byte bcd);
     byte int_to_bcd(short in);
 
-    void save_int(const byte &address, const int &data);
-    int load_int(const byte &address);
 private:
     byte status_register;
-    byte readStatusRegister();
     byte alarm_register;
     void writeAlarmControlRegister();
     // seed-generator related
-    byte seed_id; // : 1;
 };
 
 

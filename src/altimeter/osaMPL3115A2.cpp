@@ -34,6 +34,7 @@
 #include <Wire.h>
 
 #include "osaMPL3115A2.h"
+#include "common.h"
 
 MPL3115A2::MPL3115A2()
 {
@@ -46,8 +47,8 @@ MPL3115A2::MPL3115A2()
 void MPL3115A2::begin(void)
 {
   Wire.begin();
-  IIC_Write(CTRL_REG1, IIC_Read(CTRL_REG1) | 0x80);
-  IIC_Write(PT_DATA_CFG, 0x07);  
+  IIC_WriteByte(MPL3115A2_ADDRESS, CTRL_REG1, IIC_ReadByte(MPL3115A2_ADDRESS, CTRL_REG1) | 0x80);
+  IIC_WriteByte(MPL3115A2_ADDRESS, PT_DATA_CFG, 0x07);  
 }
 
 
@@ -59,9 +60,9 @@ int MPL3115A2::readAltitude()
 
     //Wait for PDR bit, indicates we have new pressure data
     int counter = 0;
-    while( (IIC_Read(STATUS) & (1<<1)) == 0)
+    while( (IIC_ReadByte(MPL3115A2_ADDRESS, STATUS) & (1<<1)) == 0)
     {
-        if(++counter > 600) return(-999); //Error out after max of 512ms for a read
+        if(++counter > 600) return(-998); //Error out after max of 512ms for a read
         delay(1);
     }
 
@@ -217,18 +218,18 @@ void MPL3115A2::setModeBarometer()
 //This is needed so that we can modify the major control registers
 void MPL3115A2::setModeStandby()
 {
-  byte tempSetting = IIC_Read(CTRL_REG1); //Read current settings
+  byte tempSetting = IIC_ReadByte(MPL3115A2_ADDRESS, CTRL_REG1); //Read current settings
   tempSetting &= ~(1<<0); //Clear SBYB bit for Standby mode
-  IIC_Write(CTRL_REG1, tempSetting);
+  IIC_WriteByte(MPL3115A2_ADDRESS, CTRL_REG1, tempSetting);
 }
 
 //Puts the sensor in active mode
 //This is needed so that we can modify the major control registers
 void MPL3115A2::setModeActive()
 {
-  byte tempSetting = IIC_Read(CTRL_REG1); //Read current settings
+  byte tempSetting = IIC_ReadByte(MPL3115A2_ADDRESS, CTRL_REG1); //Read current settings
   tempSetting |= (1<<0); //Set SBYB bit for Active mode
-  IIC_Write(CTRL_REG1, tempSetting);
+  IIC_WriteByte(MPL3115A2_ADDRESS, CTRL_REG1, tempSetting);
 }
 
 //Call with a rate from 0 to 7. See page 33 for table of ratios.
@@ -240,42 +241,21 @@ void MPL3115A2::setOversampleRate(byte sampleRate)
   if(sampleRate > 7) sampleRate = 7; //OS cannot be larger than 0b.0111
   sampleRate <<= 3; //Align it for the CTRL_REG1 register
   
-  byte tempSetting = IIC_Read(CTRL_REG1); //Read current settings
+  byte tempSetting = IIC_ReadByte(MPL3115A2_ADDRESS, CTRL_REG1); //Read current settings
   tempSetting &= B11000111; //Clear out old OS bits
   tempSetting |= sampleRate; //Mask in new OS bits
-  IIC_Write(CTRL_REG1, tempSetting);
+  IIC_WriteByte(MPL3115A2_ADDRESS, CTRL_REG1, tempSetting);
 }
 
 //Clears then sets the OST bit which causes the sensor to immediately take another reading
 //Needed to sample faster than 1Hz
 void MPL3115A2::toggleOneShot(void)
 {
-  byte tempSetting = IIC_Read(CTRL_REG1); //Read current settings
+  byte tempSetting = IIC_ReadByte(MPL3115A2_ADDRESS, CTRL_REG1); //Read current settings
   tempSetting &= ~(1<<1); //Clear OST bit
-  IIC_Write(CTRL_REG1, tempSetting);
+  IIC_WriteByte(MPL3115A2_ADDRESS, CTRL_REG1, tempSetting);
 
-  tempSetting = IIC_Read(CTRL_REG1); //Read current settings to be safe
+  tempSetting = IIC_ReadByte(MPL3115A2_ADDRESS, CTRL_REG1); //Read current settings to be safe
   tempSetting |= (1<<1); //Set OST bit
-  IIC_Write(CTRL_REG1, tempSetting);
-}
-
-
-// These are the two I2C functions in this sketch.
-byte MPL3115A2::IIC_Read(byte regAddr)
-{
-  // This function reads one byte over IIC
-  Wire.beginTransmission(MPL3115A2_ADDRESS);
-  Wire.write(regAddr);  // Address of CTRL_REG1
-  Wire.endTransmission(false); // Send data to I2C dev with option for a repeated start. THIS IS NECESSARY and not supported before Arduino V1.0.1!
-  Wire.requestFrom(MPL3115A2_ADDRESS, 1); // Request the data...
-  return Wire.read();
-}
-
-void MPL3115A2::IIC_Write(byte regAddr, byte value)
-{
-  // This function writes one byto over IIC
-  Wire.beginTransmission(MPL3115A2_ADDRESS);
-  Wire.write(regAddr);
-  Wire.write(value);
-  Wire.endTransmission(true);
+  IIC_WriteByte(MPL3115A2_ADDRESS, CTRL_REG1, tempSetting);
 }

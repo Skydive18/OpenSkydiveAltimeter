@@ -1,5 +1,5 @@
 #include <EEPROM.h>
-#include <LowPower.h>
+#include "powerctl.h"
 #include <SPI.h>
 #include <Wire.h>
 #include "osaMPL3115A2.h"
@@ -9,78 +9,213 @@
 #include "display.h"
 #include "fonts.h"
 #include "custom_types.h"
+#include "common.h"
 
-// Altimeter modes
-#define ON_EARTH 0
-#define IN_AIRPLANE 1
-#define FREEFALL 2
-#define UNDER_PARACHUTE 3
+// Altimeter modes (powerMode)
+#define MODE_ON_EARTH 0
+#define MODE_IN_AIRPLANE 1
+#define MODE_EXIT 2
+#define MODE_BEGIN_FREEFALL 3
+#define MODE_FREEFALL 4
+#define MODE_PULLOUT 5
+#define MODE_OPENING 6
+#define MODE_UNDER_PARACHUTE 7
+#define MODE_PREFILL 8
+#define MODE_DUMB 9
+//
+// State machine sequences
+//
+//   Dumb) DUMB -> DUMB (Show altitude only; no automatic, no logbook, etc.)
+// Normal) PREFILL -> ON_EARTH <-> IN_AIRPLANE <-> EXIT <-> BEGIN_FREEFALL -> FREEFALL <-> PULLOUT <-> OPENING -> UNDER_PARACHUTE -> ON_EARTH
+//
+// State machine points
+//
+#define EXIT_TH -7
+#define BEGIN_FREEFALL_TH -10
+#define FREEFALL_TH -15
+
+#define PULLOUT_TH -25
+#define OPENING_TH -18
+#define UNDER_PARACHUTE_TH -12
 
 MPL3115A2 myPressure;
 PCF8583 rtc;
 void(* resetFunc) (void) = 0;
 
-char buf8[8];
-char buf32[32];
-short vspeed[32]; // used in mode detector. TODO clean it in setup
-uint32_t bstep = 0;
-byte powerMode = 0;
-int altitude;
-int previousAltitude = -30000;
-int zeroAltitude;
-int lastShownAltitude = 0;
-byte backLight = 0;
-int batt;
-short rel_voltage;
+#define CLEAR_PREVIOUS_ALTITUDE -30000
+#define VSPEED_LENGTH 32
+short vspeed[VSPEED_LENGTH]; // used in mode detector. TODO clean it in setup maybe?
+uint32_t bstep = 0; // global heartbeat counter
+uint32_t bstepInCurrentMode; //heartbeat counter since mode changed
+byte vspeedPtr = 0; // pointer to write to vspeed buffer
+int currentVspeed;
+short averageSpeed;
+short averageSpeed32;
+short averageSpeed2;
+
+// ********* Main power move flag
+byte powerMode;
+byte previousPowerMode;
+
+int altitude; // currently measured altitude, relative to zeroAltitude
+int previousAltitude; // Previously measured altitude, relative to zeroAltitude
+int zeroAltitude; // Ground altitude, absolute
+int lastShownAltitude; // Last shown altitude (jitter corrected)
+byte backLight = 0; // Display backlight flag, 0=off, 1=on
+int batt; // battery voltage as it goes from sensor
+short rel_voltage; // ballery relative voltare, in percent (0-100). 0 relates to 3.6v and 100 relates to fully charged batt
+
+char buf8[48];
+char bigbuf[200];
+
 
 short getAverageVspeed(byte averageLength) {
-    byte startPtr = (byte)((bstep - averageLength)) & 31;
+    byte startPtr = (byte)((vspeedPtr - averageLength)) & (VSPEED_LENGTH - 1);
     int accumulatedVspeed = 0;
     for (byte i = 0; i < averageLength; i++)
-        accumulatedVspeed += vspeed[(startPtr + i) & 31];
+        accumulatedVspeed += vspeed[(startPtr + i) & (VSPEED_LENGTH - 1)];
     return (short)(accumulatedVspeed / averageLength);
 }
 
-short getAverageAcceleration(byte averageLength) {
-    return 0;
-}
-
 bool processAltitudeChange() {
-    if (previousAltitude == -10000) { // first run
+    if (previousAltitude == CLEAR_PREVIOUS_ALTITUDE) { // unknown delay or first run; just save
         previousAltitude = altitude;
         return false;
     }
-    int currentVspeed = altitude - previousAltitude;
+    currentVspeed = altitude - previousAltitude; // negative = fall, positive = climb
     previousAltitude = altitude;
-    if (powerMode /* != ON_EARTH*/)
+    if (powerMode /* != MODE_ON_EARTH*/)
         currentVspeed *= 2; // 500ms granularity
     else
         currentVspeed /= 4; // 4s granularity
-    vspeed[bstep & 31] = (short)currentVspeed;
+    vspeed[vspeedPtr & (VSPEED_LENGTH - 1)] = (short)currentVspeed;
+    averageSpeed = (powerMode != MODE_PREFILL) ? getAverageVspeed(8) : 0;
+    averageSpeed2 = (powerMode != MODE_PREFILL) ? getAverageVspeed(2) : 0;
+    averageSpeed32 = (powerMode != MODE_PREFILL) ? getAverageVspeed(32) : 0;
+    vspeedPtr++;
 
+    // Strictly set freefall in automatic modes if vspeed < freefall_th
+    if (powerMode != MODE_DUMB && powerMode != MODE_PREFILL && powerMode != MODE_FREEFALL && averageSpeed < -25) {
+        powerMode = MODE_FREEFALL;
+        return true;
+    }
+    
     switch (powerMode) {
-        case ON_EARTH: {
+        case MODE_DUMB:
+            // No logic in this mode. Manual change only.
+            return false;
+        
+        case MODE_PREFILL:
+            // Change mode to ON_EARTH if vspeed had been prefilled (approx. 16s after enter to this mode)
+            if (vspeedPtr > VSPEED_LENGTH)
+                powerMode = MODE_ON_EARTH;
+            return (powerMode != MODE_PREFILL);
+        
+        case MODE_ON_EARTH:
             // Altitude granularity is 4s
-            short averageSpeed = getAverageVspeed(8);
-            if ( (altitude > 250) || (altitude > 30 && bstep > 7 && averageSpeed > 1) )
-                powerMode = IN_AIRPLANE;
-            else if (averageSpeed < 10)
-                powerMode = FREEFALL;
+            if ( (altitude > 250) || (altitude > 30 && averageSpeed > 1) )
+                powerMode = MODE_IN_AIRPLANE;
             else
                 break;
             return true;
-        }
-        case IN_AIRPLANE: {
-            // Altitude granularity is 500ms
-            // Check acceleration to detect freefall begin
-            break;
-        }
+
+        case MODE_IN_AIRPLANE:
+            if (currentVspeed <= EXIT_TH)
+                powerMode = MODE_EXIT;
+            else if (averageSpeed32 < 1 && altitude < 25)
+                powerMode = MODE_ON_EARTH;
+            else
+                break;
+            return true;
+
+        case MODE_EXIT:
+            if (currentVspeed <= BEGIN_FREEFALL_TH)
+                powerMode = MODE_BEGIN_FREEFALL;
+            else if (currentVspeed > EXIT_TH)
+                powerMode = MODE_IN_AIRPLANE;
+            else
+                break;
+        return true;
+
+        case MODE_BEGIN_FREEFALL:
+            if (currentVspeed <= FREEFALL_TH)
+                powerMode = MODE_FREEFALL;
+            else if (currentVspeed > BEGIN_FREEFALL_TH)
+                powerMode = MODE_EXIT;
+            else
+                break;
+        return true;
+
+        case MODE_FREEFALL:
+            if (currentVspeed > PULLOUT_TH)
+                powerMode = MODE_PULLOUT;
+            else
+                break;
+        return true;
+
+        case MODE_PULLOUT:
+            if (currentVspeed <= PULLOUT_TH)
+                powerMode = MODE_FREEFALL;
+            else if (currentVspeed > OPENING_TH)
+                powerMode = MODE_OPENING;
+            else
+                break;
+        return true;
+
+        case MODE_OPENING:
+            if (currentVspeed <= OPENING_TH)
+                powerMode = MODE_PULLOUT;
+            else if (currentVspeed > UNDER_PARACHUTE_TH)
+                powerMode = MODE_UNDER_PARACHUTE;
+            else
+                break;
+        return true;
+
+        case MODE_UNDER_PARACHUTE:
+            if (averageSpeed32 < 1 && altitude < 25)
+                powerMode = MODE_ON_EARTH;
+            else
+                break;
+        return true;
     }
 
     return false;
 }
 
+byte airplane_300m = 0;
+void ShowLEDs(bool powerModeChanged) {
+    switch (powerMode) {
+        case MODE_IN_AIRPLANE:
+            if (altitude >= 300) {
+                if (airplane_300m <= 6 && altitude < 900) {
+                    LED_show(0, ((++airplane_300m) & 1) ? 255 : 0, 0); // green blinks 3 times at 300m but not above 900m
+                } else {
+                    if (altitude > 900) {
+                        LED_show(0, (bstep & 15) ? 0 : 255, 0); // green blinks once per 8s above 900m
+                    } else {
+                        LED_show((bstep & 15) ? 0 : 255, (bstep & 15) ? 0 : 160, 0); // yellow blinks once per 8s between 300m and 900m
+                    }
+                }
+            } else {
+                LED_show((bstep & 15) ? 0 : 255, 0, 0); // red blinks once per 8s below 300m
+            }
+            return;
+        case MODE_FREEFALL:
+            if (altitude < 1000) {
+                LED_show(255, 0, 0); // red ligth below 1000m
+            } else if (altitude < 1200) {
+                LED_show(255, 160, 0); // yellow ligth between 1200 and 1000m
+            } else if (altitude < 1550) {
+                LED_show(0, 255, 0); // green ligth between 1500 and 1200m
+            } else {
+                LED_show(0, 0, 255); // blue ligth between 1500 and 1200m
+            }
+            return;
+    }
 
+    airplane_300m = 0;
+    LED_show(0, 0, 0);
+}
 
 void DoDrawStr(byte x, byte y, char *buf) {
     u8g2.firstPage();
@@ -92,11 +227,11 @@ void DoDrawStr(byte x, byte y, char *buf) {
 void ShowText(const byte x, const byte y, const char* text, bool grow = true) {
     byte maxlen = strlen_P(text);
     for (byte i = (grow ? 1 : maxlen); i <= maxlen; i++) {
-        strncpy_P(buf32, text, i);
-        buf32[i] = 0;
-        DoDrawStr(x, y, buf32);
+        strncpy_P(bigbuf, text, i);
+        bigbuf[i] = 0;
+        DoDrawStr(x, y, bigbuf);
         if (grow)
-        delay(400);
+        off_250ms;
     }
 }
 
@@ -105,12 +240,12 @@ void SleepForever() {
     u8g2.setFont(u8g2_font_helvB10_tr);
     char *sayonara = PSTR("Sayonara )");
     ShowText(0, 24, sayonara);
-    delay(2500);
+    off_4s;
     for (byte i = 0; i < 5; ++i) {
         ShowText(0, 24, sayonara, false);
-        delay(200);
+        off_250ms;
         DoDrawStr(0, 24, "");
-        delay(200);
+        off_250ms;
     }
   
     DISPLAY_LIGHT_OFF;
@@ -135,7 +270,7 @@ void SleepForever() {
 
     do {
         attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
-        LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
+        off_forever;
         detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
     } while (!checkWakeCondition());
     resetFunc();
@@ -147,7 +282,7 @@ byte checkWakeCondition ()
 {
   // Determine wake condition
     pinMode(PIN_BTN1, INPUT_PULLUP);
-    delay(20);
+    off_15ms;
     if (BTN1_PRESSED) {
         // Wake by awake button. Should be kept pressed for 3s
         LED_show(0, 0, 80, 400);
@@ -156,7 +291,7 @@ byte checkWakeCondition ()
             return 0;
         if (! (i & 63))
             LED_show(0, 80, 0, 200);
-        delay(15);
+        off_15ms;
         }
         return 1;
     }
@@ -203,22 +338,11 @@ void setup() {
     u8g2.begin(PIN_BTN2, PIN_BTN3, PIN_BTN1);
     u8g2.enableUTF8Print();    // enable UTF8 support for the Arduino print() function
     pinMode(PIN_LIGHT, OUTPUT);
-    
-    // Show greeting message
-    u8g2.setFont(u8g2_font_helvB10_tr);
-    DISPLAY_LIGHT_ON;
-    ShowText(16, 30, PSTR("Ni Hao!"));
-    delay(3000);
-    for (byte i = 0; i < 5; ++i) {
-        LED_show(0, 80, 0, 100);
-        delay(250);
-    }
-    DISPLAY_LIGHT_OFF;
- 
+
     //Configure the sensor
     myPressure.begin(); // Get sensor online
     myPressure.setOversampleRate(6); // Set Oversample то 64
-  
+
     // Configure keyboard
     pinMode(PIN_BTN1, INPUT_PULLUP);
     pinMode(PIN_BTN2, INPUT_PULLUP);
@@ -227,41 +351,83 @@ void setup() {
     pinMode(PIN_INTERRUPT, INPUT_PULLUP);
 
     // Read presets
-    zeroAltitude = rtc.load_int(0);
+    lastShownAltitude = 0;
+    powerMode = previousPowerMode = MODE_PREFILL;
+    previousAltitude = CLEAR_PREVIOUS_ALTITUDE;
+    vspeedPtr = 0;
+    bstepInCurrentMode = 0;
+    
+    // Show greeting message
+    u8g2.setFont(u8g2_font_helvB10_tr);
+    DISPLAY_LIGHT_ON;
+    ShowText(16, 30, PSTR("Ni Hao!"));
+    off_4s;
+    for (byte i = 0; i < 5; ++i) {
+        LED_show(0, 80, 0, 100);
+        off_250ms;
+    }
+    DISPLAY_LIGHT_OFF;
 }
 
 void userMenu() {
     u8g2.setFont(font_menu);
-    short event = u8g2.userInterfaceSelectionList("Меню", 1, "Выход\nСброс на ноль\nЖурнал прыжков\nСигналы\nНастройки\nВыключение");
-    switch (event) {
-        case 2: {
-            zeroAltitude = altitude;
-            rtc.save_int(0, zeroAltitude);
-            lastShownAltitude = 0;
+
+    short event = 1;
+    do {
+        strcpy_P(bigbuf, PSTR("Выход\nСброс на ноль\nЖурнал прыжков\nСигналы\nНастройки\nВыключение"));
+        strcpy_P(buf8, PSTR("Меню"));
+        event = u8g2.userInterfaceSelectionList(buf8, event, bigbuf);
+        switch (event) {
+            case 2: {
+                zeroAltitude = altitude;
+                IIC_WriteInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE, zeroAltitude);
+                lastShownAltitude = 0;
+                return;
+            }
+            case 5: {
+                short eventSettings = 1;
+                do {
+                    strcpy_P(bigbuf, PSTR("Выход\nВремя\nДата\nБудильник\nРежим вручную"));
+                    strcpy_P(buf8, PSTR("Настройки"));
+                    eventSettings = u8g2.userInterfaceSelectionList(buf8, eventSettings, bigbuf);
+                    switch (eventSettings) {
+                        case 5: {
+                            strcpy_P(bigbuf, PSTR("Не менять\nНа земле\nВ самолёте\nБез обработки"));
+                            strcpy_P(buf8, PSTR("Режим вручную"));
+                            short eventModeManually = u8g2.userInterfaceSelectionList(buf8, 1, bigbuf);
+                            switch (eventModeManually) {
+                                case 2: powerMode = MODE_ON_EARTH; return;
+                                case 3: powerMode = MODE_IN_AIRPLANE; return;
+                                case 4: powerMode = MODE_DUMB; return;
+                            }
+                            break;
+                        }
+                    }
+                } while (eventSettings != 1);
+                break;
+            }
+            case 6:
+                SleepForever();
+                break;
+            default:
             break;
         }
-        case 5: {
-            short eventSettings = u8g2.userInterfaceSelectionList("Настройки", 1, "Выход\nВремя\nДата\nБудильник\nТекущая высота\nАвтовыключение");
-            break;
-        }
-        case 6:
-            SleepForever();
-            break;
-        default:
-        break;
-    }
+    } while (event != 1);
 }
 
 void loop() {
     // Read sensors
     altitude = myPressure.readAltitude();
+    zeroAltitude = IIC_ReadInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE);
     rtc.get_time();
+    previousPowerMode = powerMode;
 
     // Backlight button
     if (BTN1_PRESSED) {
         backLight = !backLight;
         digitalWrite(PIN_LIGHT, !backLight);
         while (BTN1_PRESSED); // wait for button release
+        previousAltitude = CLEAR_PREVIOUS_ALTITUDE;
     }
     
     // User menu
@@ -269,12 +435,12 @@ void loop() {
         LED_show(0, 80, 0, 200);
         while (BTN2_PRESSED); // wait for button release
         userMenu();
+        previousAltitude = CLEAR_PREVIOUS_ALTITUDE;
     }
     altitude -= zeroAltitude;
 
     if ((bstep & 31) == 0) {
         batt = analogRead(A0);
-        lastShownAltitude = 0;
         rel_voltage = (short)round((batt-188)*3.23f);
         if (rel_voltage < 0)
             rel_voltage = 0;
@@ -282,11 +448,9 @@ void loop() {
             rel_voltage = 100;
     }
     
-    if (bstep > 180)
-        powerMode = 1;
-
+    // Jitter compensation
     int altDiff = altitude - lastShownAltitude;
-    if (altDiff > 1 || altDiff < -1) {
+    if (altDiff > 2 || altDiff < -2 || averageSpeed > 1 || averageSpeed < -1) {
         lastShownAltitude = altitude;
     }
 
@@ -294,24 +458,25 @@ void loop() {
     do {
         u8g2.setFont(font_status_line);
         u8g2.setCursor(0,6);
-        sprintf(buf32, "%02d.%02d.%04d %02d%c%02d", rtc.day, rtc.month, rtc.year, rtc.hour, bstep & 1 ? ' ' : ':', rtc.minute);
-        u8g2.print(buf32);
+        sprintf_P(bigbuf, PSTR("%02d.%02d.%04d %02d%c%02d"), rtc.day, rtc.month, rtc.year, rtc.hour, bstep & 1 ? ' ' : ':', rtc.minute);
+        u8g2.print(bigbuf);
         u8g2.setCursor(DISPLAY_WIDTH - 16, 6);
-        sprintf(buf8, "%3d%%", rel_voltage);
+        sprintf_P(buf8, PSTR("%3d%%"), rel_voltage);
         u8g2.print(buf8);
 
         u8g2.drawHLine(0, 7, DISPLAY_WIDTH-1);
 
         u8g2.setFont(font_altitude);
-        sprintf(buf8, "%4d", lastShownAltitude);
+        sprintf_P(buf8, PSTR("%4d"), lastShownAltitude);
         u8g2.setCursor(0,38);
         u8g2.print(buf8);
 
         u8g2.drawHLine(0, DISPLAY_HEIGHT-8, DISPLAY_WIDTH-1);
 
-//      u8g2.setFont(font_status_line);
-//      u8g2.setCursor(0,47);
-//      u8g2.print(rtc.ssecond);
+        sprintf_P(buf8, PSTR("-%1d- % 3d % 3d % 3d % 3d"), powerMode, currentVspeed, averageSpeed, averageSpeed2, averageSpeed32);
+        u8g2.setFont(font_status_line);
+        u8g2.setCursor(0,47);
+        u8g2.print(buf8);
 
     } while ( u8g2.nextPage() );
   
@@ -323,9 +488,13 @@ void loop() {
     detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
     rtc.disableSeedInterrupt();
 
-    if (processAltitudeChange()) {
-        bstep = 0;
-    } else {
-        bstep++;
-    }
+    bool powerModeChanged = processAltitudeChange() || (powerMode != previousPowerMode);
+    if (powerModeChanged)
+        bstepInCurrentMode = 0;
+    else if (previousAltitude != CLEAR_PREVIOUS_ALTITUDE)
+        bstepInCurrentMode++;
+
+    ShowLEDs(powerModeChanged);
+
+    bstep++;
 }
