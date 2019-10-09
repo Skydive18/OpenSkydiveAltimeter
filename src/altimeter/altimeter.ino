@@ -78,14 +78,14 @@ short getAverageVspeed(byte averageLength) {
     return (short)(accumulatedVspeed / averageLength);
 }
 
-bool processAltitudeChange() {
+bool processAltitudeChange(bool speed_scaler) {
     if (previousAltitude == CLEAR_PREVIOUS_ALTITUDE) { // unknown delay or first run; just save
         previousAltitude = altitude;
         return false;
     }
     currentVspeed = altitude - previousAltitude; // negative = fall, positive = climb
     previousAltitude = altitude;
-    if (powerMode /* != MODE_ON_EARTH*/)
+    if (speed_scaler)
         currentVspeed *= 2; // 500ms granularity
     else
         currentVspeed /= 4; // 4s granularity
@@ -423,7 +423,14 @@ void userMenu() {
     } while (event != 1);
 }
 
+bool speed_scaler = true;
+// profiling
+
+uint32_t prev_profile = 0;
+uint32_t curr_profile = 0;
+
 void loop() {
+    uint32_t this_millis = millis();
     // Read sensors
     altitude = myPressure.readAltitude();
     zeroAltitude = IIC_ReadInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE);
@@ -454,6 +461,8 @@ void loop() {
             rel_voltage = 0;
         if (rel_voltage > 100)
             rel_voltage = 100;
+        prev_profile = curr_profile >> 5;
+        curr_profile = 0;
     }
     
     // Jitter compensation
@@ -461,7 +470,7 @@ void loop() {
     if (altDiff > 2 || altDiff < -2 || averageSpeed8 > 1 || averageSpeed8 < -1)
         lastShownAltitude = altitude;
 
-    bool powerModeChanged = processAltitudeChange() || (powerMode != previousPowerMode);
+    bool powerModeChanged = processAltitudeChange(speed_scaler) || (powerMode != previousPowerMode);
     if (powerModeChanged)
         bstepInCurrentMode = 0;
     else if (previousAltitude != CLEAR_PREVIOUS_ALTITUDE)
@@ -491,19 +500,19 @@ void loop() {
     
             u8g2.drawHLine(0, DISPLAY_HEIGHT-8, DISPLAY_WIDTH-1);
     
-            sprintf_P(buf8, PSTR("-%1d- % 3d % 3d % 3d % 3d"), powerMode, currentVspeed, averageSpeed2, averageSpeed8, averageSpeed32);
+            sprintf_P(buf8, PSTR("-%1d- % 2d % 2d % 2d % 2d %4d"), powerMode, currentVspeed, averageSpeed2, averageSpeed8, averageSpeed32, prev_profile);
             u8g2.setFont(font_status_line);
             u8g2.setCursor(0,47);
             u8g2.print(buf8);
     
         } while ( u8g2.nextPage() );
     }
-  
-    if (powerMode /*!= ON_EARTH*/ || bstepInCurrentMode < 50) {
+
+    speed_scaler = (powerMode != MODE_ON_EARTH || bstepInCurrentMode < 50);
+    if (speed_scaler)
         rtc.enableSeedInterrupt();
-    } else {
-        bstep += 7; // 4s granularity
-    }
+
+    curr_profile +=  (millis() - this_millis);
 
     INTACK = false;
     attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
