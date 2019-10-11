@@ -184,7 +184,30 @@ bool processAltitudeChange(bool speed_scaler) {
 }
 
 byte airplane_300m = 0;
-void ShowLEDs(bool powerModeChanged) {
+void ShowLEDs(bool powerModeChanged, byte timeWhileBtn1Pressed) {
+    // Blink as we entering menu
+    switch (timeWhileBtn1Pressed) {
+        case 0:
+        case 14:
+        case 15:
+            break; // continue normal processing
+        case 1:
+        case 3:
+        case 5:
+            LED_show(0, 0, 180);
+            return;
+        case 7:
+            LED_show(0, 80, 0);
+            return;
+        case 10:
+        case 12:
+            LED_show(255, 0, 0);
+            return;
+        default: // 2, 4, 6, 8, 9, 11, 13 => off all LEDs
+            LED_show(0, 0, 0);
+            return;
+    }
+    
     switch (powerMode) {
         case MODE_IN_AIRPLANE:
             if (altitude >= 300) {
@@ -207,9 +230,9 @@ void ShowLEDs(bool powerModeChanged) {
             } else if (altitude < 1200) {
                 LED_show(255, 160, 0); // yellow ligth between 1200 and 1000m
             } else if (altitude < 1550) {
-                LED_show(0, 255, 0); // green ligth between 1500 and 1200m
+                LED_show(0, 255, 0); // green ligth between 1550 and 1200m
             } else {
-                LED_show(0, 0, 255); // blue ligth between 1500 and 1200m
+                LED_show(0, 0, 255); // blue ligth above 1550m
             }
             return;
 
@@ -382,17 +405,30 @@ void userMenu() {
 
     short event = 1;
     do {
-        strcpy_P(bigbuf, PSTR("Выход\nСброс на ноль\nЖурнал прыжков\nСигналы\nНастройки\nВыключение"));
+        sprintf_P(bigbuf, PSTR("Выход\nСброс на ноль\nПодсветка %c\nЖурнал прыжков\nСигналы\nНастройки\nВыключение"), backLight ? '*' : ' ');
         strcpy_P(buf8, PSTR("Меню"));
         event = u8g2.userInterfaceSelectionList(buf8, event, bigbuf);
         switch (event) {
             case 2: {
-                zeroAltitude = altitude;
-                IIC_WriteInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE, zeroAltitude);
-                lastShownAltitude = 0;
-                return;
+                // Set to zero
+                if (powerMode == 0 || powerMode == 8 || powerMode == 9) {
+                    // Zero reset allowed on erath, in prefill and in dumb mode only.
+                    zeroAltitude = altitude;
+                    IIC_WriteInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE, zeroAltitude);
+                    lastShownAltitude = 0;
+                    LED_show(0, 80, 0, 250);
+                    return;
+                } else {
+                    LED_show(255, 0, 0, 250);
+                    break;;
+                }
             }
-            case 5: {
+            case 3:
+                // Backlight turn on/off
+                backLight = !backLight;
+                LED_show(0, 80, 0, 250);
+                break;
+            case 6: {
                 short eventSettings = 1;
                 do {
                     strcpy_P(bigbuf, PSTR("Выход\nВремя\nДата\nБудильник\nРежим вручную"));
@@ -414,7 +450,7 @@ void userMenu() {
                 } while (eventSettings != 1);
                 break;
             }
-            case 6:
+            case 7:
                 SleepForever();
                 break;
             default:
@@ -424,10 +460,7 @@ void userMenu() {
 }
 
 bool speed_scaler = true;
-// profiling
-
-uint32_t prev_profile = 0;
-uint32_t curr_profile = 0;
+byte timeWhileBtn1Pressed = 0;
 
 void loop() {
     uint32_t this_millis = millis();
@@ -436,23 +469,22 @@ void loop() {
     zeroAltitude = IIC_ReadInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE);
     rtc.get_time();
     previousPowerMode = powerMode;
+    bool btn1Pressed = BTN1_PRESSED;
 
-    // Backlight button
-    if (BTN1_PRESSED && BTN2_RELEASED) {
-        backLight = !backLight;
-        digitalWrite(PIN_LIGHT, !backLight);
-        while (BTN1_PRESSED); // wait for button release
-        previousAltitude = CLEAR_PREVIOUS_ALTITUDE;
+    if (btn1Pressed) {
+        if (timeWhileBtn1Pressed < 16)
+            timeWhileBtn1Pressed++;
+    } else {
+        if (timeWhileBtn1Pressed == 8 || timeWhileBtn1Pressed == 9) {
+            DISPLAY_LIGHT_ON;
+            userMenu();
+            digitalWrite(PIN_LIGHT, !backLight);
+            previousAltitude = CLEAR_PREVIOUS_ALTITUDE;
+        }
+        timeWhileBtn1Pressed = 0;
     }
     
-    // User menu
-    if (BTN2_PRESSED) {
-        LED_show(0, 80, 0, 200);
-        while (BTN2_PRESSED); // wait for button release
-        userMenu();
-        previousAltitude = CLEAR_PREVIOUS_ALTITUDE;
-    }
-    altitude -= zeroAltitude;
+    altitude -= zeroAltitude; // zeroAltitude might be changed via menu
 
     if ((bstep & 31) == 0) {
         batt = analogRead(A0);
@@ -461,8 +493,6 @@ void loop() {
             rel_voltage = 0;
         if (rel_voltage > 100)
             rel_voltage = 100;
-        prev_profile = curr_profile >> 5;
-        curr_profile = 0;
     }
     
     // Jitter compensation
@@ -476,7 +506,7 @@ void loop() {
     else if (previousAltitude != CLEAR_PREVIOUS_ALTITUDE)
         bstepInCurrentMode++;
 
-    ShowLEDs(powerModeChanged);
+    ShowLEDs(powerModeChanged, timeWhileBtn1Pressed);
 
     if (!powerMode || (bstep & 1))
     // Refresh display once per second
@@ -500,7 +530,7 @@ void loop() {
     
             u8g2.drawHLine(0, DISPLAY_HEIGHT-8, DISPLAY_WIDTH-1);
     
-            sprintf_P(buf8, PSTR("-%1d- % 2d % 2d % 2d % 2d %4d"), powerMode, currentVspeed, averageSpeed2, averageSpeed8, averageSpeed32, prev_profile);
+            sprintf_P(buf8, PSTR("-%1d- % 3d % 3d % 3d % 3d"), powerMode, currentVspeed, averageSpeed2, averageSpeed8, averageSpeed32);
             u8g2.setFont(font_status_line);
             u8g2.setCursor(0,47);
             u8g2.print(buf8);
@@ -508,26 +538,34 @@ void loop() {
         } while ( u8g2.nextPage() );
     }
 
-    speed_scaler = (powerMode != MODE_ON_EARTH || bstepInCurrentMode < 50);
-    if (speed_scaler)
-        rtc.enableSeedInterrupt();
-
-    curr_profile +=  (millis() - this_millis);
-
-    INTACK = false;
-    attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
-    if (IsPWMActive()) {
-        // When PWM led control is active, we cannot go into power down mode -
-        // it will stop timers and break PWM control.
-        for (int intcounter = 0; intcounter < 800; ++intcounter) {
-            if (INTACK)
-                break;
-            delay(5);
-        }
+    speed_scaler = (powerMode != MODE_ON_EARTH || bstepInCurrentMode < 50 || btn1Pressed); // true if period 500ms, false for 4s sleep time
+    
+    if (btn1Pressed) {
+        // If BTN1_PRESSED, we cannot use interrupt to wake from sleep/delay, as BTN1 utilizes the same interrupt pin.
+        // In that case we will use measured delay instead.
+        int delayMs = 500 - (millis() - this_millis);
+        if (delayMs > 0)
+            delay(delayMs);
     } else {
-        off_4s;
+        // Can use interrupt to wake to achieve maximum time measure precision
+        if (speed_scaler)
+            rtc.enableSeedInterrupt();
+
+        INTACK = false;
+        attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
+        if (IsPWMActive()) {
+            // When PWM led control is active, we cannot go into power down mode -
+            // it will stop timers and break PWM control.
+            for (int intcounter = 0; intcounter < 800; ++intcounter) {
+                if (INTACK)
+                    break;
+                delay(5);
+            }
+        } else {
+            off_4s;
+        }
+        detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
+        rtc.disableSeedInterrupt();
     }
-    detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
-    rtc.disableSeedInterrupt();
     bstep++;
 }
