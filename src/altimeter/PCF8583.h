@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <Wire.h>
+#include "custom_types.h"
 
 // Addressing in RAM, altimeter runtime parameters
 #define ADDR_ZERO_ALTITUDE 0x12
@@ -30,7 +31,8 @@ class PCF8583 {
     void begin();
     void init ();
     
-    void get_time();
+    void readTime();
+    timestamp_t getTimestamp();
     void set_time();
     void get_alarm();
 

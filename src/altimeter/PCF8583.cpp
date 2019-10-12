@@ -23,7 +23,7 @@ void PCF8583::init() {
     IIC_WriteByte(RTC_ADDRESS, 0, status_register);
 }
 
-void PCF8583::get_time() {
+void PCF8583::readTime() {
   Wire.beginTransmission(RTC_ADDRESS);
   Wire.write(0x03);
   Wire.endTransmission();
@@ -48,6 +48,16 @@ void PCF8583::get_time() {
   year_base = year_base | Wire.read();
   year = year + year_base;
   init();
+}
+
+timestamp_t PCF8583::getTimestamp() {
+    timestamp_t rc;
+    rc.year = year;
+    rc.month = month;
+    rc.day = day;
+    rc.hour = hour;
+    rc.minute = minute;
+    return rc;
 }
 
 void PCF8583::set_time() {

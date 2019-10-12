@@ -59,45 +59,132 @@ byte powerMode;
 byte previousPowerMode;
 bool INTACK;
 
-int altitude; // currently measured altitude, relative to zeroAltitude
-int previousAltitude; // Previously measured altitude, relative to zeroAltitude
-int zeroAltitude; // Ground altitude, absolute
-int lastShownAltitude; // Last shown altitude (jitter corrected)
+int current_altitude; // currently measured altitude, relative to ground_altitude
+int previous_altitude; // Previously measured altitude, relative to ground_altitude
+int ground_altitude; // Ground altitude, absolute
+int last_shown_altitude; // Last shown altitude (jitter corrected)
 byte backLight = 0; // Display backlight flag, 0=off, 1=on, 2 = auto
 int batt; // battery voltage as it goes from sensor
 short rel_voltage; // ballery relative voltare, in percent (0-100). 0 relates to 3.6v and 100 relates to fully charged batt
 
+// Current jump
+timestamp_t exit_timestamp;
+uint16_t exit_altitude;
+uint16_t deploy_altitude;
+uint16_t canopy_altitude;
+uint16_t freefall_time;
+byte max_freefall_speed_ms;
+
 char buf8[48];
 char bigbuf[200];
+char* date_time_template;
 
+// Prototypes
+void ShowText(const byte x, const byte y, const char* text, bool grow = true);
+void wake() { INTACK = true; }
 
-short getAverageVspeed(byte averageLength) {
-    byte startPtr = (byte)((vspeedPtr - averageLength)) & (VSPEED_LENGTH - 1);
-    int accumulatedVspeed = 0;
-    for (byte i = 0; i < averageLength; i++)
-        accumulatedVspeed += vspeed[(startPtr + i) & (VSPEED_LENGTH - 1)];
-    return (short)(accumulatedVspeed / averageLength);
+void setup() {
+    pinMode(PIN_HWPWR, OUTPUT);
+    Serial.begin(9600); // Console
+
+/*
+  while (!Serial) delay(100); // wait for USB connect, 32u4 only.
+  Serial.println("Scanning I2C Bus...");
+  int i2cCount = 0;
+  for (byte i = 8; i > 0; i++)
+  {
+    Wire.beginTransmission (i);
+    if (Wire.endTransmission () == 0)
+      {
+      Serial.print ("Found address: ");
+      Serial.print (i, DEC);
+      Serial.print (" (0x");
+      Serial.print (i, HEX);
+      Serial.println (")");
+      i2cCount++;
+      delay (1);  // maybe unneeded?
+      } // end of good response
+  } // end of for loop
+  Serial.print ("Scanning I2C Bus Done. Found ");
+  Serial.print (i2cCount, DEC);
+  Serial.println (" device(s).");
+*/
+
+    LED_init();
+
+    pinMode(PIN_SOUND, OUTPUT);
+    digitalWrite(PIN_SOUND, 0);
+
+    // Turn ON hardware
+    digitalWrite(PIN_HWPWR, 1);
+    
+    rtc.begin();
+    u8g2.begin(PIN_BTN2, PIN_BTN3, PIN_BTN1);
+    u8g2.enableUTF8Print();    // enable UTF8 support for the Arduino print() function
+    pinMode(PIN_LIGHT, OUTPUT);
+
+    //Configure the sensor
+    myPressure.begin(); // Get sensor online
+    myPressure.setOversampleRate(5 << 3);
+
+    // Configure keyboard
+    pinMode(PIN_BTN1, INPUT_PULLUP);
+    pinMode(PIN_BTN2, INPUT_PULLUP);
+    pinMode(PIN_BTN3, INPUT_PULLUP);
+
+    pinMode(PIN_INTERRUPT, INPUT_PULLUP);
+
+    // Read presets
+    last_shown_altitude = 0;
+    powerMode = previousPowerMode = MODE_PREFILL;
+    previous_altitude = CLEAR_PREVIOUS_ALTITUDE;
+    vspeedPtr = 0;
+    bstepInCurrentMode = 0;
+    ground_altitude = IIC_ReadInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE);
+    backLight = IIC_ReadByte(RTC_ADDRESS, ADDR_BACKLIGHT);
+    heartbeat = ByteToHeartbeat(IIC_ReadByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF));
+
+    // Show greeting message
+    u8g2.setFont(u8g2_font_helvB10_tr);
+    DISPLAY_LIGHT_ON;
+    ShowText(16, 30, PSTR("Ni Hao!"));
+    off_4s;
+    DISPLAY_LIGHT_OFF;
+
+    // Load templates
+    date_time_template = PSTR("%02d.%02d.%04d %02d%c%02d");
 }
 
 bool processAltitudeChange(bool speed_scaler) {
-    if (previousAltitude == CLEAR_PREVIOUS_ALTITUDE) { // unknown delay or first run; just save
-        previousAltitude = altitude;
+    if (previous_altitude == CLEAR_PREVIOUS_ALTITUDE) { // unknown delay or first run; just save
+        previous_altitude = current_altitude;
         return false;
     }
-    currentVspeed = altitude - previousAltitude; // negative = fall, positive = climb
-    previousAltitude = altitude;
+    currentVspeed = current_altitude - previous_altitude; // negative = fall, positive = climb
+    previous_altitude = current_altitude;
     if (speed_scaler)
         currentVspeed *= 2; // 500ms granularity
     else
         currentVspeed /= 4; // 4s granularity
     vspeed[vspeedPtr & (VSPEED_LENGTH - 1)] = (short)currentVspeed;
     vspeedPtr++;
-    averageSpeed8 = (powerMode != MODE_PREFILL) ? getAverageVspeed(8) : 0;
-    averageSpeed32 = (powerMode != MODE_PREFILL) ? getAverageVspeed(32) : 0;
+    if (powerMode == MODE_PREFILL) {
+        averageSpeed8 = averageSpeed32 = 0;
+    } else {
+        byte startPtr = (byte)((vspeedPtr - VSPEED_LENGTH)) & (VSPEED_LENGTH - 1);
+        int accumulatedVspeed = 0;
+        for (byte i = 0; i < VSPEED_LENGTH; i++) {
+            accumulatedVspeed += vspeed[(startPtr + i) & (VSPEED_LENGTH - 1)];
+            if (i == 8)
+                averageSpeed8 = accumulatedVspeed / 8;
+        }
+        averageSpeed32 = accumulatedVspeed / VSPEED_LENGTH;
+    }
 
     // Strictly set freefall in automatic modes if vspeed < freefall_th
     if (powerMode != MODE_DUMB && powerMode != MODE_PREFILL && powerMode != MODE_FREEFALL && averageSpeed8 < -25) {
         powerMode = MODE_FREEFALL;
+        freefall_time = 10000; // do not store this jump in logbook
         return true;
     }
     
@@ -114,7 +201,7 @@ bool processAltitudeChange(bool speed_scaler) {
         
         case MODE_ON_EARTH:
             // Altitude granularity is 4s
-            if ( (altitude > 250) || (altitude > 30 && averageSpeed8 > 1) )
+            if ( (current_altitude > 250) || (current_altitude > 30 && averageSpeed8 > 1) )
                 powerMode = MODE_IN_AIRPLANE;
             else
                 break;
@@ -123,10 +210,12 @@ bool processAltitudeChange(bool speed_scaler) {
         case MODE_IN_AIRPLANE:
             if (currentVspeed <= EXIT_TH)
                 powerMode = MODE_EXIT;
-            else if (averageSpeed32 < 1 && altitude < 25)
+            else if (averageSpeed32 < 1 && current_altitude < 25)
                 powerMode = MODE_ON_EARTH;
             else
                 break;
+            freefall_time = 0;
+                
             return true;
 
         case MODE_EXIT:
@@ -136,7 +225,10 @@ bool processAltitudeChange(bool speed_scaler) {
                 powerMode = MODE_IN_AIRPLANE;
             else
                 break;
-        return true;
+            exit_altitude = current_altitude;
+            exit_timestamp = rtc.getTimestamp();
+            freefall_time = max_freefall_speed_ms = 0;
+            return true;
 
         case MODE_BEGIN_FREEFALL:
             if (currentVspeed <= FREEFALL_TH)
@@ -145,14 +237,19 @@ bool processAltitudeChange(bool speed_scaler) {
                 powerMode = MODE_EXIT;
             else
                 break;
-        return true;
+            freefall_time++;
+            return true;
 
         case MODE_FREEFALL:
             if (currentVspeed > PULLOUT_TH)
                 powerMode = MODE_PULLOUT;
             else
                 break;
-        return true;
+            freefall_time++;
+            byte freefall_speed = 0 - averageSpeed8;
+            if (freefall_speed > max_freefall_speed_ms)
+                max_freefall_speed_ms = freefall_speed;
+            return true;
 
         case MODE_PULLOUT:
             if (currentVspeed <= PULLOUT_TH)
@@ -161,7 +258,8 @@ bool processAltitudeChange(bool speed_scaler) {
                 powerMode = MODE_OPENING;
             else
                 break;
-        return true;
+            deploy_altitude = current_altitude;
+            return true;
 
         case MODE_OPENING:
             if (currentVspeed <= OPENING_TH)
@@ -170,14 +268,15 @@ bool processAltitudeChange(bool speed_scaler) {
                 powerMode = MODE_UNDER_PARACHUTE;
             else
                 break;
-        return true;
+            return true;
 
         case MODE_UNDER_PARACHUTE:
-            if (averageSpeed32 < 1 && altitude < 25)
+            if (averageSpeed32 < 1 && current_altitude < 25)
                 powerMode = MODE_ON_EARTH;
             else
                 break;
-        return true;
+            canopy_altitude = current_altitude;
+            return true;
     }
 
     return false;
@@ -215,11 +314,11 @@ void ShowLEDs(bool powerModeChanged, byte timeWhileBtn1Pressed) {
     
     switch (powerMode) {
         case MODE_IN_AIRPLANE:
-            if (altitude >= 300) {
-                if (airplane_300m <= 6 && altitude < 900) {
+            if (current_altitude >= 300) {
+                if (airplane_300m <= 6 && current_altitude < 900) {
                     LED_show(0, ((++airplane_300m) & 1) ? 255 : 0, 0); // green blinks 3 times at 300m but not above 900m
                 } else {
-                    if (altitude > 900) {
+                    if (current_altitude > 900) {
                         LED_show(0, (bstep & 15) ? 0 : 255, 0); // green blinks once per 8s above 900m
                     } else {
                         LED_show((bstep & 15) ? 0 : 255, (bstep & 15) ? 0 : 80, 0); // yellow blinks once per 8s between 300m and 900m
@@ -230,11 +329,11 @@ void ShowLEDs(bool powerModeChanged, byte timeWhileBtn1Pressed) {
             }
             return;
         case MODE_FREEFALL:
-            if (altitude < 1000) {
+            if (current_altitude < 1000) {
                 LED_show(255, 0, 0); // red ligth below 1000m
-            } else if (altitude < 1200) {
+            } else if (current_altitude < 1200) {
                 LED_show(255, 160, 0); // yellow ligth between 1200 and 1000m
-            } else if (altitude < 1550) {
+            } else if (current_altitude < 1550) {
                 LED_show(0, 255, 0); // green ligth between 1550 and 1200m
             } else {
                 LED_show(0, 0, 255); // blue ligth above 1550m
@@ -302,8 +401,6 @@ void PowerOff() {
     resetFunc();
 }
 
-void wake() { INTACK = true; }
-
 byte checkWakeCondition ()
 {
     // Determine wake condition
@@ -321,75 +418,6 @@ byte checkWakeCondition ()
     }
 
     return 0;
-}
-
-void setup() {
-    pinMode(PIN_HWPWR, OUTPUT);
-    Serial.begin(9600); // Console
-
-/*
-  while (!Serial) delay(100); // wait for USB connect, 32u4 only.
-  Serial.println("Scanning I2C Bus...");
-  int i2cCount = 0;
-  for (byte i = 8; i > 0; i++)
-  {
-    Wire.beginTransmission (i);
-    if (Wire.endTransmission () == 0)
-      {
-      Serial.print ("Found address: ");
-      Serial.print (i, DEC);
-      Serial.print (" (0x");
-      Serial.print (i, HEX);
-      Serial.println (")");
-      i2cCount++;
-      delay (1);  // maybe unneeded?
-      } // end of good response
-  } // end of for loop
-  Serial.print ("Scanning I2C Bus Done. Found ");
-  Serial.print (i2cCount, DEC);
-  Serial.println (" device(s).");
-*/
-
-    LED_init();
-
-    pinMode(PIN_SOUND, OUTPUT);
-    digitalWrite(PIN_SOUND, 0);
-
-    // Turn ON hardware
-    digitalWrite(PIN_HWPWR, 1);
-    
-    rtc.begin();
-    u8g2.begin(PIN_BTN2, PIN_BTN3, PIN_BTN1);
-    u8g2.enableUTF8Print();    // enable UTF8 support for the Arduino print() function
-    pinMode(PIN_LIGHT, OUTPUT);
-
-    //Configure the sensor
-    myPressure.begin(); // Get sensor online
-    myPressure.setOversampleRate(5 << 3);
-
-    // Configure keyboard
-    pinMode(PIN_BTN1, INPUT_PULLUP);
-    pinMode(PIN_BTN2, INPUT_PULLUP);
-    pinMode(PIN_BTN3, INPUT_PULLUP);
-
-    pinMode(PIN_INTERRUPT, INPUT_PULLUP);
-
-    // Read presets
-    lastShownAltitude = 0;
-    powerMode = previousPowerMode = MODE_PREFILL;
-    previousAltitude = CLEAR_PREVIOUS_ALTITUDE;
-    vspeedPtr = 0;
-    bstepInCurrentMode = 0;
-    zeroAltitude = IIC_ReadInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE);
-    backLight = IIC_ReadByte(RTC_ADDRESS, ADDR_BACKLIGHT);
-    heartbeat = ByteToHeartbeat(IIC_ReadByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF));
-
-    // Show greeting message
-    u8g2.setFont(u8g2_font_helvB10_tr);
-    DISPLAY_LIGHT_ON;
-    ShowText(16, 30, PSTR("Ni Hao!"));
-    off_4s;
-    DISPLAY_LIGHT_OFF;
 }
 
 void userMenu() {
@@ -413,9 +441,9 @@ void userMenu() {
                 // Set to zero
                 if (powerMode == MODE_ON_EARTH || powerMode == MODE_PREFILL || powerMode == MODE_DUMB) {
                     // Zero reset allowed on earth, in prefill and in dumb mode only.
-                    zeroAltitude = altitude;
-                    IIC_WriteInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE, zeroAltitude);
-                    lastShownAltitude = 0;
+                    ground_altitude = current_altitude;
+                    IIC_WriteInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE, ground_altitude);
+                    last_shown_altitude = 0;
                     LED_show(0, 80, 0, 250);
                     return;
                 } else {
@@ -431,15 +459,63 @@ void userMenu() {
                 if (backLight != 1)
                     IIC_WriteByte(RTC_ADDRESS, ADDR_BACKLIGHT, backLight);
                 break;
+            case 4: {
+                if (freefall_time > 0 && freefall_time < 10000) {
+                    uint16_t my_freefall_time = freefall_time >> 1;
+                    int average_freefall_speed_ms = (deploy_altitude - exit_altitude) / my_freefall_time;
+                    int average_freefall_speed_kmh = (int)(3.6f * average_freefall_speed_ms);
+                    int max_freefall_speed_kmh = (int)(3.6f * max_freefall_speed_ms);
+                    u8g2.firstPage();
+                    do {
+                        sprintf_P(bigbuf, PSTR("%d/%d"), 1, 1);
+                        u8g2.setCursor(0, 7);
+                        u8g2.print(bigbuf);
+                        
+                        sprintf_P(bigbuf, date_time_template,
+                            exit_timestamp.day,
+                            exit_timestamp.month,
+                            exit_timestamp.year,
+                            exit_timestamp.hour,
+                            ':',
+                            exit_timestamp.minute
+                        );
+                        u8g2.setCursor(0, 15);
+                        u8g2.print(bigbuf);
+
+                        sprintf_P(bigbuf, PSTR("O:% 4dм M:% 4dм"), exit_altitude, deploy_altitude);
+                        u8g2.setCursor(0, 23);
+                        u8g2.print(bigbuf);
+                        
+                        sprintf_P(bigbuf, PSTR("Р:% 4dм В:% 4dc"), canopy_altitude, my_freefall_time);
+                        u8g2.setCursor(0, 31);
+                        u8g2.print(bigbuf);
+
+                        sprintf_P(bigbuf, PSTR("Сс: %dм/с (%dкм/ч)"), average_freefall_speed_ms, average_freefall_speed_kmh);
+                        u8g2.setCursor(0, 39);
+                        u8g2.print(bigbuf);
+
+                        sprintf_P(bigbuf, PSTR("Мс: %dм/с (%dкм/ч)"), max_freefall_speed_ms, max_freefall_speed_kmh);
+                        u8g2.setCursor(0, 47);
+                        u8g2.print(bigbuf);
+
+                    } while (u8g2.nextPage());
+                    while (BTN2_RELEASED); // wait for keypress
+                    while(BTN2_PRESSED);
+                }
+                break;
+            }
             case 6: {
+                // "Settings" submenu
                 short eventSettings = 1;
                 byte newAutoPowerOff = IIC_ReadByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF);
                 do {
-                    sprintf_P(bigbuf, PSTR("Выход\nВремя\nДата\nБудильник\nРежим вручную\nАвтовыкл. %sч"), HeartbeatStr(newAutoPowerOff));
+                    char* power_mode_string = powerMode == MODE_DUMB ? "выкл" : "вкл";
+                    sprintf_P(bigbuf, PSTR("Выход\nВремя\nДата\nБудильник\nАвторежим: %s\nАвтовыкл: %sч\nВерсия ПО"), power_mode_string, HeartbeatStr(newAutoPowerOff));
                     strcpy_P(buf8, PSTR("Настройки"));
                     eventSettings = u8g2.userInterfaceSelectionList(buf8, eventSettings, bigbuf);
                     switch (eventSettings) {
                         case 2: {
+                            // Time
                             byte hour = rtc.hour;
                             byte minute = rtc.minute;
                             if (SetTime(hour, minute)) {
@@ -449,22 +525,26 @@ void userMenu() {
                             }
                             break;
                         }
-                        case 5: {
-                            strcpy_P(bigbuf, PSTR("Не менять\nНа земле\nВ самолёте\nБез обработки"));
-                            strcpy_P(buf8, PSTR("Режим вручную"));
-                            short eventModeManually = u8g2.userInterfaceSelectionList(buf8, 1, bigbuf);
-                            switch (eventModeManually) {
-                                case 2: powerMode = MODE_ON_EARTH; return;
-                                case 3: powerMode = MODE_IN_AIRPLANE; return;
-                                case 4: powerMode = MODE_DUMB; return;
-                            }
+                        case 5:
+                            // Auto power mode
+                            powerMode = powerMode == MODE_DUMB ? MODE_ON_EARTH : MODE_DUMB;
                             break;
-                        }
                         case 6: {
+                            // Auto poweroff
                             newAutoPowerOff = (++newAutoPowerOff) & 3;
                             IIC_WriteByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF, newAutoPowerOff);
                             heartbeat = ByteToHeartbeat(newAutoPowerOff);
                             break;
+                        }
+                        case 7: {
+                            strcpy_P(bigbuf, PSTR("Прошивка A01.0.2"));
+                            u8g2.firstPage();
+                            do {
+                                u8g2.setCursor(0, 16);
+                                u8g2.print(bigbuf);
+                            } while(u8g2.nextPage());
+                            while(BTN2_RELEASED); // wait for keypress
+                            while(BTN2_PRESSED);
                         }
                     }
                 } while (eventSettings != 1);
@@ -563,8 +643,8 @@ byte timeWhileBtn1Pressed = 0;
 void loop() {
     uint32_t this_millis = millis();
     // Read sensors
-    altitude = myPressure.readAltitude();
-    rtc.get_time();
+    current_altitude = myPressure.readAltitude();
+    rtc.readTime();
     previousPowerMode = powerMode;
     bool btn1Pressed = BTN1_PRESSED;
 
@@ -574,12 +654,12 @@ void loop() {
     } else {
         if (timeWhileBtn1Pressed == 8 || timeWhileBtn1Pressed == 9) {
             userMenu();
-            previousAltitude = CLEAR_PREVIOUS_ALTITUDE;
+            previous_altitude = CLEAR_PREVIOUS_ALTITUDE;
         }
         timeWhileBtn1Pressed = 0;
     }
     
-    altitude -= zeroAltitude; // zeroAltitude might be changed via menu
+    current_altitude -= ground_altitude; // ground_altitude might be changed via menu
 
     if ((bstep & 31) == 0) {
         batt = analogRead(A0);
@@ -591,14 +671,14 @@ void loop() {
     }
     
     // Jitter compensation
-    int altDiff = altitude - lastShownAltitude;
+    int altDiff = current_altitude - last_shown_altitude;
     if (altDiff > 2 || altDiff < -2 || averageSpeed8 > 1 || averageSpeed8 < -1)
-        lastShownAltitude = altitude;
+        last_shown_altitude = current_altitude;
 
     bool powerModeChanged = processAltitudeChange(speed_scaler) || (powerMode != previousPowerMode);
     if (powerModeChanged)
         bstepInCurrentMode = 0;
-    else if (previousAltitude != CLEAR_PREVIOUS_ALTITUDE)
+    else if (previous_altitude != CLEAR_PREVIOUS_ALTITUDE)
         bstepInCurrentMode++;
 
     ShowLEDs(powerModeChanged, timeWhileBtn1Pressed);
@@ -610,7 +690,7 @@ void loop() {
         do {
             u8g2.setFont(font_status_line);
             u8g2.setCursor(0,6);
-            sprintf_P(bigbuf, PSTR("%02d.%02d.%04d %02d%c%02d"), rtc.day, rtc.month, rtc.year, rtc.hour, bstepInCurrentMode & 2 ? ' ' : ':', rtc.minute);
+            sprintf_P(bigbuf, date_time_template, rtc.day, rtc.month, rtc.year, rtc.hour, bstepInCurrentMode & 2 ? ' ' : ':', rtc.minute);
             u8g2.print(bigbuf);
             u8g2.setCursor(DISPLAY_WIDTH - 16, 6);
             sprintf_P(buf8, PSTR("%3d%%"), rel_voltage);
@@ -619,7 +699,7 @@ void loop() {
             u8g2.drawHLine(0, 7, DISPLAY_WIDTH-1);
     
             u8g2.setFont(font_altitude);
-            sprintf_P(buf8, PSTR("%4d"), lastShownAltitude);
+            sprintf_P(buf8, PSTR("%4d"), last_shown_altitude);
             u8g2.setCursor(0,38);
             u8g2.print(buf8);
     

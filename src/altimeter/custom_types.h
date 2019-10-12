@@ -2,16 +2,15 @@
 #define __in_custom_types_h
 
 typedef struct {
-    uint32_t year   : 6;   // 0-63, base year is 2016, should be leap year
+    uint32_t year   : 12;  //
     uint32_t month  : 4;   // 1..12 [4 bits]
-    uint32_t date   : 5;   // 1..31 [5 bits]
+    uint32_t day    : 5;   // 1..31 [5 bits]
     uint32_t hour   : 5;   // 00..23 [5 bits]
     uint32_t minute : 6;   // 00..59 [6 bits]
-    uint32_t second : 6;   // 00..59 [6 bits]  
-} Timestamp;
+} timestamp_t;
 
 typedef struct {
-    Timestamp timestamp;
+    timestamp_t timestamp;
     // Jump data
     uint32_t exitAltitude : 11; // Exit altitude / 4, meters (0..8191)
     uint32_t deployAltitude : 11; // Deploy altitude / 4, meters (0..8191)
