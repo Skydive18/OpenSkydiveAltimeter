@@ -25,12 +25,10 @@ void PCF8583::init() {
 
 void PCF8583::get_time() {
   Wire.beginTransmission(RTC_ADDRESS);
-  Wire.write(0x01);
+  Wire.write(0x03);
   Wire.endTransmission();
-  Wire.requestFrom(RTC_ADDRESS, 6);
+  Wire.requestFrom(RTC_ADDRESS, 4);
 
-  ssecond = bcd_to_short(Wire.read());
-  second = bcd_to_short(Wire.read());
   minute = bcd_to_short(Wire.read());
   hour   = bcd_to_short(Wire.read());
   byte incoming = Wire.read(); // year/date counter
@@ -43,7 +41,7 @@ void PCF8583::get_time() {
   //  so we can add the 2 bits we got above and find the real year
   Wire.beginTransmission(RTC_ADDRESS);
   Wire.write(0x10);
-  Wire.endTransmission();
+  Wire.endTransmission(false);
   Wire.requestFrom(RTC_ADDRESS, 2);
   year_base = Wire.read();
   year_base = year_base << 8;
@@ -68,7 +66,7 @@ void PCF8583::set_time() {
 
   Wire.beginTransmission(RTC_ADDRESS);
   Wire.write(0x02);
-  Wire.write(int_to_bcd(second));
+  Wire.write(0);
   Wire.write(int_to_bcd(minute));
   Wire.write(int_to_bcd(hour));
   Wire.write(((byte)(year - year_base) << 6) | int_to_bcd(day));
@@ -106,11 +104,10 @@ void PCF8583::writeAlarmControlRegister() {
 //Get the alarm at 0x09 adress
 void PCF8583::get_alarm() {
   Wire.beginTransmission(RTC_ADDRESS);
-  Wire.write(0x0A); // Set the register pointer to (0x0A) 
-  Wire.endTransmission();
-  Wire.requestFrom(RTC_ADDRESS, 4); // Read 4 values 
+  Wire.write(0x0b); // Set the register pointer to (0x0A) 
+  Wire.endTransmission(false);
+  Wire.requestFrom(RTC_ADDRESS, 2); // Read 4 values 
 
-  alarm_second = bcd_to_short(Wire.read());
   alarm_minute = bcd_to_short(Wire.read());
   alarm_hour   = bcd_to_short(Wire.read());
 }
@@ -121,8 +118,8 @@ void PCF8583::set_daily_alarm() {
   writeAlarmControlRegister();
 
   Wire.beginTransmission(RTC_ADDRESS);
-  Wire.write(0x0a); // Set the register pointer to (0x0a)
-  Wire.write(int_to_bcd(alarm_second));
+  Wire.write(0x0b); // Set the register pointer to (0x0a)
+  Wire.write(0);
   Wire.write(int_to_bcd(alarm_minute));
   Wire.write(int_to_bcd(alarm_hour));
   Wire.write(0x00); // Set 00 at day 

@@ -47,6 +47,8 @@ void(* resetFunc) (void) = 0;
 short vspeed[VSPEED_LENGTH]; // used in mode detector. TODO clean it in setup maybe?
 uint32_t bstep = 0; // global heartbeat counter
 uint32_t bstepInCurrentMode; //heartbeat counter since mode changed
+long heartbeat;
+
 byte vspeedPtr = 0; // pointer to write to vspeed buffer
 int currentVspeed;
 short averageSpeed8;
@@ -62,7 +64,7 @@ int altitude; // currently measured altitude, relative to zeroAltitude
 int previousAltitude; // Previously measured altitude, relative to zeroAltitude
 int zeroAltitude; // Ground altitude, absolute
 int lastShownAltitude; // Last shown altitude (jitter corrected)
-byte backLight = 0; // Display backlight flag, 0=off, 1=on
+byte backLight = 0; // Display backlight flag, 0=off, 1=on, 2 = auto
 int batt; // battery voltage as it goes from sensor
 short rel_voltage; // ballery relative voltare, in percent (0-100). 0 relates to 3.6v and 100 relates to fully charged batt
 
@@ -185,6 +187,11 @@ bool processAltitudeChange(bool speed_scaler) {
 
 byte airplane_300m = 0;
 void ShowLEDs(bool powerModeChanged, byte timeWhileBtn1Pressed) {
+    if ((powerMode != MODE_ON_EARTH && powerMode != MODE_PREFILL && powerMode != MODE_DUMB && backLight == 2) || backLight == 1)
+        DISPLAY_LIGHT_ON;
+    else
+        DISPLAY_LIGHT_OFF;
+    
     // Blink as we entering menu
     switch (timeWhileBtn1Pressed) {
         case 0:
@@ -270,7 +277,7 @@ void ShowText(const byte x, const byte y, const char* text, bool grow = true) {
     }
 }
 
-void SleepForever() {
+void PowerOff() {
     DISPLAY_LIGHT_ON;
     u8g2.setFont(u8g2_font_helvB10_tr);
     char *sayonara = PSTR("Sayonara )");
@@ -391,7 +398,10 @@ void setup() {
     previousAltitude = CLEAR_PREVIOUS_ALTITUDE;
     vspeedPtr = 0;
     bstepInCurrentMode = 0;
-    
+    zeroAltitude = IIC_ReadInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE);
+    backLight = IIC_ReadByte(RTC_ADDRESS, ADDR_BACKLIGHT);
+    heartbeat = ByteToHeartbeat(IIC_ReadByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF));
+
     // Show greeting message
     u8g2.setFont(u8g2_font_helvB10_tr);
     DISPLAY_LIGHT_ON;
@@ -401,18 +411,26 @@ void setup() {
 }
 
 void userMenu() {
+    DISPLAY_LIGHT_ON;
+
     u8g2.setFont(font_menu);
 
     short event = 1;
     do {
-        sprintf_P(bigbuf, PSTR("Выход\nСброс на ноль\nПодсветка %c\nЖурнал прыжков\nСигналы\nНастройки\nВыключение"), backLight ? '*' : ' ');
+        char *backLightText;
+        switch (backLight) {
+            case 0: backLightText="выкл"; break;
+            case 2: backLightText="авто"; break;
+            default: backLightText="вкл"; break;
+        }
+        sprintf_P(bigbuf, PSTR("Выход\nСброс на ноль\nПодсветка: %s\nЖурнал прыжков\nСигналы\nНастройки\nВыключение"), backLightText);
         strcpy_P(buf8, PSTR("Меню"));
         event = u8g2.userInterfaceSelectionList(buf8, event, bigbuf);
         switch (event) {
             case 2: {
                 // Set to zero
-                if (powerMode == 0 || powerMode == 8 || powerMode == 9) {
-                    // Zero reset allowed on erath, in prefill and in dumb mode only.
+                if (powerMode == MODE_ON_EARTH || powerMode == MODE_PREFILL || powerMode == MODE_DUMB) {
+                    // Zero reset allowed on earth, in prefill and in dumb mode only.
                     zeroAltitude = altitude;
                     IIC_WriteInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE, zeroAltitude);
                     lastShownAltitude = 0;
@@ -425,13 +443,17 @@ void userMenu() {
             }
             case 3:
                 // Backlight turn on/off
-                backLight = !backLight;
-                LED_show(0, 80, 0, 250);
+                backLight++;
+                if (backLight > 2)
+                    backLight = 0;
+                if (backLight != 1)
+                    IIC_WriteByte(RTC_ADDRESS, ADDR_BACKLIGHT, backLight);
                 break;
             case 6: {
                 short eventSettings = 1;
+                byte newAutoPowerOff = IIC_ReadByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF);
                 do {
-                    strcpy_P(bigbuf, PSTR("Выход\nВремя\nДата\nБудильник\nРежим вручную"));
+                    sprintf_P(bigbuf, PSTR("Выход\nВремя\nДата\nБудильник\nРежим вручную\nАвтовыкл. %sч"), HeartbeatStr(newAutoPowerOff));
                     strcpy_P(buf8, PSTR("Настройки"));
                     eventSettings = u8g2.userInterfaceSelectionList(buf8, eventSettings, bigbuf);
                     switch (eventSettings) {
@@ -446,12 +468,18 @@ void userMenu() {
                             }
                             break;
                         }
+                        case 6: {
+                            newAutoPowerOff = (++newAutoPowerOff) & 3;
+                            IIC_WriteByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF, newAutoPowerOff);
+                            heartbeat = ByteToHeartbeat(newAutoPowerOff);
+                            break;
+                        }
                     }
                 } while (eventSettings != 1);
                 break;
             }
             case 7:
-                SleepForever();
+                PowerOff();
                 break;
             default:
             break;
@@ -466,7 +494,6 @@ void loop() {
     uint32_t this_millis = millis();
     // Read sensors
     altitude = myPressure.readAltitude();
-    zeroAltitude = IIC_ReadInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE);
     rtc.get_time();
     previousPowerMode = powerMode;
     bool btn1Pressed = BTN1_PRESSED;
@@ -476,9 +503,7 @@ void loop() {
             timeWhileBtn1Pressed++;
     } else {
         if (timeWhileBtn1Pressed == 8 || timeWhileBtn1Pressed == 9) {
-            DISPLAY_LIGHT_ON;
             userMenu();
-            digitalWrite(PIN_LIGHT, !backLight);
             previousAltitude = CLEAR_PREVIOUS_ALTITUDE;
         }
         timeWhileBtn1Pressed = 0;
@@ -530,11 +555,16 @@ void loop() {
     
             u8g2.drawHLine(0, DISPLAY_HEIGHT-8, DISPLAY_WIDTH-1);
     
-            sprintf_P(buf8, PSTR("-%1d- % 3d % 3d % 3d % 3d"), powerMode, currentVspeed, averageSpeed2, averageSpeed8, averageSpeed32);
+            sprintf_P(buf8, PSTR("-%1d- % 3d % 3d % 3d"), powerMode, currentVspeed, averageSpeed8, averageSpeed32);
             u8g2.setFont(font_status_line);
-            u8g2.setCursor(0,47);
+            u8g2.setCursor(0, DISPLAY_HEIGHT - 1);
             u8g2.print(buf8);
-    
+            // Show heartbeat
+            byte hbHrs = heartbeat / 7200;
+            byte hbMin = ((heartbeat /2) % 3600) / 60;
+            sprintf_P(buf8, PSTR("%02d:%02d"), hbHrs, hbMin);
+            u8g2.setCursor(DISPLAY_WIDTH - 20, DISPLAY_HEIGHT - 1);
+            u8g2.print(buf8);
         } while ( u8g2.nextPage() );
     }
 
@@ -568,4 +598,10 @@ void loop() {
         rtc.disableSeedInterrupt();
     }
     bstep++;
+    if (powerMode == MODE_ON_EARTH || powerMode == MODE_PREFILL || powerMode == MODE_DUMB) {
+        // Check auto-poweroff. Prevent it in jump modes.
+        heartbeat -= speed_scaler ? 1 : 8;
+        if (heartbeat <= 0)
+            PowerOff();
+    }
 }

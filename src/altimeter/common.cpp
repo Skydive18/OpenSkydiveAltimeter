@@ -33,3 +33,21 @@ void IIC_WriteInt(uint8_t iicAddr, uint8_t regAddr, int value) {
     Wire.write(value >> 8);
     Wire.endTransmission(true);    
 }
+
+long ByteToHeartbeat(byte hbAsByte) {
+    switch(hbAsByte) {
+        case 1: return 100800L; // 14hrs
+        case 2: return 86400L; // 12 hrs
+        case 3: return 72000L; // 10 hrs
+        default: return 129600L;
+    }
+}
+
+char* HeartbeatStr(byte hbAsByte) {
+    switch(hbAsByte) {
+        case 1: return "14"; // 14hrs
+        case 2: return "12"; // 12 hrs
+        case 3: return "10"; // 10 hrs
+        default: return "18";
+    }
+}

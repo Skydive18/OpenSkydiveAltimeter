@@ -6,14 +6,13 @@
 
 // Addressing in RAM, altimeter runtime parameters
 #define ADDR_ZERO_ALTITUDE 0x12
-#define ADDR_POWERMODE 0x14
+#define ADDR_BACKLIGHT 0x14
+#define ADDR_AUTO_POWEROFF 0x15
 
 #define RTC_ADDRESS 0x50
 
 class PCF8583 {
   public:
-    short ssecond;
-    short second;
     short minute;
     short hour;
     short day;
@@ -21,7 +20,6 @@ class PCF8583 {
     int year;
     int year_base;
 
-    short alarm_second;
     short alarm_minute;
     short alarm_hour;
 
