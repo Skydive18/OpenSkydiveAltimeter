@@ -53,7 +53,6 @@ byte vspeedPtr = 0; // pointer to write to vspeed buffer
 int currentVspeed;
 short averageSpeed8;
 short averageSpeed32;
-short averageSpeed2;
 
 // ********* Main power move flag
 byte powerMode;
@@ -94,7 +93,6 @@ bool processAltitudeChange(bool speed_scaler) {
     vspeed[vspeedPtr & (VSPEED_LENGTH - 1)] = (short)currentVspeed;
     vspeedPtr++;
     averageSpeed8 = (powerMode != MODE_PREFILL) ? getAverageVspeed(8) : 0;
-    averageSpeed2 = (powerMode != MODE_PREFILL) ? getAverageVspeed(2) : 0;
     averageSpeed32 = (powerMode != MODE_PREFILL) ? getAverageVspeed(32) : 0;
 
     // Strictly set freefall in automatic modes if vspeed < freefall_th
@@ -259,19 +257,15 @@ void ShowLEDs(bool powerModeChanged, byte timeWhileBtn1Pressed) {
     LED_show(0, 0, 0);
 }
 
-void DoDrawStr(byte x, byte y, char *buf) {
-    u8g2.firstPage();
-    do {
-        u8g2.drawStr(x, y, buf);
-    } while(u8g2.nextPage());
-}
-
 void ShowText(const byte x, const byte y, const char* text, bool grow = true) {
     byte maxlen = strlen_P(text);
     for (byte i = (grow ? 1 : maxlen); i <= maxlen; i++) {
-        strncpy_P(bigbuf, text, i);
+        strcpy_P(bigbuf, text);
         bigbuf[i] = 0;
-        DoDrawStr(x, y, bigbuf);
+        u8g2.firstPage();
+        do {
+            u8g2.drawStr(x, y, bigbuf);
+        } while(u8g2.nextPage());
         if (grow)
         off_250ms;
     }
@@ -280,15 +274,8 @@ void ShowText(const byte x, const byte y, const char* text, bool grow = true) {
 void PowerOff() {
     DISPLAY_LIGHT_ON;
     u8g2.setFont(u8g2_font_helvB10_tr);
-    char *sayonara = PSTR("Sayonara )");
-    ShowText(0, 24, sayonara);
-    off_4s;
-    for (byte i = 0; i < 5; ++i) {
-        ShowText(0, 24, sayonara, false);
-        off_250ms;
-        DoDrawStr(0, 24, "");
-        off_250ms;
-    }
+    ShowText(6, 24, PSTR("Sayonara"));
+    off_8s;
   
     DISPLAY_LIGHT_OFF;
 
@@ -307,9 +294,6 @@ void PowerOff() {
 #ifdef DC_PIN    
     pinMode(DC_PIN, INPUT);
 #endif
-    // Enable interrupt pin to wake me
-    pinMode(PIN_INTERRUPT, INPUT_PULLUP);
-
     do {
         attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
         off_forever;
@@ -322,9 +306,7 @@ void wake() { INTACK = true; }
 
 byte checkWakeCondition ()
 {
-  // Determine wake condition
-    pinMode(PIN_BTN1, INPUT_PULLUP);
-    off_15ms;
+    // Determine wake condition
     if (BTN1_PRESSED) {
         // Wake by awake button. Should be kept pressed for 3s
         LED_show(0, 0, 80, 400);
@@ -383,7 +365,7 @@ void setup() {
 
     //Configure the sensor
     myPressure.begin(); // Get sensor online
-    myPressure.setOversampleRate(5);
+    myPressure.setOversampleRate(5 << 3);
 
     // Configure keyboard
     pinMode(PIN_BTN1, INPUT_PULLUP);
