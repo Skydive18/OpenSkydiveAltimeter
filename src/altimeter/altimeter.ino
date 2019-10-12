@@ -663,7 +663,7 @@ void loop() {
 
     if ((bstep & 31) == 0) {
         batt = analogRead(A0);
-        rel_voltage = (short)round((batt-188)*3.23f);
+        rel_voltage = (short)round((batt-187)*3.23f);
         if (rel_voltage < 0)
             rel_voltage = 0;
         if (rel_voltage > 100)
@@ -705,7 +705,7 @@ void loop() {
     
             u8g2.drawHLine(0, DISPLAY_HEIGHT-8, DISPLAY_WIDTH-1);
     
-            sprintf_P(buf8, PSTR("-%1d- % 3d % 3d % 3d"), powerMode, currentVspeed, averageSpeed8, averageSpeed32);
+            sprintf_P(buf8, PSTR("&%1d' % 3d % 3d % 3d"), powerMode, currentVspeed, averageSpeed8, averageSpeed32);
             u8g2.setFont(font_status_line);
             u8g2.setCursor(0, DISPLAY_HEIGHT - 1);
             u8g2.print(buf8);
