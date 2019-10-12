@@ -457,6 +457,16 @@ void userMenu() {
                     strcpy_P(buf8, PSTR("Настройки"));
                     eventSettings = u8g2.userInterfaceSelectionList(buf8, eventSettings, bigbuf);
                     switch (eventSettings) {
+                        case 2: {
+                            byte hour = rtc.hour;
+                            byte minute = rtc.minute;
+                            if (SetTime(hour, minute)) {
+                                rtc.hour = hour;
+                                rtc.minute = minute;
+                                rtc.set_time();
+                            }
+                            break;
+                        }
                         case 5: {
                             strcpy_P(bigbuf, PSTR("Не менять\nНа земле\nВ самолёте\nБез обработки"));
                             strcpy_P(buf8, PSTR("Режим вручную"));
@@ -485,6 +495,84 @@ void userMenu() {
             break;
         }
     } while (event != 1);
+}
+
+bool SetTime(byte &hour, byte &minute) {
+    byte pos = 0;
+    do {
+        u8g2.firstPage();
+        do {
+            sprintf_P(buf8, PSTR("%c%02d%c : %c%02d%c"),
+                pos == 0 ? '>' : ' ',
+                hour,
+                pos == 0 ? '<' : ' ',
+                pos == 1 ? '>' : ' ',
+                minute,
+                pos == 1 ? '<' : ' '
+            );
+            u8g2.setCursor(0, 20);
+            u8g2.print(buf8);
+            sprintf_P(buf8, PSTR("%cОтмена%c%cОК%c"),
+                pos == 2 ? '>' : ' ',
+                pos == 2 ? '<' : ' ',
+                pos == 3 ? '>' : ' ',
+                pos == 3 ? '<' : ' '
+            );
+            u8g2.setCursor(0, 35);
+            u8g2.print(buf8);
+        } while(u8g2.nextPage());
+
+        if (BTN1_PRESSED) {
+            while(BTN1_PRESSED);
+            switch (pos) {
+                case 0:
+                    hour--;
+                    if (hour > 23)
+                        hour = 23;
+                    break;
+                case 1:
+                    minute--;
+                    if (minute > 59)
+                        minute = 59;
+                    break;
+                case 2:
+                case 3:
+                    pos--;
+                    break;
+            }
+        }
+        else if (BTN2_PRESSED) {
+            while(BTN2_PRESSED);
+            switch (pos) {
+                case 0:
+                case 1:
+                    pos++;
+                    break;
+                case 2:
+                    return false;
+                case 3:
+                    return true;
+            }
+        } else if (BTN3_PRESSED) {
+            while(BTN3_PRESSED);
+            switch (pos) {
+                case 0:
+                    hour++;
+                    if (hour > 23)
+                        hour = 0;
+                    break;
+                case 1:
+                    minute++;
+                    if (minute > 59)
+                        minute = 0;
+                    break;
+                case 2:
+                case 3:
+                    pos++;
+                    break;
+            }
+        }
+    } while(true);
 }
 
 bool speed_scaler = true;
