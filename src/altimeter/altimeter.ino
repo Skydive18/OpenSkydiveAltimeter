@@ -537,10 +537,13 @@ void userMenu() {
                             break;
                         }
                         case 7: {
-                            strcpy_P(bigbuf, PSTR("Прошивка A01.0.2"));
+                            strcpy_P(buf8, PSTR("Платформа A01"));
+                            strcpy_P(bigbuf, PSTR("Версия 0.3"));
                             u8g2.firstPage();
                             do {
                                 u8g2.setCursor(0, 16);
+                                u8g2.print(buf8);
+                                u8g2.setCursor(0, 24);
                                 u8g2.print(bigbuf);
                             } while(u8g2.nextPage());
                             while(BTN2_RELEASED); // wait for keypress

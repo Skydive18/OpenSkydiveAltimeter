@@ -16,7 +16,7 @@ typedef struct {
     uint32_t deployAltitude : 11; // Deploy altitude / 4, meters (0..8191)
     uint32_t freefallTime : 10; // Freefall time, seconds (0..512)
     unsigned short maxFreefallSpeedMS; // Max freefall speed, m/s
-} JUMP; // structure size: 9 bytes
+} jump_t; // structure size: 9 bytes
 
 typedef struct {
     byte blue_th;
