@@ -72,22 +72,14 @@
 class MPL3115A2 {
 
 public:
-  MPL3115A2();
-
-  //Public Functions
-  void begin(); // Gets sensor on the I2C bus.
-  int readAltitude(); // Returns float with meters above sealevel. Ex: 1638
-  void setOversampleRate(byte); // Sets the # of samples from 1 to 128. See datasheet.
-
-  //Public Variables
+    MPL3115A2();
+    //Public Functions
+    void begin(); // Gets sensor on the I2C bus.
+    int readAltitude(); // Returns float with meters above sealevel. Ex: 1638
 
 private:
-  //Private Functions
-
-  void toggleOneShot();
-
-  //Private Variables
-
+    //Private Functions
+    void toggleOneShot();
 };
 
 #endif // End include guard

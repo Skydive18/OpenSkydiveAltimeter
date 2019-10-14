@@ -80,12 +80,12 @@ char bigbuf[200];
 char* date_time_template;
 
 // Prototypes
-void ShowText(const byte x, const byte y, const char* text, bool grow = true);
+void ShowText(const byte x, const byte y, const char* text);
 void wake() { INTACK = true; }
 
 void setup() {
     pinMode(PIN_HWPWR, OUTPUT);
-    Serial.begin(9600); // Console
+    Serial.begin(57600); // Console
 
 /*
   while (!Serial) delay(100); // wait for USB connect, 32u4 only.
@@ -125,7 +125,6 @@ void setup() {
 
     //Configure the sensor
     myPressure.begin(); // Get sensor online
-    myPressure.setOversampleRate(5 << 3);
 
     // Configure keyboard
     pinMode(PIN_BTN1, INPUT_PULLUP);
@@ -145,21 +144,22 @@ void setup() {
     heartbeat = ByteToHeartbeat(IIC_ReadByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF));
 
     // Show greeting message
-    u8g2.setFont(u8g2_font_helvB10_tr);
-    DISPLAY_LIGHT_ON;
     ShowText(16, 30, PSTR("Ni Hao!"));
-    off_4s;
-    DISPLAY_LIGHT_OFF;
 
     // Load templates
     date_time_template = PSTR("%02d.%02d.%04d %02d%c%02d");
 }
 
-bool processAltitudeChange(bool speed_scaler) {
+//
+// Main state machine
+// Ideas got from EZ420 project at skycentre.net
+//
+void processAltitudeChange(bool speed_scaler) {
     if (previous_altitude == CLEAR_PREVIOUS_ALTITUDE) { // unknown delay or first run; just save
         previous_altitude = current_altitude;
-        return false;
+        return;
     }
+    
     currentVspeed = current_altitude - previous_altitude; // negative = fall, positive = climb
     previous_altitude = current_altitude;
     if (speed_scaler)
@@ -168,55 +168,42 @@ bool processAltitudeChange(bool speed_scaler) {
         currentVspeed /= 4; // 4s granularity
     vspeed[vspeedPtr & (VSPEED_LENGTH - 1)] = (short)currentVspeed;
     vspeedPtr++;
-    if (powerMode == MODE_PREFILL) {
-        averageSpeed8 = averageSpeed32 = 0;
-    } else {
-        byte startPtr = (byte)((vspeedPtr - VSPEED_LENGTH)) & (VSPEED_LENGTH - 1);
-        int accumulatedVspeed = 0;
-        for (byte i = 0; i < VSPEED_LENGTH; i++) {
-            accumulatedVspeed += vspeed[(startPtr + i) & (VSPEED_LENGTH - 1)];
-            if (i == 8)
-                averageSpeed8 = accumulatedVspeed / 8;
-        }
-        averageSpeed32 = accumulatedVspeed / VSPEED_LENGTH;
+    byte startPtr = (byte)((vspeedPtr - VSPEED_LENGTH)) & (VSPEED_LENGTH - 1);
+    int accumulatedVspeed = 0;
+    for (byte i = 0; i < VSPEED_LENGTH; i++) {
+        accumulatedVspeed += vspeed[(startPtr + i) & (VSPEED_LENGTH - 1)];
+        if (i == 8)
+            averageSpeed8 = accumulatedVspeed / 8;
     }
+    averageSpeed32 = accumulatedVspeed / VSPEED_LENGTH;
 
-    // Strictly set freefall in automatic modes if vspeed < freefall_th
-    if (powerMode != MODE_DUMB && powerMode != MODE_PREFILL && powerMode != MODE_FREEFALL && averageSpeed8 < -25) {
-        powerMode = MODE_FREEFALL;
-        freefall_time = 10000; // do not store this jump in logbook
-        return true;
-    }
-    
     switch (powerMode) {
         case MODE_DUMB:
             // No logic in this mode. Manual change only.
-            return false;
+            break;
         
         case MODE_PREFILL:
             // Change mode to ON_EARTH if vspeed had been prefilled (approx. 16s after enter to this mode)
             if (vspeedPtr > VSPEED_LENGTH)
                 powerMode = MODE_ON_EARTH;
-            return (powerMode != MODE_PREFILL);
+            break;
         
         case MODE_ON_EARTH:
             // Altitude granularity is 4s
             if ( (current_altitude > 250) || (current_altitude > 30 && averageSpeed8 > 1) )
                 powerMode = MODE_IN_AIRPLANE;
-            else
-                break;
-            return true;
+            else if (averageSpeed8 < -25) {
+                powerMode = MODE_FREEFALL;
+                freefall_time = 10000; // do not store this jump in logbook
+            }
+            break;
 
         case MODE_IN_AIRPLANE:
             if (currentVspeed <= EXIT_TH)
                 powerMode = MODE_EXIT;
             else if (averageSpeed32 < 1 && current_altitude < 25)
                 powerMode = MODE_ON_EARTH;
-            else
-                break;
-            freefall_time = 0;
-                
-            return true;
+            break;
 
         case MODE_EXIT:
             if (currentVspeed <= BEGIN_FREEFALL_TH)
@@ -228,7 +215,7 @@ bool processAltitudeChange(bool speed_scaler) {
             exit_altitude = current_altitude;
             exit_timestamp = rtc.getTimestamp();
             freefall_time = max_freefall_speed_ms = 0;
-            return true;
+            break;
 
         case MODE_BEGIN_FREEFALL:
             if (currentVspeed <= FREEFALL_TH)
@@ -238,7 +225,7 @@ bool processAltitudeChange(bool speed_scaler) {
             else
                 break;
             freefall_time++;
-            return true;
+            break;
 
         case MODE_FREEFALL:
             if (currentVspeed > PULLOUT_TH)
@@ -249,37 +236,34 @@ bool processAltitudeChange(bool speed_scaler) {
             byte freefall_speed = 0 - averageSpeed8;
             if (freefall_speed > max_freefall_speed_ms)
                 max_freefall_speed_ms = freefall_speed;
-            return true;
+            break;
 
         case MODE_PULLOUT:
-            if (currentVspeed <= PULLOUT_TH)
+            if (currentVspeed <= PULLOUT_TH) {
                 powerMode = MODE_FREEFALL;
+                freefall_time++;
+            }
             else if (currentVspeed > OPENING_TH)
                 powerMode = MODE_OPENING;
             else
                 break;
             deploy_altitude = current_altitude;
-            return true;
+            break;
 
         case MODE_OPENING:
             if (currentVspeed <= OPENING_TH)
                 powerMode = MODE_PULLOUT;
-            else if (currentVspeed > UNDER_PARACHUTE_TH)
+            else if (currentVspeed > UNDER_PARACHUTE_TH) {
                 powerMode = MODE_UNDER_PARACHUTE;
-            else
-                break;
-            return true;
+                canopy_altitude = current_altitude;
+            }
+            break;
 
         case MODE_UNDER_PARACHUTE:
             if (averageSpeed32 < 1 && current_altitude < 25)
                 powerMode = MODE_ON_EARTH;
-            else
-                break;
-            canopy_altitude = current_altitude;
-            return true;
+            break;
     }
-
-    return false;
 }
 
 byte airplane_300m = 0;
@@ -356,27 +340,26 @@ void ShowLEDs(bool powerModeChanged, byte timeWhileBtn1Pressed) {
     LED_show(0, 0, 0);
 }
 
-void ShowText(const byte x, const byte y, const char* text, bool grow = true) {
+void ShowText(const byte x, const byte y, const char* text) {
+    u8g2.setFont(u8g2_font_helvB10_tr);
+    DISPLAY_LIGHT_ON;
     byte maxlen = strlen_P(text);
-    for (byte i = (grow ? 1 : maxlen); i <= maxlen; i++) {
+    for (byte i = 1; i <= maxlen; i++) {
         strcpy_P(bigbuf, text);
         bigbuf[i] = 0;
         u8g2.firstPage();
         do {
-            u8g2.drawStr(x, y, bigbuf);
+            u8g2.setCursor(x, y);
+            u8g2.print(bigbuf);
         } while(u8g2.nextPage());
-        if (grow)
         off_250ms;
     }
+    off_4s;
+    DISPLAY_LIGHT_OFF;
 }
 
 void PowerOff() {
-    DISPLAY_LIGHT_ON;
-    u8g2.setFont(u8g2_font_helvB10_tr);
     ShowText(6, 24, PSTR("Sayonara"));
-    off_8s;
-  
-    DISPLAY_LIGHT_OFF;
 
     rtc.disableSeedInterrupt();
   
@@ -411,7 +394,7 @@ byte checkWakeCondition ()
         if (BTN1_RELEASED)
             return 0;
         if (! (i & 63))
-            LED_show(0, 80, 0, 200);
+            LED_show(0, 0, 80, 200);
         off_15ms;
         }
         return 1;
@@ -421,19 +404,18 @@ byte checkWakeCondition ()
 }
 
 void userMenu() {
-    DISPLAY_LIGHT_ON;
+    DISPLAY_LIGHT_ON; // it will be turned off, if needed, in ShowLEDs(..)
 
     u8g2.setFont(font_menu);
 
     short event = 1;
     do {
-        char *backLightText;
         switch (backLight) {
-            case 0: backLightText="выкл"; break;
-            case 2: backLightText="авто"; break;
-            default: backLightText="вкл"; break;
+            case 0: strcpy_P(buf8, PSTR("выкл")); break;
+            case 2: strcpy_P(buf8, PSTR("авто")); break;
+            default: strcpy_P(buf8, PSTR("вкл")); break;
         }
-        sprintf_P(bigbuf, PSTR("Выход\nСброс на ноль\nПодсветка: %s\nЖурнал прыжков\nСигналы\nНастройки\nВыключение"), backLightText);
+        sprintf_P(bigbuf, PSTR("Выход\nСброс на ноль\nПодсветка: %s\nЖурнал прыжков\nСигналы\nНастройки\nВыключение"), buf8);
         strcpy_P(buf8, PSTR("Меню"));
         event = u8g2.userInterfaceSelectionList(buf8, event, bigbuf);
         switch (event) {
@@ -461,16 +443,18 @@ void userMenu() {
                 break;
             case 4: {
                 if (freefall_time > 0 && freefall_time < 10000) {
-                    uint16_t my_freefall_time = freefall_time >> 1;
+                    uint16_t my_freefall_time = freefall_time >> 1; // freefall_time is saved in 500ms ticks
                     int average_freefall_speed_ms = (deploy_altitude - exit_altitude) / my_freefall_time;
                     int average_freefall_speed_kmh = (int)(3.6f * average_freefall_speed_ms);
                     int max_freefall_speed_kmh = (int)(3.6f * max_freefall_speed_ms);
                     u8g2.firstPage();
                     do {
+                        // Jump number
                         sprintf_P(bigbuf, PSTR("%d/%d"), 1, 1);
                         u8g2.setCursor(0, 7);
                         u8g2.print(bigbuf);
                         
+                        // Jump date and time
                         sprintf_P(bigbuf, date_time_template,
                             exit_timestamp.day,
                             exit_timestamp.month,
@@ -482,24 +466,28 @@ void userMenu() {
                         u8g2.setCursor(0, 15);
                         u8g2.print(bigbuf);
 
+                        // Exit and deploy altitude
                         sprintf_P(bigbuf, PSTR("O:% 4dм M:% 4dм"), exit_altitude, deploy_altitude);
                         u8g2.setCursor(0, 23);
                         u8g2.print(bigbuf);
                         
+                        // Opening altitude and freefall time
                         sprintf_P(bigbuf, PSTR("Р:% 4dм В:% 4dc"), canopy_altitude, my_freefall_time);
                         u8g2.setCursor(0, 31);
                         u8g2.print(bigbuf);
 
+                        // Average freefall speed
                         sprintf_P(bigbuf, PSTR("Сс: %dм/с (%dкм/ч)"), average_freefall_speed_ms, average_freefall_speed_kmh);
                         u8g2.setCursor(0, 39);
                         u8g2.print(bigbuf);
 
+                        // Max freefall speed
                         sprintf_P(bigbuf, PSTR("Мс: %dм/с (%dкм/ч)"), max_freefall_speed_ms, max_freefall_speed_kmh);
                         u8g2.setCursor(0, 47);
                         u8g2.print(bigbuf);
 
                     } while (u8g2.nextPage());
-                    while (BTN2_RELEASED); // wait for keypress
+                    while (BTN2_RELEASED); // wait for keypress and release
                     while(BTN2_PRESSED);
                 }
                 break;
@@ -537,6 +525,7 @@ void userMenu() {
                             break;
                         }
                         case 7: {
+                            // About
                             strcpy_P(buf8, PSTR("Платформа A01"));
                             strcpy_P(bigbuf, PSTR("Версия 0.3"));
                             u8g2.firstPage();
@@ -554,6 +543,7 @@ void userMenu() {
                 break;
             }
             case 7:
+                // Power off
                 PowerOff();
                 break;
             default:
@@ -644,6 +634,9 @@ bool speed_scaler = true;
 byte timeWhileBtn1Pressed = 0;
 
 void loop() {
+    // If we cannot use interrupts to wake from low-power modes,
+    // we need to know a duration of a loop cycle, because we need it to be
+    // *exactly* 500ms to achieve a precise speed calculation
     uint32_t this_millis = millis();
     // Read sensors
     current_altitude = myPressure.readAltitude();
@@ -652,6 +645,7 @@ void loop() {
     bool btn1Pressed = BTN1_PRESSED;
 
     if (btn1Pressed) {
+        // Try to enter menu
         if (timeWhileBtn1Pressed < 16)
             timeWhileBtn1Pressed++;
     } else {
@@ -662,9 +656,10 @@ void loop() {
         timeWhileBtn1Pressed = 0;
     }
     
-    current_altitude -= ground_altitude; // ground_altitude might be changed via menu
+    current_altitude -= ground_altitude; // ground_altitude can be changed via menu
 
     if ((bstep & 31) == 0) {
+        // Check and refresh battery meter
         batt = analogRead(A0);
         rel_voltage = (short)round((batt-187)*3.23f);
         if (rel_voltage < 0)
@@ -678,7 +673,8 @@ void loop() {
     if (altDiff > 2 || altDiff < -2 || averageSpeed8 > 1 || averageSpeed8 < -1)
         last_shown_altitude = current_altitude;
 
-    bool powerModeChanged = processAltitudeChange(speed_scaler) || (powerMode != previousPowerMode);
+    processAltitudeChange(speed_scaler);
+    bool powerModeChanged =  (powerMode != previousPowerMode);
     if (powerModeChanged)
         bstepInCurrentMode = 0;
     else if (previous_altitude != CLEAR_PREVIOUS_ALTITUDE)
@@ -686,40 +682,36 @@ void loop() {
 
     ShowLEDs(powerModeChanged, timeWhileBtn1Pressed);
 
-    if (!powerMode || (bstep & 1))
-    // Refresh display once per second
-    {
-        u8g2.firstPage();
-        do {
-            u8g2.setFont(font_status_line);
-            u8g2.setCursor(0,6);
-            sprintf_P(bigbuf, date_time_template, rtc.day, rtc.month, rtc.year, rtc.hour, bstepInCurrentMode & 2 ? ' ' : ':', rtc.minute);
-            u8g2.print(bigbuf);
-            u8g2.setCursor(DISPLAY_WIDTH - 16, 6);
-            sprintf_P(buf8, PSTR("%3d%%"), rel_voltage);
-            u8g2.print(buf8);
-    
-            u8g2.drawHLine(0, 7, DISPLAY_WIDTH-1);
-    
-            u8g2.setFont(font_altitude);
-            sprintf_P(buf8, PSTR("%4d"), last_shown_altitude);
-            u8g2.setCursor(0,38);
-            u8g2.print(buf8);
-    
-            u8g2.drawHLine(0, DISPLAY_HEIGHT-8, DISPLAY_WIDTH-1);
-    
-            sprintf_P(buf8, PSTR("&%1d' % 3d % 3d % 3d"), powerMode, currentVspeed, averageSpeed8, averageSpeed32);
-            u8g2.setFont(font_status_line);
-            u8g2.setCursor(0, DISPLAY_HEIGHT - 1);
-            u8g2.print(buf8);
-            // Show heartbeat
-            byte hbHrs = heartbeat / 7200;
-            byte hbMin = ((heartbeat /2) % 3600) / 60;
-            sprintf_P(buf8, PSTR("%02d:%02d"), hbHrs, hbMin);
-            u8g2.setCursor(DISPLAY_WIDTH - 20, DISPLAY_HEIGHT - 1);
-            u8g2.print(buf8);
-        } while ( u8g2.nextPage() );
-    }
+    u8g2.firstPage();
+    do {
+        u8g2.setFont(font_status_line);
+        u8g2.setCursor(0,6);
+        sprintf_P(bigbuf, date_time_template, rtc.day, rtc.month, rtc.year, rtc.hour, bstepInCurrentMode & 1 ? ' ' : ':', rtc.minute);
+        u8g2.print(bigbuf);
+        u8g2.setCursor(DISPLAY_WIDTH - 16, 6);
+        sprintf_P(buf8, PSTR("%3d%%"), rel_voltage);
+        u8g2.print(buf8);
+
+        u8g2.drawHLine(0, 7, DISPLAY_WIDTH-1);
+
+        u8g2.setFont(font_altitude);
+        sprintf_P(buf8, PSTR("%4d"), last_shown_altitude);
+        u8g2.setCursor(0,38);
+        u8g2.print(buf8);
+
+        u8g2.drawHLine(0, DISPLAY_HEIGHT-8, DISPLAY_WIDTH-1);
+
+        sprintf_P(buf8, PSTR("&%1d' % 3d % 3d % 3d"), powerMode, currentVspeed, averageSpeed8, averageSpeed32);
+        u8g2.setFont(font_status_line);
+        u8g2.setCursor(0, DISPLAY_HEIGHT - 1);
+        u8g2.print(buf8);
+        // Show heartbeat
+        byte hbHrs = heartbeat / 7200;
+        byte hbMin = ((heartbeat /2) % 3600) / 60;
+        sprintf_P(buf8, PSTR("%02d:%02d"), hbHrs, hbMin);
+        u8g2.setCursor(DISPLAY_WIDTH - 20, DISPLAY_HEIGHT - 1);
+        u8g2.print(buf8);
+    } while ( u8g2.nextPage() );
 
     speed_scaler = (powerMode != MODE_ON_EARTH || bstepInCurrentMode < 50 || btn1Pressed); // true if period 500ms, false for 4s sleep time
     

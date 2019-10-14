@@ -28,19 +28,17 @@
 #include "osaMPL3115A2.h"
 #include "common.h"
 
-MPL3115A2::MPL3115A2()
-{
+MPL3115A2::MPL3115A2() {
   //Set initial values for private vars
 }
 
 //Begin
 /*******************************************************************************************/
 //Start I2C communication
-void MPL3115A2::begin(void)
-{
-  Wire.begin();
-  IIC_WriteByte(MPL3115A2_ADDRESS, CTRL_REG1, IIC_ReadByte(MPL3115A2_ADDRESS, CTRL_REG1) | 0x80);
-  IIC_WriteByte(MPL3115A2_ADDRESS, PT_DATA_CFG, 0x07);  
+void MPL3115A2::begin(void) {
+    Wire.begin();
+    IIC_WriteByte(MPL3115A2_ADDRESS, CTRL_REG1, (IIC_ReadByte(MPL3115A2_ADDRESS, CTRL_REG1) & B11000111) | B10101000);
+    IIC_WriteByte(MPL3115A2_ADDRESS, PT_DATA_CFG, 0x07);  
 }
 
 
@@ -52,8 +50,7 @@ int MPL3115A2::readAltitude()
 
     //Wait for PDR bit, indicates we have new pressure data
     int counter = 0;
-    while( (IIC_ReadByte(MPL3115A2_ADDRESS, STATUS) & (1<<1)) == 0)
-    {
+    while( (IIC_ReadByte(MPL3115A2_ADDRESS, STATUS) & (1<<1)) == 0) {
         if(++counter > 600) return(-998); //Error out after max of 512ms for a read
         delay(1);
     }
@@ -77,20 +74,6 @@ int MPL3115A2::readAltitude()
     // there are 16 values in 4-bits). 
 
     return (((msb << 8) | csb) + (lsb >> 7));
-}
-
-//Call with a rate from 0 to 7. See page 33 for table of ratios.
-//Sets the over sample rate. Datasheet calls for 128 but you can set it 
-//from 1 to 128 samples. The higher the oversample rate the greater
-//the time between data samples.
-void MPL3115A2::setOversampleRate(byte sampleRate)
-{
-//  sampleRate <<= 3; //Align it for the CTRL_REG1 register
-  
-  byte tempSetting = IIC_ReadByte(MPL3115A2_ADDRESS, CTRL_REG1); //Read current settings
-  tempSetting &= B11000111; //Clear out old OS bits
-  tempSetting |= sampleRate; //Mask in new OS bits
-  IIC_WriteByte(MPL3115A2_ADDRESS, CTRL_REG1, tempSetting);
 }
 
 //Clears then sets the OST bit which causes the sensor to immediately take another reading
