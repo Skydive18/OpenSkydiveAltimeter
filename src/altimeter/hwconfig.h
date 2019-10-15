@@ -3,6 +3,15 @@
 
 #define EPOCH 2016
 
+// Platform. Define one of the following
+// Arduino Pro Micro
+#define PLATFORM_32U4
+// Arduino Pro Mini or pure Atmega328P
+//#define PLATFORM_328P
+// Arduino Pro Mega or pure Atmega2560
+//#define PLATFORM_2560
+
+#ifdef PLATFORM_32U4
 // Pins for Arduino Pro Micro
 #define PIN_HWPWR 8
 #define PIN_LIGHT 4
@@ -15,6 +24,24 @@
 #define PIN_BAT_SENSE A0
 #define PIN_SOUND 5
 #define PIN_INTERRUPT 7
+#define PIN_DC 30
+#else
+#ifdef PLATFORM_328P
+// Pins for Arduino Pro Micro
+#define PIN_HWPWR 4
+#define PIN_LIGHT 7
+#define PIN_R 5
+#define PIN_G 6
+#define PIN_B 9
+#define PIN_BTN1 A3
+#define PIN_BTN2 A2
+#define PIN_BTN3 A1
+#define PIN_BAT_SENSE A0
+#define PIN_SOUND 3
+#define PIN_INTERRUPT 2
+#define PIN_DC 8
+#endif // PLATFORM_328P
+#endif // PLATFORM_32U4
 
 // Address of LED profiles in NVRAM
 #define LED_PROFILES_START 100
