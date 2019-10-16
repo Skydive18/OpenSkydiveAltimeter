@@ -10,13 +10,15 @@ typedef struct {
 } timestamp_t;
 
 typedef struct {
-    timestamp_t timestamp;
-    // Jump data
-    uint32_t exitAltitude : 11; // Exit altitude / 4, meters (0..8191)
-    uint32_t deployAltitude : 11; // Deploy altitude / 4, meters (0..8191)
-    uint32_t freefallTime : 10; // Freefall time, seconds (0..512)
-    unsigned short maxFreefallSpeedMS; // Max freefall speed, m/s
-} jump_t; // structure size: 9 bytes
+    timestamp_t exit_timestamp;
+    uint32_t exit_altitude : 12; // *2, 0..8191
+    uint32_t deploy_altitude : 12; // *2, 0..8191
+    uint32_t max_freefall_speed_ms : 8; // 
+    //
+    uint32_t canopy_altitude : 10; // *2, 0..2048, delta from deploy_altitude
+    uint32_t deploy_time : 10; // in 1s ticks after exit, 512 seconds max
+    uint32_t total_jump_time : 12; // in 500ms ticks, 1024s max
+} jump_t;
 
 typedef struct {
     byte blue_th;

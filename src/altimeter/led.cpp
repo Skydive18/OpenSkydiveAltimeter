@@ -3,7 +3,7 @@
 #include "led.h"
 #include "wiring_private.h"
 
-bool pwm_active = false;
+volatile bool pwm_active = false;
 
 void LED_showOne(byte pin, byte val) {
     // We need to make sure the PWM output is enabled for those pins

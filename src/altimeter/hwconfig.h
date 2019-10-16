@@ -3,6 +3,8 @@
 
 #define EPOCH 2016
 
+#define SERIAL_SPEED 57600
+
 #if defined(__AVR_ATmega32U4__)
 // Pins for Arduino Pro Micro (Atmega-32u4)
 #define PIN_HWPWR 8
@@ -17,6 +19,11 @@
 #define PIN_SOUND 5
 #define PIN_INTERRUPT 7
 #define PIN_DC 30
+//#define LOGBOOK_SIZE 80
+// TODO!!
+#define LOGBOOK_SIZE 20
+#define SNAPSHOT_START 304
+#define SNAPSHOT_SIZE 720
 #else
 #if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
 // Pins for Arduino Pro Mini (Atmega-328[P] - based)
@@ -32,13 +39,15 @@
 #define PIN_SOUND 3
 #define PIN_INTERRUPT 2
 #define PIN_DC 8
+#define LOGBOOK_SIZE 40
+#define SNAPSHOT_START 544
+#define SNAPSHOT_SIZE 480
 #endif // defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
 #endif // defined(__AVR_ATmega32U4__)
 
-// Address of LED profiles in NVRAM
-#define LED_PROFILES_START 100
-// Address of logbook in NVRAM
-#define LOGBOOK_START 124
+// EEPROM
+#define EEPROM_JUMP_COUNTER 0
+#define EEPROM_LOGBOOK_START 64
 
 // Configure RGB LED. Define one of the following
 #define LED_COMMON_CATHODE
