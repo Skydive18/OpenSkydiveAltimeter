@@ -3,16 +3,8 @@
 
 #define EPOCH 2016
 
-// Platform. Define one of the following
-// Arduino Pro Micro
-#define PLATFORM_32U4
-// Arduino Pro Mini or pure Atmega328P
-//#define PLATFORM_328P
-// Arduino Pro Mega or pure Atmega2560
-//#define PLATFORM_2560
-
-#ifdef PLATFORM_32U4
-// Pins for Arduino Pro Micro
+#if defined(__AVR_ATmega32U4__)
+// Pins for Arduino Pro Micro (Atmega-32u4)
 #define PIN_HWPWR 8
 #define PIN_LIGHT 4
 #define PIN_R 6
@@ -26,8 +18,8 @@
 #define PIN_INTERRUPT 7
 #define PIN_DC 30
 #else
-#ifdef PLATFORM_328P
-// Pins for Arduino Pro Micro
+#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
+// Pins for Arduino Pro Mini (Atmega-328[P] - based)
 #define PIN_HWPWR 4
 #define PIN_LIGHT 7
 #define PIN_R 5
@@ -40,8 +32,8 @@
 #define PIN_SOUND 3
 #define PIN_INTERRUPT 2
 #define PIN_DC 8
-#endif // PLATFORM_328P
-#endif // PLATFORM_32U4
+#endif // defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
+#endif // defined(__AVR_ATmega32U4__)
 
 // Address of LED profiles in NVRAM
 #define LED_PROFILES_START 100
@@ -62,8 +54,5 @@
 // Use these macros if display light is turned on with logic 1
 //#define DISPLAY_LIGHT_OFF digitalWrite(PIN_LIGHT,0)
 //#define DISPLAY_LIGHT_ON digitalWrite(PIN_LIGHT,1)
-
-// Configure RTC. Refer to i2c scan to determine correct address
-#include "PCF8583.h"
 
 #endif

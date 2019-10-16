@@ -10,6 +10,7 @@
 #include "fonts.h"
 #include "custom_types.h"
 #include "common.h"
+#include "PCF8583.h"
 
 // Altimeter modes (powerMode)
 #define MODE_ON_EARTH 0
@@ -110,7 +111,7 @@ void setup() {
   Serial.println (" device(s).");
 */
 
-    LED_init();
+    LED_show(0, 0, 0);
 
     pinMode(PIN_SOUND, OUTPUT);
     digitalWrite(PIN_SOUND, 0);
@@ -152,7 +153,7 @@ void setup() {
 
 //
 // Main state machine
-// Ideas got from EZ420 project at skycentre.net
+// Ideas got from EZ430 project at skycentre.net
 //
 void processAltitudeChange(bool speed_scaler) {
     if (previous_altitude == CLEAR_PREVIOUS_ALTITUDE) { // unknown delay or first run; just save
@@ -331,9 +332,8 @@ void ShowLEDs(bool powerModeChanged, byte timeWhileBtn1Pressed) {
         case MODE_ON_EARTH:
             if (bstepInCurrentMode < 8) {
                 LED_show(0, (bstepInCurrentMode & 1) ? 0 : 80, 0); // green blinks to indicate that altimeter is ready
-                return;
             }
-            break;
+            return;
     }
 
     airplane_300m = 0;
@@ -366,8 +366,8 @@ void PowerOff() {
     digitalWrite(PIN_HWPWR, 0);
     digitalWrite(PIN_SOUND, 0);
     // turn off i2c
-    pinMode(2, INPUT);
-    pinMode(3, INPUT);
+    pinMode(SCL, INPUT);
+    pinMode(SDA, INPUT);
     // turn off SPI
     pinMode(MOSI, INPUT);
     pinMode(MISO, INPUT);
@@ -442,6 +442,7 @@ void userMenu() {
                     IIC_WriteByte(RTC_ADDRESS, ADDR_BACKLIGHT, backLight);
                 break;
             case 4: {
+                // Logbook
                 if (freefall_time > 0 && freefall_time < 10000) {
                     uint16_t my_freefall_time = freefall_time >> 1; // freefall_time is saved in 500ms ticks
                     int average_freefall_speed_ms = (deploy_altitude - exit_altitude) / my_freefall_time;
@@ -743,7 +744,7 @@ void loop() {
         rtc.disableSeedInterrupt();
     }
     bstep++;
-    if (powerMode == MODE_ON_EARTH || powerMode == MODE_PREFILL || powerMode == MODE_DUMB) {
+    if (powerMode == MODE_ON_EARTH || powerMode == MODE_DUMB) {
         // Check auto-poweroff. Prevent it in jump modes.
         heartbeat -= speed_scaler ? 1 : 8;
         if (heartbeat <= 0)
