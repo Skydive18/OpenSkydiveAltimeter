@@ -85,6 +85,7 @@ char* date_time_template;
 
 // Prototypes
 void ShowText(const byte x, const byte y, const char* text);
+int8_t myMenu(char *menudef, int8_t event = 1);
 void showVersion();
 void wake() { INTACK = true; }
 
@@ -442,23 +443,79 @@ byte checkWakeCondition ()
 }
 
 void showVersion() {
-    strcpy_P(middlebuf, PSTR("Платформа A01"));
-    strcpy_P(bigbuf, PSTR("Версия 0.4"));
-    strcpy_P(&(bigbuf[100]), PSTR("  Альтима+"));
-    sprintf_P(smallbuf, PSTR("COM %ld/8N1"), SERIAL_SPEED);
     u8g2.setFont(font_menu);
-    u8g2.firstPage();
-    do {
-        u8g2.setCursor(0, 12);
-        u8g2.print(&(bigbuf[100]));
-        u8g2.setCursor(0, 21);
-        u8g2.print(middlebuf);
-        u8g2.setCursor(0, 30);
-        u8g2.print(bigbuf);
-        u8g2.setCursor(0, 39);
-        u8g2.print(smallbuf);
-    } while(u8g2.nextPage());
-   
+    sprintf_P(bigbuf, PSTR("Альтимонстр I\nПлатформа A01\nВерсия 0.5\nCOM %ld/8N1\n"), SERIAL_SPEED);
+    myMenu(bigbuf, -1);
+}
+
+#define FONT_HEIGHT 7
+int8_t myMenu(char *menudef, int8_t event = 1) {
+    int ptr = 0;
+    int8_t number_of_menu_lines = -1;
+    while(menudef[ptr]) {
+        if (menudef[ptr] == '\n') {
+            menudef[ptr] = '\0';
+            number_of_menu_lines++;
+        }
+        ptr++;
+    }
+    
+    int8_t firstline = 1;
+
+    for (;;) {
+        // check if we need to update scroll
+        if (event > 0) {
+            if ((event - firstline) >= DISPLAY_LINES_IN_MENU)
+                firstline = event - (DISPLAY_LINES_IN_MENU - 1);
+            if (event < firstline)
+                firstline = event;
+        }
+        u8g2.firstPage();
+        do {
+            ptr = 0;
+            int8_t line = 1;
+            // Print title and find ptr
+            u8g2.setCursor(0, FONT_HEIGHT);
+            u8g2.print(menudef);
+            while (menudef[ptr++]); // set to the beginning of the next line
+            u8g2.drawHLine(0, FONT_HEIGHT + 1, DISPLAY_WIDTH-1);
+            while (menudef[ptr] != 0 && (line - firstline) < DISPLAY_LINES_IN_MENU) {
+                if (line >= firstline) {
+                    u8g2.setCursor(0, (FONT_HEIGHT * (line - firstline)) + (FONT_HEIGHT + FONT_HEIGHT + 2));
+                    if (event > 0)
+                        menudef[ptr] = (event == line) ? '>' : ' ';
+                    u8g2.print((char*)(menudef + ptr));
+                }
+                line++;
+                while (bigbuf[ptr++]); // set to the beginning of the next line
+            }
+        } while (u8g2.nextPage());
+        if (event == -1)
+            return -1;
+        byte key = getKeypress();
+        if (event == 0)
+            return key;
+        switch (key) {
+            case 255:
+                // Timeout
+                return -1;
+            case PIN_BTN2:
+                // Select
+                return event;
+            case PIN_BTN1:
+                // up
+                event--;
+                if (event == 0)
+                    event = number_of_menu_lines;
+                break;
+            case PIN_BTN3:
+                // down
+                event++;
+                if (event > number_of_menu_lines)
+                    event = 1;
+                break;
+        }
+    }
 }
 
 void userMenu() {
@@ -473,9 +530,8 @@ void userMenu() {
             case 2: strcpy_P(smallbuf, PSTR("авто")); break;
             default: strcpy_P(smallbuf, PSTR("вкл")); break;
         }
-        sprintf_P(bigbuf, PSTR("Выход\nСброс на ноль\nПодсветка: %s\nЖурнал прыжков\nСигналы\nНастройки\nВыключение"), smallbuf);
-        strcpy_P(smallbuf, PSTR("Меню"));
-        event = u8g2.userInterfaceSelectionList(smallbuf, event, bigbuf);
+        sprintf_P(bigbuf, PSTR("Меню\n Выход\n Сброс на ноль\n Подсветка: %s\n Журнал прыжков\n Сигналы\n Настройки\n Выключение\n"), smallbuf);
+        event = myMenu(bigbuf, event);
         switch (event) {
             case 2: {
                 // Set to zero
@@ -500,54 +556,54 @@ void userMenu() {
                     IIC_WriteByte(RTC_ADDRESS, ADDR_BACKLIGHT, backLight);
                 break;
             case 4: {
+                int8_t logbook_event = 1;
+                do {
+                    strcpy_P(bigbuf, PSTR("Журнал прыжков\n Выход\n Просмотр\n Повтор прыжка\n Очистить журнал\n"));
+                    logbook_event = myMenu(bigbuf, logbook_event);
+                    switch (logbook_event) {
+                        case 1:
+                        case -1:
+                            // Exit submenu
+                            break;
+                        case 2: {
+                            // view logbook
+                            if (current_jump.total_jump_time > 0 && current_jump.total_jump_time < 2047) {
+                                int average_freefall_speed_ms = ((current_jump.exit_altitude - current_jump.deploy_altitude) * 2) / current_jump.deploy_time;
+                                int average_freefall_speed_kmh = (int)(3.6f * average_freefall_speed_ms);
+                                int max_freefall_speed_kmh = (int)(3.6f * current_jump.max_freefall_speed_ms);
+
+                                sprintf_P(bigbuf, PSTR("%d/%d\n%02d.%02d.%04d %02d:%02d\nO:% 4dм M:% 4dм\nР:% 4dм В:% 4dc\nСс: %dм/с (%dкм/ч)\nМс: %dм/с (%dкм/ч)\n"),
+                                    1, 1,
+                                    current_jump.exit_timestamp.day, current_jump.exit_timestamp.month, current_jump.exit_timestamp.year, current_jump.exit_timestamp.hour, current_jump.exit_timestamp.minute,
+                                    current_jump.exit_altitude * 2, current_jump.deploy_altitude * 2,
+                                    (current_jump.deploy_altitude - current_jump.canopy_altitude) * 2, current_jump.deploy_time,
+                                    average_freefall_speed_ms, average_freefall_speed_kmh,
+                                    current_jump.max_freefall_speed_ms, max_freefall_speed_kmh
+                                    );
+                                // TODO: Navigate through logbook
+                                myMenu(bigbuf, 0);
+                            }
+                            break;
+                        }
+                        case 4: {
+                            // Erase logbook
+                            strcpy_P(smallbuf, PSTR(" Нет!!! \n Да. "));
+                            strcpy_P(middlebuf, PSTR("Очистить журнал\nпрыжков?"));
+                            bigbuf[0] = 0;
+                            if (true /*u8g2.userInterfaceMessage(middlebuf, bigbuf, bigbuf, smallbuf) == 2*/) {
+                                // Really clear logbook
+                                total_jumps = 0;
+                                EEPROM.put(EEPROM_JUMP_COUNTER, total_jumps);
+                                strcpy_P(smallbuf, PSTR(" Понятно "));
+                                strcpy_P(middlebuf, PSTR("Журнал прыжков\nочищен"));
+                                //u8g2.userInterfaceMessage(middlebuf, bigbuf, bigbuf, smallbuf);
+                                logbook_event = 1; // exit menu
+                            }
+                            break;
+                        }
+                    } // switch (logbook_event)
+                } while (logbook_event != 1);
                 // Logbook
-                if (current_jump.total_jump_time > 0 && current_jump.total_jump_time < 2047) {
-                    int average_freefall_speed_ms = ((current_jump.exit_altitude - current_jump.deploy_altitude) * 2) / current_jump.deploy_time;
-                    int average_freefall_speed_kmh = (int)(3.6f * average_freefall_speed_ms);
-                    int max_freefall_speed_kmh = (int)(3.6f * current_jump.max_freefall_speed_ms);
-                    u8g2.firstPage();
-                    do {
-                        // Jump number
-                        sprintf_P(bigbuf, PSTR("%d/%d"), 1, 1);
-                        u8g2.setCursor(0, 7);
-                        u8g2.print(bigbuf);
-                        
-                        // Jump date and time
-                        sprintf_P(bigbuf, date_time_template,
-                            current_jump.exit_timestamp.day,
-                            current_jump.exit_timestamp.month,
-                            current_jump.exit_timestamp.year,
-                            current_jump.exit_timestamp.hour,
-                            ':',
-                            current_jump.exit_timestamp.minute
-                        );
-                        u8g2.setCursor(0, 15);
-                        u8g2.print(bigbuf);
-
-                        // Exit and deploy altitude
-                        sprintf_P(bigbuf, PSTR("O:% 4dм M:% 4dм"), current_jump.exit_altitude * 2, current_jump.deploy_altitude * 2);
-                        u8g2.setCursor(0, 23);
-                        u8g2.print(bigbuf);
-                        
-                        // Opening altitude and freefall time
-                        sprintf_P(bigbuf, PSTR("Р:% 4dм В:% 4dc"), (current_jump.deploy_altitude - current_jump.canopy_altitude) * 2, current_jump.deploy_time);
-                        u8g2.setCursor(0, 31);
-                        u8g2.print(bigbuf);
-
-                        // Average freefall speed
-                        sprintf_P(bigbuf, PSTR("Сс: %dм/с (%dкм/ч)"), average_freefall_speed_ms, average_freefall_speed_kmh);
-                        u8g2.setCursor(0, 39);
-                        u8g2.print(bigbuf);
-
-                        // Max freefall speed
-                        sprintf_P(bigbuf, PSTR("Мс: %dм/с (%dкм/ч)"), current_jump.max_freefall_speed_ms, max_freefall_speed_kmh);
-                        u8g2.setCursor(0, 47);
-                        u8g2.print(bigbuf);
-
-                    } while (u8g2.nextPage());
-                    while (BTN2_RELEASED); // wait for keypress and release
-                    while(BTN2_PRESSED);
-                }
                 break;
             }
             case 6: {
@@ -556,9 +612,8 @@ void userMenu() {
                 byte newAutoPowerOff = IIC_ReadByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF);
                 do {
                     char* power_mode_string = powerMode == MODE_DUMB ? "выкл" : "вкл";
-                    sprintf_P(bigbuf, PSTR("Выход\nВремя\nДата\nБудильник\nАвторежим: %s\nАвтовыкл: %sч\nВерсия ПО\nДамп памяти"), power_mode_string, HeartbeatStr(newAutoPowerOff));
-                    strcpy_P(smallbuf, PSTR("Настройки"));
-                    eventSettings = u8g2.userInterfaceSelectionList(smallbuf, eventSettings, bigbuf);
+                    sprintf_P(bigbuf, PSTR("Настройки\n Выход\n Время\n Дата\n Будильник\n Авторежим: %s\n Автовыкл: %sч\n Версия ПО\n Дамп памяти\n"), power_mode_string, HeartbeatStr(newAutoPowerOff));
+                    eventSettings = myMenu(bigbuf, eventSettings);
                     switch (eventSettings) {
                         case 2: {
                             // Time
@@ -572,6 +627,8 @@ void userMenu() {
                             }
                             break;
                         }
+                        case 3:
+                            break;
                         case 5:
                             // Auto power mode
                             powerMode = powerMode == MODE_DUMB ? MODE_ON_EARTH : MODE_DUMB;
@@ -592,41 +649,25 @@ void userMenu() {
                         }
                         case 8: {
                             // TODO.
-                            Serial.println(F("EEPROM"));
-                            Serial.print('0');
+                            Serial.print(F("EEPROM"));
                             for (int i = 0; i < 1024; i++) {
                                 if ((i & 15) == 0) {
-                                    if (i < 256)
-                                        Serial.print('0');
-                                    Serial.print(i, HEX);
-                                    Serial.print(F(": "));
+                                    sprintf_P(smallbuf, PSTR("\n%03x: "), i);
+                                    Serial.print(smallbuf);
                                 }
                                 byte b = EEPROM.read(i);
-                                if (b < 16)
-                                    Serial.print('0');
-                                Serial.print(b, HEX);
-                                if ((i & 15) == 15)
-                                    Serial.println();
-                                else
-                                    Serial.print(' ');
+                                sprintf_P(smallbuf, PSTR("%2x "), b);
+                                Serial.print(smallbuf);
                             }
-                            Serial.println("");
-                            Serial.println(F("RTC NVRAM"));
+                            Serial.println(F("\n\nRTC NVRAM"));
                             for (int i = 16; i < 256; i++) {
                                 if ((i & 15) == 0) {
-                                    if (i < 256)
-                                        Serial.print('0');
-                                    Serial.print(i, HEX);
-                                    Serial.print(F(": "));
+                                    sprintf_P(smallbuf, PSTR("\n%03x: "), i);
+                                    Serial.print(smallbuf);
                                 }
                                 byte b = IIC_ReadByte(RTC_ADDRESS, i);
-                                if (b < 16)
-                                    Serial.print('0');
-                                Serial.print(b, HEX);
-                                if ((i & 15) == 15)
-                                    Serial.println();
-                                else
-                                    Serial.print(' ');
+                                sprintf_P(smallbuf, PSTR("%2x "), b);
+                                Serial.print(smallbuf);
                             }
 
                             break;
@@ -642,7 +683,7 @@ void userMenu() {
             default:
             break;
         }
-    } while (event != 1);
+    } while (event != 1 && event != -1);
 }
 
 bool SetTime(byte &hour, byte &minute) {
