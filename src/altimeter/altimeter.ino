@@ -159,7 +159,7 @@ void setup() {
     ShowText(16, 30, PSTR("Ni Hao!"));
     DISPLAY_LIGHT_ON;
     showVersion();
-    off_4s;
+    delay(4000);
     DISPLAY_LIGHT_OFF;
 
     // Load templates
@@ -391,9 +391,9 @@ void ShowText(const byte x, const byte y, const char* text) {
             u8g2.setCursor(x, y);
             u8g2.print(bigbuf);
         } while(u8g2.nextPage());
-        off_250ms;
+        delay(250);
     }
-    off_4s;
+    delay(5000);
     DISPLAY_LIGHT_OFF;
 }
 
@@ -688,7 +688,7 @@ void userMenu() {
 
 bool SetTime(byte &hour, byte &minute) {
     byte pos = 0;
-    do {
+    for(;;) {
         u8g2.firstPage();
         do {
             sprintf_P(middlebuf, PSTR("%c%02d%c : %c%02d%c"),
@@ -710,58 +710,67 @@ bool SetTime(byte &hour, byte &minute) {
             u8g2.setCursor(0, 35);
             u8g2.print(middlebuf);
         } while(u8g2.nextPage());
+        byte keyEvent = getKeypress();
+        switch (keyEvent) {
+            case PIN_BTN1: {
+                switch (pos) {
+                    case 0:
+                        hour--;
+                        if (hour > 23)
+                            hour = 23;
+                        break;
+                    case 1:
+                        minute--;
+                        if (minute > 59)
+                            minute = 59;
+                        break;
+                    case 2:
+                    case 3:
+                        pos--;
+                        break;
+                }
+            }
+            break;
 
-        if (BTN1_PRESSED) {
-            while(BTN1_PRESSED);
-            switch (pos) {
-                case 0:
-                    hour--;
-                    if (hour > 23)
-                        hour = 23;
-                    break;
-                case 1:
-                    minute--;
-                    if (minute > 59)
-                        minute = 59;
-                    break;
-                case 2:
-                case 3:
-                    pos--;
-                    break;
+            case PIN_BTN2: {
+                switch (pos) {
+                    case 0:
+                    case 1:
+                        pos++;
+                        break;
+                    case 2:
+                        return false;
+                    case 3:
+                        return true;
+                }
             }
+            break;
+
+            case PIN_BTN3: {
+                switch (pos) {
+                    case 0:
+                        hour++;
+                        if (hour > 23)
+                            hour = 0;
+                        break;
+                    case 1:
+                        minute++;
+                        if (minute > 59)
+                            minute = 0;
+                        break;
+                    case 2:
+                    case 3:
+                        pos++;
+                        break;
+                }
+            }
+            break;
+
+            default:
+                // Timeout
+                return false;
         }
-        else if (BTN2_PRESSED) {
-            while(BTN2_PRESSED);
-            switch (pos) {
-                case 0:
-                case 1:
-                    pos++;
-                    break;
-                case 2:
-                    return false;
-                case 3:
-                    return true;
-            }
-        } else if (BTN3_PRESSED) {
-            while(BTN3_PRESSED);
-            switch (pos) {
-                case 0:
-                    hour++;
-                    if (hour > 23)
-                        hour = 0;
-                    break;
-                case 1:
-                    minute++;
-                    if (minute > 59)
-                        minute = 0;
-                    break;
-                case 2:
-                case 3:
-                    pos++;
-                    break;
-            }
-        }
-    } while(true);
+    };
 }
 
 bool speed_scaler = true;
