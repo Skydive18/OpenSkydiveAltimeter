@@ -48,7 +48,7 @@ void(* resetFunc) (void) = 0;
 int vspeed[VSPEED_LENGTH]; // used in mode detector. TODO clean it in setup maybe?
 uint32_t bstep; // global heartbeat counter, in ticks depending on mode
 uint32_t bstepInCurrentMode; // heartbeat counter since mode changed
-long heartbeat; // heartbeat in 500ms ticks
+long heartbeat; // heartbeat in 500ms ticks until auto turn off
 
 byte vspeedPtr = 0; // pointer to write to vspeed buffer
 int currentVspeed;
@@ -70,13 +70,12 @@ int8_t rel_voltage; // ballery relative voltare, in percent (0-100). 0 relates t
 
 // Current jump
 jump_t current_jump;
+// logbook
+uint16_t total_jumps;
 
 // Used in snapshot saver
 uint16_t accumulated_altitude;
 int accumulated_speed;
-
-// logbook
-uint16_t total_jumps;
 
 char smallbuf[24];
 char middlebuf[48];
@@ -88,6 +87,7 @@ void ShowText(const byte x, const byte y, const char* text);
 int8_t myMenu(char *menudef, int8_t event = 1);
 void showVersion();
 void wake() { INTACK = true; }
+bool SetDate(timestamp_t &date);
 
 void setup() {
     pinMode(PIN_HWPWR, OUTPUT);
@@ -299,7 +299,7 @@ void processAltitudeChange(bool speed_scaler) {
                 // Save snapshot
                 EEPROM.put(SNAPSHOT_START, bigbuf);
                 // Save jump
-                EEPROM.put(EEPROM_LOGBOOK_START + (((total_jumps++) * sizeof(jump_t)) % LOGBOOK_SIZE), current_jump);
+                EEPROM.put(EEPROM_LOGBOOK_START + (((total_jumps++) * sizeof(jump_t)) % (LOGBOOK_SIZE + 1)), current_jump);
                 EEPROM.put(EEPROM_JUMP_COUNTER, total_jumps);
             }
             break;
@@ -449,6 +449,9 @@ void showVersion() {
 }
 
 #define FONT_HEIGHT 7
+// Returns -1 on timeout; otherwise, current position
+// event = 0 => show menu and wait for keypress, no navigation performed. Return keypress.
+// event == -1 => show menu and exit immediately.
 int8_t myMenu(char *menudef, int8_t event = 1) {
     int ptr = 0;
     int8_t number_of_menu_lines = -1;
@@ -518,6 +521,31 @@ int8_t myMenu(char *menudef, int8_t event = 1) {
     }
 }
 
+void current_jump_to_bigbuf(uint16_t jump_to_show) {
+    int average_freefall_speed_ms = ((current_jump.exit_altitude - current_jump.deploy_altitude) * 2) / current_jump.deploy_time;
+    int average_freefall_speed_kmh = (int)(3.6f * average_freefall_speed_ms);
+    int max_freefall_speed_kmh = (int)(3.6f * current_jump.max_freefall_speed_ms);
+    uint8_t day = current_jump.exit_timestamp.day;
+    uint8_t month = current_jump.exit_timestamp.month;
+    uint16_t year = current_jump.exit_timestamp.year;
+    uint8_t hour = current_jump.exit_timestamp.hour;
+    uint8_t minute = current_jump.exit_timestamp.minute;
+    int16_t exit_altitude = current_jump.exit_altitude * 2;
+    int16_t deploy_altitude = current_jump.deploy_altitude * 2;
+    int16_t canopy_altitude = (current_jump.deploy_altitude - current_jump.canopy_altitude) * 2;
+    uint16_t freefall_time = current_jump.deploy_time;
+    uint16_t max_freefall_speed_ms = current_jump.max_freefall_speed_ms;
+
+    sprintf_P(bigbuf, PSTR("%u/%u\n%02d.%02d.%04d %02d:%02d\nO:%4dм Р:%4dм\nП:%4dм В:%4dc\nС:%dм/с %dкм/ч\nМ:%dм/с %dкм/ч\n"),
+        jump_to_show, total_jumps,
+        day, month, year, hour, minute,
+        exit_altitude, deploy_altitude,
+        canopy_altitude, freefall_time,
+        average_freefall_speed_ms, average_freefall_speed_kmh,
+        max_freefall_speed_ms, max_freefall_speed_kmh
+        );
+}
+
 void userMenu() {
     DISPLAY_LIGHT_ON; // it will be turned off, if needed, in ShowLEDs(..)
 
@@ -556,41 +584,71 @@ void userMenu() {
                     IIC_WriteByte(RTC_ADDRESS, ADDR_BACKLIGHT, backLight);
                 break;
             case 4: {
+                // Logbook
                 int8_t logbook_event = 1;
                 do {
                     strcpy_P(bigbuf, PSTR("Журнал прыжков\n Выход\n Просмотр\n Повтор прыжка\n Очистить журнал\n"));
                     logbook_event = myMenu(bigbuf, logbook_event);
                     switch (logbook_event) {
                         case 1:
-                        case -1:
                             // Exit submenu
                             break;
                         case 2: {
                             // view logbook
-                            if (current_jump.total_jump_time > 0 && current_jump.total_jump_time < 2047) {
-                                int average_freefall_speed_ms = ((current_jump.exit_altitude - current_jump.deploy_altitude) * 2) / current_jump.deploy_time;
-                                int average_freefall_speed_kmh = (int)(3.6f * average_freefall_speed_ms);
-                                int max_freefall_speed_kmh = (int)(3.6f * current_jump.max_freefall_speed_ms);
+                            if (total_jumps == 0)
+                                break; // no jumps, nothing to show
+                            uint16_t jump_to_show = total_jumps;
+                            uint8_t logbook_view_event;
+                            for (;;) {
+                                if (jump_to_show == 0 || (jump_to_show + LOGBOOK_SIZE) == total_jumps)
+                                    jump_to_show = total_jumps;
+                                if (jump_to_show > total_jumps)
+                                    jump_to_show = (total_jumps > LOGBOOK_SIZE) ? total_jumps - LOGBOOK_SIZE : 1;
 
-                                sprintf_P(bigbuf, PSTR("%d/%d\n%02d.%02d.%04d %02d:%02d\nO:% 4dм M:% 4dм\nР:% 4dм В:% 4dc\nСс: %dм/с (%dкм/ч)\nМс: %dм/с (%dкм/ч)\n"),
-                                    1, 1,
-                                    current_jump.exit_timestamp.day, current_jump.exit_timestamp.month, current_jump.exit_timestamp.year, current_jump.exit_timestamp.hour, current_jump.exit_timestamp.minute,
-                                    current_jump.exit_altitude * 2, current_jump.deploy_altitude * 2,
-                                    (current_jump.deploy_altitude - current_jump.canopy_altitude) * 2, current_jump.deploy_time,
-                                    average_freefall_speed_ms, average_freefall_speed_kmh,
-                                    current_jump.max_freefall_speed_ms, max_freefall_speed_kmh
-                                    );
-                                // TODO: Navigate through logbook
-                                myMenu(bigbuf, 0);
-                            }
+                                // Read jump from logbook
+                                EEPROM.get(EEPROM_LOGBOOK_START + (((jump_to_show - 1) * sizeof(jump_t)) % (LOGBOOK_SIZE + 1)), current_jump);
+                                current_jump_to_bigbuf(jump_to_show);
+                                Serial.println(bigbuf);
+                                logbook_view_event = myMenu(bigbuf, 0);
+                                switch (logbook_view_event) {
+                                    case -1:
+                                        // timeout
+                                        return;
+                                    case PIN_BTN1:
+                                        jump_to_show--;
+                                        break;
+                                    case PIN_BTN3:
+                                        jump_to_show++;
+                                        break;
+                                }
+                                if (logbook_view_event == PIN_BTN2)
+                                    break;
+                            };
                             break;
                         }
+                        case 3: {
+                            // replay latest jump
+                            // For debug purposes: prefill
+
+                            current_jump.exit_timestamp = rtc.getTimestamp();
+                            current_jump.exit_altitude = 4150 / 2;
+                            current_jump.deploy_altitude = 1250 / 2;
+                            current_jump.canopy_altitude = 120;
+                            current_jump.deploy_time = 62;
+                            current_jump.max_freefall_speed_ms = 67;
+                            current_jump.total_jump_time = 1150;
+                            EEPROM.put(EEPROM_LOGBOOK_START + (((total_jumps++) * sizeof(jump_t)) % (LOGBOOK_SIZE + 1)), current_jump);
+                            EEPROM.put(EEPROM_JUMP_COUNTER, total_jumps);
+                            }
+                            break; // not implemented
+                            
                         case 4: {
                             // Erase logbook
-                            strcpy_P(smallbuf, PSTR(" Нет!!! \n Да. "));
-                            strcpy_P(middlebuf, PSTR("Очистить журнал\nпрыжков?"));
-                            bigbuf[0] = 0;
-                            if (true /*u8g2.userInterfaceMessage(middlebuf, bigbuf, bigbuf, smallbuf) == 2*/) {
+                            strcpy_P(bigbuf, PSTR("Очистить журнал?\n Нет\n Да\n"));
+                            int8_t confirmCrearLogbook = myMenu(bigbuf, 1);
+                            if (confirmCrearLogbook == -1)
+                                return;
+                            if (confirmCrearLogbook == 2) {
                                 // Really clear logbook
                                 total_jumps = 0;
                                 EEPROM.put(EEPROM_JUMP_COUNTER, total_jumps);
@@ -601,6 +659,9 @@ void userMenu() {
                             }
                             break;
                         }
+                        default:
+                            // timeout
+                            return;
                     } // switch (logbook_event)
                 } while (logbook_event != 1);
                 // Logbook
@@ -615,6 +676,8 @@ void userMenu() {
                     sprintf_P(bigbuf, PSTR("Настройки\n Выход\n Время\n Дата\n Будильник\n Авторежим: %s\n Автовыкл: %sч\n Версия ПО\n Дамп памяти\n"), power_mode_string, HeartbeatStr(newAutoPowerOff));
                     eventSettings = myMenu(bigbuf, eventSettings);
                     switch (eventSettings) {
+                        case 1:
+                            break; // Exit menu
                         case 2: {
                             // Time
                             rtc.readTime();
@@ -623,12 +686,24 @@ void userMenu() {
                             if (SetTime(hour, minute)) {
                                 rtc.hour = hour;
                                 rtc.minute = minute;
-                                rtc.set_time();
+                                rtc.setTime();
                             }
                             break;
                         }
-                        case 3:
+                        case 3: {
+                            // Date
+                            rtc.readTime();
+                            uint8_t day = rtc.day;
+                            uint8_t month = rtc.month;
+                            uint16_t year = rtc.year;
+                            if (SetDate(day, month, year)) {
+                                rtc.day = day;
+                                rtc.month = month;
+                                rtc.year = year;
+                                rtc.setDate();
+                            }
                             break;
+                        }
                         case 5:
                             // Auto power mode
                             powerMode = powerMode == MODE_DUMB ? MODE_ON_EARTH : MODE_DUMB;
@@ -672,6 +747,9 @@ void userMenu() {
 
                             break;
                         }
+                        default:
+                            // timeout
+                            return;
                     }
                 } while (eventSettings != 1);
                 break;
@@ -681,9 +759,115 @@ void userMenu() {
                 PowerOff();
                 break;
             default:
-            break;
+                return;
         }
     } while (event != 1 && event != -1);
+}
+
+bool SetDate(uint8_t &day, uint8_t &month, uint16_t &year) {
+    byte pos = 0;
+    for(;;) {
+        u8g2.firstPage();
+        pos = (pos + 5) % 5;
+        if (year > 2100)
+            year = 2100;
+        if (year < 2019)
+            year = 2019;
+        if (month > 12)
+            month = 12;
+        if (month == 0)
+            month = 1;
+        if (day == 0)
+            day = 1;
+        if (day > 30 && (month == 4 || month == 6 || month == 9 || month == 11))
+            day = 30;
+        if (month == 2 && (year & 3) == 0 && day > 29)
+            day = 29;
+        if (month == 2 && day > 28 && (year & 3) != 0)
+            day = 28;
+        do {
+            u8g2.setCursor(0, FONT_HEIGHT);
+            u8g2.print(F("Текущая дата"));
+            u8g2.drawHLine(0, FONT_HEIGHT + 1, DISPLAY_WIDTH-1);
+
+            sprintf_P(middlebuf, PSTR("%c%02d %c%02d %c%04d"),
+                pos == 0 ? '}' : ' ',
+                day,
+                pos == 1 ? '}' : ' ',
+                month,
+                pos == 2 ? '}' : ' ',
+                year
+            );
+            u8g2.setCursor(0, FONT_HEIGHT + FONT_HEIGHT + 3);
+            u8g2.print(middlebuf);
+
+            sprintf_P(middlebuf, PSTR("%cОтмена %cОК"),
+                pos == 3 ? '}' : ' ',
+                pos == 4 ? '}' : ' '
+            );
+            u8g2.setCursor(0, FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + 5);
+            u8g2.print(middlebuf);
+        } while(u8g2.nextPage());
+        byte keyEvent = getKeypress();
+        switch (keyEvent) {
+            case PIN_BTN1: {
+                switch (pos) {
+                    case 0:
+                        day--;
+                        break;
+                    case 1:
+                        month--;
+                        break;
+                    case 2:
+                        year--;
+                        break;
+                    case 3:
+                    case 4:
+                        pos--;
+                        break;
+                }
+            }
+            break;
+
+            case PIN_BTN2: {
+                switch (pos) {
+                    case 0:
+                    case 1:
+                    case 2:
+                        pos++;
+                        break;
+                    case 3:
+                        return false;
+                    case 4:
+                        return true;
+                }
+            }
+            break;
+
+            case PIN_BTN3: {
+                switch (pos) {
+                    case 0:
+                        day++;
+                        break;
+                    case 1:
+                        month++;
+                        break;
+                    case 2:
+                        year++;
+                        break;
+                    case 3:
+                    case 4:
+                        pos++;
+                        break;
+                }
+            }
+            break;
+
+            default:
+                // Timeout
+                return false;
+        }
+    };
 }
 
 bool SetTime(byte &hour, byte &minute) {
@@ -695,19 +879,21 @@ bool SetTime(byte &hour, byte &minute) {
             u8g2.setCursor(0, FONT_HEIGHT);
             u8g2.print(F("Текущее время"));
             u8g2.drawHLine(0, FONT_HEIGHT + 1, DISPLAY_WIDTH-1);
+
             sprintf_P(middlebuf, PSTR("%c%02d:%02d%c"),
                 pos == 0 ? '}' : ' ',
                 hour,
                 minute,
                 pos == 1 ? '{' : ' '
             );
-            u8g2.setCursor(0, 20);
+            u8g2.setCursor(0, FONT_HEIGHT + FONT_HEIGHT + 3);
             u8g2.print(middlebuf);
+
             sprintf_P(middlebuf, PSTR("%cОтмена %cОК"),
                 pos == 2 ? '}' : ' ',
                 pos == 3 ? '}' : ' '
             );
-            u8g2.setCursor(0, 35);
+            u8g2.setCursor(0, FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + 5);
             u8g2.print(middlebuf);
         } while(u8g2.nextPage());
         byte keyEvent = getKeypress();

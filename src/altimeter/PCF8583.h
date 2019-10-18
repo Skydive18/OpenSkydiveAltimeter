@@ -6,6 +6,7 @@
 #include "custom_types.h"
 
 // Addressing in RAM, altimeter runtime parameters
+#define ADDR_YEAR_BASE 0x10
 #define ADDR_ZERO_ALTITUDE 0x12
 #define ADDR_BACKLIGHT 0x14
 #define ADDR_AUTO_POWEROFF 0x15
@@ -33,7 +34,8 @@ class PCF8583 {
     
     void readTime();
     timestamp_t getTimestamp();
-    void set_time();
+    void setDate();
+    void setTime();
     void get_alarm();
 
     void set_daily_alarm();

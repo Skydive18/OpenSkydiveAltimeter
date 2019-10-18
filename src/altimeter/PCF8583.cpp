@@ -4,9 +4,9 @@
 #include "common.h"
 
 namespace {
-  bool IsLeapYear(int year) {
-    return !(year % 400) || ((year % 100) && !(year % 4));
-  }
+    bool IsLeapYear(int year) {
+        return !(year % 400) || ((year % 100) && !(year % 4));
+    }
 }
 
 PCF8583::PCF8583() {
@@ -24,34 +24,30 @@ void PCF8583::init() {
 }
 
 void PCF8583::readTime() {
-  Wire.beginTransmission(RTC_ADDRESS);
-  Wire.write(0x03);
-  Wire.endTransmission();
-  Wire.requestFrom(RTC_ADDRESS, 4);
+    Wire.beginTransmission(RTC_ADDRESS);
+    Wire.write(0x03);
+    Wire.endTransmission(false);
+    Wire.requestFrom(RTC_ADDRESS, 4);
 
-  minute = bcd_to_short(Wire.read());
-  hour   = bcd_to_short(Wire.read());
-  byte incoming = Wire.read(); // year/date counter
-  day    = bcd_to_short(incoming & 0x3f);
-  year   = (int)((incoming >> 6) & 0x03);      // it will only hold 4 years...
-  incoming = Wire.read();
-  month  = bcd_to_short(incoming & 0x1f);
+    minute = bcd_to_short(Wire.read());
+    hour   = bcd_to_short(Wire.read());
+    byte incoming = Wire.read(); // year/date counter
+    day    = bcd_to_short(incoming & 0x3f);
+    year   = (int)((incoming >> 6) & 0x03);      // it will only hold 4 years...
+    incoming = Wire.read();
+    month  = bcd_to_short(incoming & 0x1f);
 
-  //  but that's not all - we need to find out what the base year is
-  //  so we can add the 2 bits we got above and find the real year
-  Wire.beginTransmission(RTC_ADDRESS);
-  Wire.write(0x10);
-  Wire.endTransmission(false);
-  Wire.requestFrom(RTC_ADDRESS, 2);
-  year_base = Wire.read();
-  year_base = year_base << 8;
-  year_base = year_base | Wire.read();
-  year = year + year_base;
-  init();
+    //  but that's not all - we need to find out what the base year is
+    //  so we can add the 2 bits we got above and find the real year
+    year_base = IIC_ReadInt(RTC_ADDRESS, ADDR_YEAR_BASE);
+    year = year + year_base;
+
+    init();
 }
 
 timestamp_t PCF8583::getTimestamp() {
     timestamp_t rc;
+    readTime();
     rc.year = year;
     rc.month = month;
     rc.day = day;
@@ -60,36 +56,43 @@ timestamp_t PCF8583::getTimestamp() {
     return rc;
 }
 
-void PCF8583::set_time() {
-  if (!IsLeapYear(year) && 2 == month && 29 == day) {
-    month = 3;
-    day = 1;
-  }
-  // Attempt to find the previous leap year
-  year_base = year - year % 4;
-  if (!IsLeapYear(year_base)) {
-    // Not a leap year (new century), make sure the calendar won't use a 29 days February.
-    year_base = year - 1;
-  }
+void PCF8583::setDate() {
+    if (!IsLeapYear(year) && 2 == month && 29 == day) {
+        month = 3;
+        day = 1;
+    }
+    // Attempt to find the previous leap year
+    year_base = year - year % 4;
+    if (!IsLeapYear(year_base)) {
+        // Not a leap year (new century), make sure the calendar won't use a 29 days February.
+        year_base = year - 1;
+    }
 
     IIC_WriteByte(RTC_ADDRESS, 0, 0xc0);
 
-  Wire.beginTransmission(RTC_ADDRESS);
-  Wire.write(0x02);
-  Wire.write(0);
-  Wire.write(int_to_bcd(minute));
-  Wire.write(int_to_bcd(hour));
-  Wire.write(((byte)(year - year_base) << 6) | int_to_bcd(day));
-  Wire.write((int_to_bcd(month) & 0x1f));
-  Wire.endTransmission();
+    Wire.beginTransmission(RTC_ADDRESS);
+    Wire.write(0x05);
+    Wire.write(((byte)(year - year_base) << 6) | int_to_bcd(day));
+    Wire.write((int_to_bcd(month) & 0x1f));
+    Wire.endTransmission();
+    IIC_WriteInt(RTC_ADDRESS, ADDR_YEAR_BASE, year_base);
 
-  Wire.beginTransmission(RTC_ADDRESS);
-  Wire.write(0x10);
-  Wire.write(year_base >> 8);
-  Wire.write(year_base & 0x00ff);
-  Wire.endTransmission();
+    init(); // re set the control/status register to 0x04
+}
 
-  init(); // re set the control/status register to 0x04
+
+
+void PCF8583::setTime() {
+    IIC_WriteByte(RTC_ADDRESS, 0, 0xc0);
+
+    Wire.beginTransmission(RTC_ADDRESS);
+    Wire.write(0x02);
+    Wire.write(0);
+    Wire.write(int_to_bcd(minute));
+    Wire.write(int_to_bcd(hour));
+    Wire.endTransmission();
+
+    init(); // re set the control/status register to 0x04
 }
 
 void PCF8583::enableSeedInterrupt() {
