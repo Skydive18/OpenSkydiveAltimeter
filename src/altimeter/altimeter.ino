@@ -483,7 +483,7 @@ int8_t myMenu(char *menudef, int8_t event = 1) {
                 if (line >= firstline) {
                     u8g2.setCursor(0, (FONT_HEIGHT * (line - firstline)) + (FONT_HEIGHT + FONT_HEIGHT + 2));
                     if (event > 0)
-                        menudef[ptr] = (event == line) ? '>' : ' ';
+                        menudef[ptr] = (event == line) ? '}' : ' ';
                     u8g2.print((char*)(menudef + ptr));
                 }
                 line++;
@@ -690,22 +690,22 @@ bool SetTime(byte &hour, byte &minute) {
     byte pos = 0;
     for(;;) {
         u8g2.firstPage();
+        pos &= 3;
         do {
-            sprintf_P(middlebuf, PSTR("%c%02d%c : %c%02d%c"),
-                pos == 0 ? '>' : ' ',
+            u8g2.setCursor(0, FONT_HEIGHT);
+            u8g2.print(F("Текущее время"));
+            u8g2.drawHLine(0, FONT_HEIGHT + 1, DISPLAY_WIDTH-1);
+            sprintf_P(middlebuf, PSTR("%c%02d:%02d%c"),
+                pos == 0 ? '}' : ' ',
                 hour,
-                pos == 0 ? '<' : ' ',
-                pos == 1 ? '>' : ' ',
                 minute,
-                pos == 1 ? '<' : ' '
+                pos == 1 ? '{' : ' '
             );
             u8g2.setCursor(0, 20);
             u8g2.print(middlebuf);
-            sprintf_P(middlebuf, PSTR("%cОтмена%c%cОК%c"),
-                pos == 2 ? '>' : ' ',
-                pos == 2 ? '<' : ' ',
-                pos == 3 ? '>' : ' ',
-                pos == 3 ? '<' : ' '
+            sprintf_P(middlebuf, PSTR("%cОтмена %cОК"),
+                pos == 2 ? '}' : ' ',
+                pos == 3 ? '}' : ' '
             );
             u8g2.setCursor(0, 35);
             u8g2.print(middlebuf);
