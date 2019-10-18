@@ -39,6 +39,8 @@
 #define OPENING_TH -18
 #define UNDER_PARACHUTE_TH -12
 
+settings_t settings;
+
 MPL3115A2 myPressure;
 PCF8583 rtc;
 void(* resetFunc) (void) = 0;
@@ -148,10 +150,9 @@ void setup() {
     ground_altitude = IIC_ReadInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE);
     backLight = IIC_ReadByte(RTC_ADDRESS, ADDR_BACKLIGHT);
     heartbeat = ByteToHeartbeat(IIC_ReadByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF));
-    // setup
-//    total_jumps = 0;
-//    EEPROM.put(EEPROM_JUMP_COUNTER, total_jumps);
+
     EEPROM.get(EEPROM_JUMP_COUNTER, total_jumps);
+    EEPROM.get(EEPROM_SETTINGS, settings);
 
     strcpy(bigbuf, ""); // need it to correctly allocate memory
 
@@ -993,7 +994,7 @@ void loop() {
     if ((bstep & 31) == 0 || powerMode == MODE_PREFILL) {
         // Check and refresh battery meter
         batt = analogRead(A0);
-        rel_voltage = (int8_t)round((batt-187)*3.23f);
+        rel_voltage = (int8_t)round((batt - settings.battGranulationD) * settings.battGranulationF);
         if (rel_voltage < 0)
             rel_voltage = 0;
         if (rel_voltage > 100)

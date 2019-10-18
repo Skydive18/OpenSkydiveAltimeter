@@ -47,6 +47,7 @@
 
 // EEPROM
 #define EEPROM_JUMP_COUNTER 0
+#define EEPROM_SETTINGS 2
 #define EEPROM_LOGBOOK_START 64
 
 // Configure RGB LED. Define one of the following

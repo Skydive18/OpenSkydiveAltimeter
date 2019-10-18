@@ -28,10 +28,8 @@ typedef struct {
 } LED_PROFILE;
 
 typedef struct {
+    uint16_t battGranulationD; // Factory settings: min battery voltage, in items
     float battGranulationF; // Factory settings: battery percentage per 1 digitalRead item
-    unsigned int battGranulationD; // Factory settings: min battery voltage, in items
-    unsigned short jumpCount; // 0-100
-    unsigned short nextJumpPtr; // Pointer to next stored jump if count == 100
-} SETTINGS;
+} settings_t;
 
 #endif
