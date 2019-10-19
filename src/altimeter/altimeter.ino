@@ -300,7 +300,7 @@ void processAltitudeChange(bool speed_scaler) {
                 // Save snapshot
                 EEPROM.put(SNAPSHOT_START, bigbuf);
                 // Save jump
-                EEPROM.put(EEPROM_LOGBOOK_START + (((total_jumps++) * sizeof(jump_t)) % (LOGBOOK_SIZE + 1)), current_jump);
+                EEPROM.put(EEPROM_LOGBOOK_START +  (((total_jumps++) % (LOGBOOK_SIZE + 1)) * sizeof(jump_t)), current_jump);
                 EEPROM.put(EEPROM_JUMP_COUNTER, total_jumps);
             }
             break;
@@ -607,7 +607,7 @@ void userMenu() {
                                     jump_to_show = (total_jumps > LOGBOOK_SIZE) ? total_jumps - LOGBOOK_SIZE : 1;
 
                                 // Read jump from logbook
-                                EEPROM.get(EEPROM_LOGBOOK_START + (((jump_to_show - 1) * sizeof(jump_t)) % (LOGBOOK_SIZE + 1)), current_jump);
+                                EEPROM.get(EEPROM_LOGBOOK_START +  (((jump_to_show - 1) % (LOGBOOK_SIZE + 1)) * sizeof(jump_t)), current_jump);
                                 current_jump_to_bigbuf(jump_to_show);
                                 Serial.println(bigbuf);
                                 logbook_view_event = myMenu(bigbuf, 0);
@@ -638,7 +638,7 @@ void userMenu() {
                             current_jump.deploy_time = 62;
                             current_jump.max_freefall_speed_ms = 67;
                             current_jump.total_jump_time = 1150;
-                            EEPROM.put(EEPROM_LOGBOOK_START + (((total_jumps++) * sizeof(jump_t)) % (LOGBOOK_SIZE + 1)), current_jump);
+                            EEPROM.put(EEPROM_LOGBOOK_START +  (((total_jumps++) % (LOGBOOK_SIZE + 1)) * sizeof(jump_t)), current_jump);
                             EEPROM.put(EEPROM_JUMP_COUNTER, total_jumps);
                             }
                             break; // not implemented
@@ -991,9 +991,9 @@ void loop() {
     
     current_altitude -= ground_altitude; // ground_altitude can be changed via menu
 
-    if ((bstep & 31) == 0 || powerMode == MODE_PREFILL) {
+    if ((bstep & 63) == 0 || powerMode == MODE_PREFILL) {
         // Check and refresh battery meter
-        batt = analogRead(A0);
+        batt = analogRead(PIN_BAT_SENSE);
         rel_voltage = (int8_t)round((batt - settings.battGranulationD) * settings.battGranulationF);
         if (rel_voltage < 0)
             rel_voltage = 0;

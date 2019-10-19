@@ -4,13 +4,17 @@
 #if defined(__AVR_ATmega32U4__)
 // Pins for Arduino Pro Micro (Atmega-32u4)
 #define PIN_HWPWR 8
+#define PIN_R 6
 #define PIN_G 9
+#define PIN_B 10
 #define PIN_BAT_SENSE A0
 #else
 #if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
 // Pins for Arduino Pro Mini (Atmega-328[P] - based)
 #define PIN_HWPWR 4
+#define PIN_R 5
 #define PIN_G 6
+#define PIN_B 9
 #define PIN_BAT_SENSE A0
 #endif // defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
 #endif // defined(__AVR_ATmega32U4__)
@@ -23,7 +27,9 @@ typedef struct {
     float battGranulationF; // Factory settings: battery percentage per 1 digitalRead item
 } settings_t;
 
-byte blinkbyte = 0;
+byte blinkR = 0;
+byte blinkG = 0;
+byte blinkB = 0;
 
 void setup() {
     Serial.begin(57600);
@@ -37,9 +43,13 @@ void setup() {
     // so calibration is not possible.
     digitalWrite(PIN_HWPWR, 1);
     delay(2000);
+    analogRead(PIN_BAT_SENSE);
+    delay(200);
+    analogRead(PIN_BAT_SENSE);
+    delay(200);
     
     // batt_max_voltage refers to 4.20v
-    uint16_t batt_max_voltage = analogRead(PIN_BAT_SENSE);
+    uint16_t batt_max_voltage = analogRead(PIN_BAT_SENSE) - 1; // jutter compensate
 
     // Assume a value of min voltage that is 3.60v
     uint16_t batt_min_voltage = batt_max_voltage * (36.0f/42.0f);
@@ -48,7 +58,7 @@ void setup() {
     uint16_t batt_voltage_range = batt_max_voltage - batt_min_voltage;
 
     // Compute a cost, in %%, of one sample
-    float batt_percentage_multiplier = ((float)batt_voltage_range) / 100.0f;
+    float batt_percentage_multiplier = 100.0f / ((float)batt_voltage_range);
 
     // Save settings to nvram
     settings_t settings;
@@ -75,6 +85,8 @@ void setup() {
 }
 
 void loop() {
-    analogWrite(PIN_G, blinkbyte++);
-    delay(50);
+    analogWrite(PIN_G, blinkG++);
+    analogWrite(PIN_R, blinkR+=3);
+    analogWrite(PIN_B, blinkB+=5);
+    delay(5);
 }
