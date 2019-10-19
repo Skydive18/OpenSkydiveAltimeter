@@ -732,17 +732,17 @@ void userMenu() {
                                     Serial.print(smallbuf);
                                 }
                                 byte b = EEPROM.read(i);
-                                sprintf_P(smallbuf, PSTR("%2x "), b);
+                                sprintf_P(smallbuf, PSTR("%02x "), b);
                                 Serial.print(smallbuf);
                             }
-                            Serial.println(F("\n\nRTC NVRAM"));
+                            Serial.print(F("\n\nRTC NVRAM"));
                             for (int i = 16; i < 256; i++) {
                                 if ((i & 15) == 0) {
                                     sprintf_P(smallbuf, PSTR("\n%03x: "), i);
                                     Serial.print(smallbuf);
                                 }
                                 byte b = IIC_ReadByte(RTC_ADDRESS, i);
-                                sprintf_P(smallbuf, PSTR("%2x "), b);
+                                sprintf_P(smallbuf, PSTR("%02x "), b);
                                 Serial.print(smallbuf);
                             }
 
@@ -802,12 +802,18 @@ bool SetDate(uint8_t &day, uint8_t &month, uint16_t &year) {
             u8g2.setCursor(0, FONT_HEIGHT + FONT_HEIGHT + 3);
             u8g2.print(middlebuf);
 
-            sprintf_P(middlebuf, PSTR("%cОтмена %cОК"),
-                pos == 3 ? '}' : ' ',
-                pos == 4 ? '}' : ' '
+            sprintf_P(middlebuf, PSTR("%cОтмена"),
+                pos == 3 ? '}' : ' '
             );
             u8g2.setCursor(0, FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + 5);
             u8g2.print(middlebuf);
+            
+            sprintf_P(middlebuf, PSTR("%cОК"),
+                pos == 4 ? '}' : ' '
+            );
+            u8g2.setCursor(0, FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + 7);
+            u8g2.print(middlebuf);
+            
         } while(u8g2.nextPage());
         byte keyEvent = getKeypress();
         switch (keyEvent) {
@@ -890,12 +896,18 @@ bool SetTime(byte &hour, byte &minute) {
             u8g2.setCursor(0, FONT_HEIGHT + FONT_HEIGHT + 3);
             u8g2.print(middlebuf);
 
-            sprintf_P(middlebuf, PSTR("%cОтмена %cОК"),
-                pos == 2 ? '}' : ' ',
-                pos == 3 ? '}' : ' '
+            sprintf_P(middlebuf, PSTR("%cОтмена"),
+                pos == 2 ? '}' : ' '
             );
             u8g2.setCursor(0, FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + 5);
             u8g2.print(middlebuf);
+            
+            sprintf_P(middlebuf, PSTR("%cОК"),
+                pos == 3 ? '}' : ' '
+            );
+            u8g2.setCursor(0, FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + 7);
+            u8g2.print(middlebuf);
+            
         } while(u8g2.nextPage());
         byte keyEvent = getKeypress();
         switch (keyEvent) {
