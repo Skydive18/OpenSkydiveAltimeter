@@ -73,7 +73,7 @@ int MPL3115A2::readAltitude()
     // shift the value over 4 spots to the right and divide by 16 (since 
     // there are 16 values in 4-bits). 
 
-    return (((msb << 8) | csb) + (lsb >> 7));
+    return ((msb << 8) | csb); // + (lsb >> 7));
 }
 
 //Clears then sets the OST bit which causes the sensor to immediately take another reading

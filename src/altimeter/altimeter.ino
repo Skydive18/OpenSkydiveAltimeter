@@ -33,7 +33,7 @@
 //
 #define EXIT_TH -7
 #define BEGIN_FREEFALL_TH -10
-#define FREEFALL_TH -15
+#define FREEFALL_TH -25
 
 #define PULLOUT_TH -25
 #define OPENING_TH -18
@@ -184,24 +184,20 @@ void saveToJumpSnapshot() {
 // Main state machine
 // Ideas got from EZ430 project at skycentre.net
 //
-void processAltitudeChange(bool speed_scaler) {
+void processAltitudeChange() {
     if (previous_altitude == CLEAR_PREVIOUS_ALTITUDE) { // unknown delay or first run; just save
         previous_altitude = current_altitude;
         return;
     }
     
-    currentVspeed = current_altitude - previous_altitude; // negative = fall, positive = climb
+    currentVspeed = (current_altitude - previous_altitude) * 2;
     previous_altitude = current_altitude;
-    if (speed_scaler)
-        currentVspeed *= 2; // 500ms granularity
-    else
-        currentVspeed /= 4; // 4s granularity
     vspeed[vspeedPtr & (VSPEED_LENGTH - 1)] = (int8_t)currentVspeed;
     vspeedPtr++;
     byte startPtr = (byte)((vspeedPtr - VSPEED_LENGTH)) & (VSPEED_LENGTH - 1);
     int accumulatedVspeed = 0;
     for (byte i = 0; i < VSPEED_LENGTH; i++) {
-        accumulatedVspeed += vspeed[(startPtr + i) & (VSPEED_LENGTH - 1)];
+        accumulatedVspeed += vspeed[(startPtr - i) & (VSPEED_LENGTH - 1)];
         if (i == 8)
             averageSpeed8 = accumulatedVspeed / 8;
     }
@@ -219,7 +215,6 @@ void processAltitudeChange(bool speed_scaler) {
             break;
         
         case MODE_ON_EARTH:
-            // Altitude granularity is 4s
             if ( (current_altitude > 250) || (current_altitude > 30 && averageSpeed8 > 1) )
                 powerMode = MODE_IN_AIRPLANE;
             else if (averageSpeed8 < -25) {
@@ -236,17 +231,16 @@ void processAltitudeChange(bool speed_scaler) {
             break;
 
         case MODE_EXIT:
-            if (currentVspeed <= BEGIN_FREEFALL_TH)
+            if (currentVspeed <= BEGIN_FREEFALL_TH) {
                 powerMode = MODE_BEGIN_FREEFALL;
+                current_jump.exit_altitude = (accumulated_altitude = current_altitude) / 2;
+                current_jump.exit_timestamp = rtc.getTimestamp();
+                current_jump.total_jump_time = current_jump.max_freefall_speed_ms = 0;
+                bigbuf[0] = (char)currentVspeed;
+                accumulated_speed = currentVspeed;
+            }
             else if (currentVspeed > EXIT_TH)
                 powerMode = MODE_IN_AIRPLANE;
-            else
-                break;
-            current_jump.exit_altitude = (accumulated_altitude = current_altitude) / 2;
-            current_jump.exit_timestamp = rtc.getTimestamp();
-            current_jump.total_jump_time = current_jump.max_freefall_speed_ms = 0;
-            bigbuf[0] = (char)currentVspeed;
-            accumulated_speed = currentVspeed;
             break;
 
         case MODE_BEGIN_FREEFALL:
@@ -255,16 +249,12 @@ void processAltitudeChange(bool speed_scaler) {
                 powerMode = MODE_FREEFALL;
             else if (currentVspeed > BEGIN_FREEFALL_TH)
                 powerMode = MODE_EXIT;
-            else
-                break;
             break;
 
         case MODE_FREEFALL:
             saveToJumpSnapshot();
             if (currentVspeed > PULLOUT_TH)
                 powerMode = MODE_PULLOUT;
-            else
-                break;
             byte freefall_speed = 0 - averageSpeed8;
             if (freefall_speed > current_jump.max_freefall_speed_ms)
                 current_jump.max_freefall_speed_ms = freefall_speed;
@@ -272,15 +262,13 @@ void processAltitudeChange(bool speed_scaler) {
 
         case MODE_PULLOUT:
             saveToJumpSnapshot();
-            if (currentVspeed <= PULLOUT_TH) {
+            if (currentVspeed <= PULLOUT_TH)
                 powerMode = MODE_FREEFALL;
-            }
-            else if (currentVspeed > OPENING_TH)
+            else if (currentVspeed > OPENING_TH) {
                 powerMode = MODE_OPENING;
-            else
-                break;
-            current_jump.deploy_altitude = current_altitude / 2;
-            current_jump.deploy_time = current_jump.total_jump_time;
+                current_jump.deploy_altitude = current_altitude / 2;
+                current_jump.deploy_time = current_jump.total_jump_time;
+            }
             break;
 
         case MODE_OPENING:
@@ -353,11 +341,13 @@ void ShowLEDs(bool powerModeChanged, byte timeWhileBtn1Pressed) {
                 LED_show((bstep & 15) ? 0 : 255, 0, 0); // red blinks once per 8s below 300m
             }
             return;
+        case MODE_EXIT:
+        case MODE_BEGIN_FREEFALL:
         case MODE_FREEFALL:
             if (current_altitude < 1000) {
                 LED_show(255, 0, 0); // red ligth below 1000m
             } else if (current_altitude < 1200) {
-                LED_show(255, 160, 0); // yellow ligth between 1200 and 1000m
+                LED_show(255, 80, 0); // yellow ligth between 1200 and 1000m
             } else if (current_altitude < 1550) {
                 LED_show(0, 255, 0); // green ligth between 1550 and 1200m
             } else {
@@ -972,7 +962,6 @@ bool SetTime(byte &hour, byte &minute) {
     };
 }
 
-bool speed_scaler = true;
 byte timeWhileBtn1Pressed = 0;
 
 void loop() {
@@ -981,7 +970,6 @@ void loop() {
     // *exactly* 500ms to achieve a precise speed calculation
     uint32_t this_millis = millis();
     // Read sensors
-    current_altitude = myPressure.readAltitude();
     rtc.readTime();
     previousPowerMode = powerMode;
     bool btn1Pressed = BTN1_PRESSED;
@@ -995,13 +983,20 @@ void loop() {
             timeWhileBtn1Pressed++;
     } else {
         if (timeWhileBtn1Pressed == 8 || timeWhileBtn1Pressed == 9) {
+            if (BTN3_PRESSED) {
+                // Forcibly Save snapshot for debug purposes
+                EEPROM.put(SNAPSHOT_START, bigbuf);
+                // Save jump
+                EEPROM.put(EEPROM_LOGBOOK_START +  (((total_jumps++) % (LOGBOOK_SIZE + 1)) * sizeof(jump_t)), current_jump);
+                EEPROM.put(EEPROM_JUMP_COUNTER, total_jumps);
+            }
             userMenu();
             previous_altitude = CLEAR_PREVIOUS_ALTITUDE;
         }
         timeWhileBtn1Pressed = 0;
     }
     
-    current_altitude -= ground_altitude; // ground_altitude can be changed via menu
+    current_altitude = myPressure.readAltitude() - ground_altitude; // ground_altitude may get changed via menu
 
     if ((bstep & 63) == 0 || powerMode == MODE_PREFILL) {
         // Check and refresh battery meter
@@ -1018,7 +1013,7 @@ void loop() {
     if (altDiff > 2 || altDiff < -2 || averageSpeed8 > 1 || averageSpeed8 < -1)
         last_shown_altitude = current_altitude;
 
-    processAltitudeChange(speed_scaler);
+    processAltitudeChange();
     bool powerModeChanged =  (powerMode != previousPowerMode);
     if (powerModeChanged)
         bstepInCurrentMode = 0;
@@ -1058,8 +1053,6 @@ void loop() {
         u8g2.print(smallbuf);
     } while ( u8g2.nextPage() );
 
-    speed_scaler = (powerMode != MODE_ON_EARTH || bstepInCurrentMode < 50 || btn1Pressed); // true if period 500ms, false for 4s sleep time
-    
     if (btn1Pressed) {
         // If BTN1_PRESSED, we cannot use interrupt to wake from sleep/delay, as BTN1 utilizes the same interrupt pin.
         // In that case we will use measured delay instead.
@@ -1068,8 +1061,7 @@ void loop() {
             delay(delayMs);
     } else {
         // Can use interrupt to wake to achieve maximum time measure precision
-        if (speed_scaler)
-            rtc.enableSeedInterrupt();
+        rtc.enableSeedInterrupt();
 
         INTACK = false;
         attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
@@ -1090,7 +1082,7 @@ void loop() {
     bstep++;
     if (powerMode == MODE_ON_EARTH || powerMode == MODE_DUMB) {
         // Check auto-poweroff. Prevent it in jump modes.
-        heartbeat -= speed_scaler ? 1 : 8;
+        heartbeat --;
         if (heartbeat <= 0)
             PowerOff();
     }

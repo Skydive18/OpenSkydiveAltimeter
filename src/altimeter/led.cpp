@@ -13,7 +13,7 @@ void LED_showOne(byte pin, byte val) {
     // call for the analog output pins.
     pinMode(pin, OUTPUT);
 #ifdef LED_COMMON_ANODE
-    val = 0 - val;
+    val = 255 - val;
 #endif
     if (val == 0)
     {
