@@ -25,11 +25,20 @@ typedef struct {
     byte green_th;
     byte yellow_th;
     byte red_th;
-} LED_PROFILE;
+} led_profile_t;
 
 typedef struct {
     uint16_t battGranulationD; // Factory settings: min battery voltage, in items
     float battGranulationF; // Factory settings: battery percentage per 1 digitalRead item
 } settings_t;
+
+typedef struct {
+    uint32_t exit : 5;
+    uint32_t begin_freefall : 5;
+    uint32_t freefall : 6;
+    uint32_t pullout : 5;
+    uint32_t opening : 5;
+    uint32_t under_parachute : 5;
+} jump_profile_t;
 
 #endif

@@ -36,8 +36,8 @@
 #define FREEFALL_TH -25
 
 #define PULLOUT_TH -25
-#define OPENING_TH -18
-#define UNDER_PARACHUTE_TH -12
+#define OPENING_TH -14
+#define UNDER_PARACHUTE_TH -8
 
 settings_t settings;
 
@@ -48,8 +48,7 @@ void(* resetFunc) (void) = 0;
 #define CLEAR_PREVIOUS_ALTITUDE -30000
 #define VSPEED_LENGTH 32
 int vspeed[VSPEED_LENGTH]; // used in mode detector. TODO clean it in setup maybe?
-uint32_t bstep; // global heartbeat counter, in ticks depending on mode
-uint32_t bstepInCurrentMode; // heartbeat counter since mode changed
+uint32_t interval_number; // global heartbeat counter
 long heartbeat; // heartbeat in 500ms ticks until auto turn off
 
 byte vspeedPtr = 0; // pointer to write to vspeed buffer
@@ -82,7 +81,6 @@ int accumulated_speed;
 char smallbuf[24];
 char middlebuf[48];
 char bigbuf[SNAPSHOT_SIZE]; // also used in snapshot writer
-char* date_time_template;
 
 // Prototypes
 void ShowText(const byte x, const byte y, const char* text);
@@ -146,7 +144,7 @@ void setup() {
     powerMode = previousPowerMode = MODE_PREFILL;
     previous_altitude = CLEAR_PREVIOUS_ALTITUDE;
     vspeedPtr = 0;
-    bstepInCurrentMode = 0;
+    interval_number = 0;
     ground_altitude = IIC_ReadInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE);
     backLight = IIC_ReadByte(RTC_ADDRESS, ADDR_BACKLIGHT);
     heartbeat = ByteToHeartbeat(IIC_ReadByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF));
@@ -162,10 +160,6 @@ void setup() {
     showVersion();
     delay(4000);
     DISPLAY_LIGHT_OFF;
-
-    // Load templates
-    date_time_template = PSTR("%02d.%02d.%04d %02d%c%02d");
-    bstep = 0;
 }
 
 void saveToJumpSnapshot() {
@@ -175,6 +169,8 @@ void saveToJumpSnapshot() {
     if (current_jump.total_jump_time > 1198 || (current_jump.total_jump_time & 1))
         return;
     int speed_now = current_altitude - accumulated_altitude;
+    // TODO. Limit acceleration (in fact, this is exactly what we store) with values depending on current speed.
+    // Anyway, while freefall, acceleration more than 1g is not possible.
     bigbuf[current_jump.total_jump_time >> 1] = (char)(speed_now - accumulated_speed);
     accumulated_altitude = current_altitude;
     accumulated_speed = speed_now;
@@ -194,6 +190,7 @@ void processAltitudeChange() {
     previous_altitude = current_altitude;
     vspeed[vspeedPtr & (VSPEED_LENGTH - 1)] = (int8_t)currentVspeed;
     vspeedPtr++;
+    // Calculate averages
     byte startPtr = (byte)((vspeedPtr - VSPEED_LENGTH)) & (VSPEED_LENGTH - 1);
     int accumulatedVspeed = 0;
     for (byte i = 0; i < VSPEED_LENGTH; i++) {
@@ -296,7 +293,7 @@ void processAltitudeChange() {
 }
 
 byte airplane_300m = 0;
-void ShowLEDs(bool powerModeChanged, byte timeWhileBtn1Pressed) {
+void ShowLEDs(byte timeWhileBtn1Pressed) {
     if ((powerMode != MODE_ON_EARTH && powerMode != MODE_PREFILL && powerMode != MODE_DUMB && backLight == 2) || backLight == 1)
         DISPLAY_LIGHT_ON;
     else
@@ -329,16 +326,16 @@ void ShowLEDs(bool powerModeChanged, byte timeWhileBtn1Pressed) {
         case MODE_IN_AIRPLANE:
             if (current_altitude >= 300) {
                 if (airplane_300m <= 6 && current_altitude < 900) {
-                    LED_show(0, ((++airplane_300m) & 1) ? 255 : 0, 0); // green blinks 3 times at 300m but not above 900m
+                    LED_show(0, ((++airplane_300m) & 1) ? 140 : 0, 0); // green blinks 3 times at 300m but not above 900m
                 } else {
                     if (current_altitude > 900) {
-                        LED_show(0, (bstep & 15) ? 0 : 255, 0); // green blinks once per 8s above 900m
+                        LED_show(0, (interval_number & 15) ? 0 : 80, 0); // green blinks once per 8s above 900m
                     } else {
-                        LED_show((bstep & 15) ? 0 : 255, (bstep & 15) ? 0 : 80, 0); // yellow blinks once per 8s between 300m and 900m
+                        LED_show((interval_number & 15) ? 0 : 255, (interval_number & 15) ? 0 : 80, 0); // yellow blinks once per 8s between 300m and 900m
                     }
                 }
             } else {
-                LED_show((bstep & 15) ? 0 : 255, 0, 0); // red blinks once per 8s below 300m
+                LED_show((interval_number & 15) ? 0 : 120, 0, 0); // red blinks once per 8s below 300m
             }
             return;
         case MODE_EXIT:
@@ -356,12 +353,12 @@ void ShowLEDs(bool powerModeChanged, byte timeWhileBtn1Pressed) {
             return;
 
         case MODE_PREFILL:
-            LED_show((bstep & 3) ? 0 : 255, 0, 0); // red blinks once per 2s until prefill finished
+            LED_show((interval_number & 3) ? 0 : 120, 0, 0); // red blinks once per 2s until prefill finished
             return;
 
         case MODE_ON_EARTH:
-            if (bstepInCurrentMode < 8) {
-                LED_show(0, (bstepInCurrentMode & 1) ? 0 : 80, 0); // green blinks to indicate that altimeter is ready
+            if (interval_number < 8) {
+                LED_show(0, (interval_number & 1) ? 0 : 80, 0); // green blinks to indicate that altimeter is ready
             }
             return;
     }
@@ -393,7 +390,6 @@ void PowerOff() {
 
     rtc.disableSeedInterrupt();
   
-    digitalWrite(PIN_HWPWR, 0);
     digitalWrite(PIN_SOUND, 0);
     // turn off i2c
     pinMode(SCL, INPUT);
@@ -406,6 +402,10 @@ void PowerOff() {
 #ifdef DC_PIN    
     pinMode(DC_PIN, INPUT);
 #endif
+
+    // After we turned off all peripherial connections, turn peripherial power OFF too.
+    digitalWrite(PIN_HWPWR, 0);
+    
     do {
         attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
         off_forever;
@@ -709,8 +709,7 @@ void userMenu() {
                         case 7: {
                             // About
                             showVersion();
-                            while(BTN2_RELEASED); // wait for keypress
-                            while(BTN2_PRESSED);
+                            getKeypress();
                             break;
                         }
                         case 8: {
@@ -973,6 +972,7 @@ void loop() {
     rtc.readTime();
     previousPowerMode = powerMode;
     bool btn1Pressed = BTN1_PRESSED;
+    bool refresh_display = !(interval_number & 15);
 
     // TODO. Opening menu when jump snapshot has not been saved leads to a broken snapshot.
     // Either disable menu in automatic modes or erase snapshot in such cases.
@@ -991,6 +991,7 @@ void loop() {
                 EEPROM.put(EEPROM_JUMP_COUNTER, total_jumps);
             }
             userMenu();
+            refresh_display = true; // force display refresh
             previous_altitude = CLEAR_PREVIOUS_ALTITUDE;
         }
         timeWhileBtn1Pressed = 0;
@@ -998,7 +999,7 @@ void loop() {
     
     current_altitude = myPressure.readAltitude() - ground_altitude; // ground_altitude may get changed via menu
 
-    if ((bstep & 63) == 0 || powerMode == MODE_PREFILL) {
+    if ((interval_number & 63) == 0 || powerMode == MODE_PREFILL) {
         // Check and refresh battery meter
         batt = analogRead(PIN_BAT_SENSE);
         rel_voltage = (int8_t)round((batt - settings.battGranulationD) * settings.battGranulationF);
@@ -1008,50 +1009,51 @@ void loop() {
             rel_voltage = 100;
     }
     
-    // Jitter compensation
-    int altDiff = current_altitude - last_shown_altitude;
-    if (altDiff > 2 || altDiff < -2 || averageSpeed8 > 1 || averageSpeed8 < -1)
-        last_shown_altitude = current_altitude;
-
     processAltitudeChange();
-    bool powerModeChanged =  (powerMode != previousPowerMode);
-    if (powerModeChanged)
-        bstepInCurrentMode = 0;
-    else if (previous_altitude != CLEAR_PREVIOUS_ALTITUDE)
-        bstepInCurrentMode++;
+    if (powerMode != previousPowerMode)
+        interval_number = 0;
 
-    ShowLEDs(powerModeChanged, timeWhileBtn1Pressed);
+    ShowLEDs(timeWhileBtn1Pressed);
 
-    u8g2.firstPage();
-    do {
-        u8g2.setFont(font_status_line);
-        u8g2.setCursor(0,6);
-        sprintf_P(middlebuf, date_time_template, rtc.day, rtc.month, rtc.year, rtc.hour, bstepInCurrentMode & 1 ? ' ' : ':', rtc.minute);
-        u8g2.print(middlebuf);
-        u8g2.setCursor(DISPLAY_WIDTH - 16, 6);
-        sprintf_P(smallbuf, PSTR("%3d%%"), rel_voltage);
-        u8g2.print(smallbuf);
+    // Refresh display once per 8s in ON_EARTH, each heartbeat pulse otherwise
+    if (powerMode != MODE_ON_EARTH || refresh_display) {
+        // Jitter compensation
+        int altDiff = current_altitude - last_shown_altitude;
+        if (altDiff > 2 || altDiff < -2 || averageSpeed8 > 1 || averageSpeed8 < -1)
+            last_shown_altitude = current_altitude;
 
-        u8g2.drawHLine(0, 7, DISPLAY_WIDTH-1);
-
-        u8g2.setFont(font_altitude);
-        sprintf_P(smallbuf, PSTR("%4d"), last_shown_altitude);
-        u8g2.setCursor(0,38);
-        u8g2.print(smallbuf);
-
-        u8g2.drawHLine(0, DISPLAY_HEIGHT-8, DISPLAY_WIDTH-1);
-
-        sprintf_P(middlebuf, PSTR("&%1d' % 3d % 3d % 3d"), powerMode, currentVspeed, averageSpeed8, averageSpeed32);
-        u8g2.setFont(font_status_line);
-        u8g2.setCursor(0, DISPLAY_HEIGHT - 1);
-        u8g2.print(middlebuf);
-        // Show heartbeat
-        byte hbHrs = heartbeat / 7200;
-        byte hbMin = ((heartbeat /2) % 3600) / 60;
-        sprintf_P(smallbuf, PSTR("%02d:%02d"), hbHrs, hbMin);
-        u8g2.setCursor(DISPLAY_WIDTH - 20, DISPLAY_HEIGHT - 1);
-        u8g2.print(smallbuf);
-    } while ( u8g2.nextPage() );
+        u8g2.firstPage();
+        do {
+            // Do not use bugbuf here, as it used for jump snapshot generation
+            u8g2.setFont(font_status_line);
+            u8g2.setCursor(0,6);
+            sprintf_P(middlebuf, PSTR("%02d.%02d.%04d %02d:%02d"), rtc.day, rtc.month, rtc.year, rtc.hour, rtc.minute);
+            u8g2.print(middlebuf);
+            u8g2.setCursor(DISPLAY_WIDTH - 16, 6);
+            sprintf_P(smallbuf, PSTR("%3d%%"), rel_voltage);
+            u8g2.print(smallbuf);
+    
+            u8g2.drawHLine(0, 7, DISPLAY_WIDTH-1);
+    
+            u8g2.setFont(font_altitude);
+            sprintf_P(smallbuf, PSTR("%4d"), last_shown_altitude);
+            u8g2.setCursor(0,38);
+            u8g2.print(smallbuf);
+    
+            u8g2.drawHLine(0, DISPLAY_HEIGHT-8, DISPLAY_WIDTH-1);
+    
+            sprintf_P(middlebuf, PSTR("&%1d' % 3d % 3d % 3d"), powerMode, currentVspeed, averageSpeed8, averageSpeed32);
+            u8g2.setFont(font_status_line);
+            u8g2.setCursor(0, DISPLAY_HEIGHT - 1);
+            u8g2.print(middlebuf);
+            // Show heartbeat
+            byte hbHrs = heartbeat / 7200;
+            byte hbMin = ((heartbeat /2) % 3600) / 60;
+            sprintf_P(smallbuf, PSTR("%02d:%02d"), hbHrs, hbMin);
+            u8g2.setCursor(DISPLAY_WIDTH - 20, DISPLAY_HEIGHT - 1);
+            u8g2.print(smallbuf);
+        } while ( u8g2.nextPage() );
+    }
 
     if (btn1Pressed) {
         // If BTN1_PRESSED, we cannot use interrupt to wake from sleep/delay, as BTN1 utilizes the same interrupt pin.
@@ -1079,7 +1081,7 @@ void loop() {
         detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
         rtc.disableSeedInterrupt();
     }
-    bstep++;
+    interval_number++;
     if (powerMode == MODE_ON_EARTH || powerMode == MODE_DUMB) {
         // Check auto-poweroff. Prevent it in jump modes.
         heartbeat --;

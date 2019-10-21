@@ -15,7 +15,7 @@
 #define PIN_R 5
 #define PIN_G 6
 #define PIN_B 9
-#define PIN_BAT_SENSE A0
+#define PIN_BAT_SENSE A6
 #endif // defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
 #endif // defined(__AVR_ATmega32U4__)
 
