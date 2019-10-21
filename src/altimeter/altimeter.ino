@@ -82,6 +82,9 @@ char smallbuf[24];
 char middlebuf[48];
 char bigbuf[SNAPSHOT_SIZE]; // also used in snapshot writer
 
+byte timeWhileBtn1Pressed = 0;
+byte timeToTurnBacklightOn = 0;
+
 // Prototypes
 void ShowText(const byte x, const byte y, const char* text);
 int8_t myMenu(char *menudef, int8_t event = 1);
@@ -90,6 +93,15 @@ void wake() { INTACK = true; }
 bool SetDate(timestamp_t &date);
 
 void setup() {
+    // Read presets
+    last_shown_altitude = 0;
+    powerMode = previousPowerMode = MODE_PREFILL;
+    previous_altitude = CLEAR_PREVIOUS_ALTITUDE;
+    vspeedPtr = 0;
+    interval_number = 0;
+    EEPROM.get(EEPROM_JUMP_COUNTER, total_jumps);
+    EEPROM.get(EEPROM_SETTINGS, settings);
+
     pinMode(PIN_HWPWR, OUTPUT);
     Serial.begin(SERIAL_SPEED); // Console
 
@@ -127,6 +139,7 @@ void setup() {
     rtc.begin();
     u8g2.begin(PIN_BTN2, PIN_BTN3, PIN_BTN1);
     u8g2.enableUTF8Print();    // enable UTF8 support for the Arduino print() function
+    u8g2.setDisplayRotation((settings.display_rotation & 1) ? U8G2_R0 : U8G2_R2);
     pinMode(PIN_LIGHT, OUTPUT);
 
     //Configure the sensor
@@ -139,18 +152,9 @@ void setup() {
 
     pinMode(PIN_INTERRUPT, INPUT_PULLUP);
 
-    // Read presets
-    last_shown_altitude = 0;
-    powerMode = previousPowerMode = MODE_PREFILL;
-    previous_altitude = CLEAR_PREVIOUS_ALTITUDE;
-    vspeedPtr = 0;
-    interval_number = 0;
     ground_altitude = IIC_ReadInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE);
     backLight = IIC_ReadByte(RTC_ADDRESS, ADDR_BACKLIGHT);
     heartbeat = ByteToHeartbeat(IIC_ReadByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF));
-
-    EEPROM.get(EEPROM_JUMP_COUNTER, total_jumps);
-    EEPROM.get(EEPROM_SETTINGS, settings);
 
     strcpy(bigbuf, ""); // need it to correctly allocate memory
 
@@ -293,8 +297,8 @@ void processAltitudeChange() {
 }
 
 byte airplane_300m = 0;
-void ShowLEDs(byte timeWhileBtn1Pressed) {
-    if ((powerMode != MODE_ON_EARTH && powerMode != MODE_PREFILL && powerMode != MODE_DUMB && backLight == 2) || backLight == 1)
+void ShowLEDs() {
+    if ((powerMode != MODE_ON_EARTH && powerMode != MODE_PREFILL && powerMode != MODE_DUMB && backLight == 2) || backLight == 1 || timeToTurnBacklightOn > 0)
         DISPLAY_LIGHT_ON;
     else
         DISPLAY_LIGHT_OFF;
@@ -359,7 +363,8 @@ void ShowLEDs(byte timeWhileBtn1Pressed) {
         case MODE_ON_EARTH:
             if (interval_number < 8) {
                 LED_show(0, (interval_number & 1) ? 0 : 80, 0); // green blinks to indicate that altimeter is ready
-            }
+            } else
+                break; // turn LED off
             return;
     }
 
@@ -435,7 +440,7 @@ byte checkWakeCondition ()
 
 void showVersion() {
     u8g2.setFont(font_menu);
-    sprintf_P(bigbuf, PSTR("Альтимонстр I\nПлатформа A01\nВерсия 0.5\nCOM %ld/8N1\n"), SERIAL_SPEED);
+    sprintf_P(bigbuf, PSTR("Альтимонстр I\nПлатформа A01\nВерсия 0.6\nCOM %ld/8N1\n"), SERIAL_SPEED);
     myMenu(bigbuf, -1);
 }
 
@@ -664,7 +669,9 @@ void userMenu() {
                 byte newAutoPowerOff = IIC_ReadByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF);
                 do {
                     char* power_mode_string = powerMode == MODE_DUMB ? "выкл" : "вкл";
-                    sprintf_P(bigbuf, PSTR("Настройки\n Выход\n Время\n Дата\n Будильник\n Авторежим: %s\n Автовыкл: %sч\n Версия ПО\n Дамп памяти\n"), power_mode_string, HeartbeatStr(newAutoPowerOff));
+                    sprintf_P(bigbuf, PSTR("Настройки\n Выход\n Время\n Дата\n Будильник\n Авторежим: %s\n Автовыкл: %sч\n Поворот экрана\n Версия ПО\n Дамп памяти\n"),
+                        power_mode_string, HeartbeatStr(newAutoPowerOff));
+                        
                     eventSettings = myMenu(bigbuf, eventSettings);
                     switch (eventSettings) {
                         case 1:
@@ -695,6 +702,9 @@ void userMenu() {
                             }
                             break;
                         }
+                        case 4:
+                            // Alarm
+                            break;
                         case 5:
                             // Auto power mode
                             powerMode = powerMode == MODE_DUMB ? MODE_ON_EARTH : MODE_DUMB;
@@ -706,13 +716,19 @@ void userMenu() {
                             heartbeat = ByteToHeartbeat(newAutoPowerOff);
                             break;
                         }
-                        case 7: {
+                        case 7:
+                            // Screen rotate
+                            settings.display_rotation++;
+                            u8g2.setDisplayRotation((settings.display_rotation & 1) ? U8G2_R0 : U8G2_R2);
+                            EEPROM.put(EEPROM_SETTINGS, settings);
+                            break;
+                        case 8: {
                             // About
                             showVersion();
                             getKeypress();
                             break;
                         }
-                        case 8: {
+                        case 9: {
                             // TODO.
                             Serial.print(F("EEPROM"));
                             for (int i = 0; i < 1024; i++) {
@@ -961,8 +977,6 @@ bool SetTime(byte &hour, byte &minute) {
     };
 }
 
-byte timeWhileBtn1Pressed = 0;
-
 void loop() {
     // If we cannot use interrupts to wake from low-power modes,
     // we need to know a duration of a loop cycle, because we need it to be
@@ -970,6 +984,7 @@ void loop() {
     uint32_t this_millis = millis();
     // Read sensors
     rtc.readTime();
+    current_altitude = myPressure.readAltitude();
     previousPowerMode = powerMode;
     bool btn1Pressed = BTN1_PRESSED;
     bool refresh_display = !(interval_number & 15);
@@ -978,10 +993,13 @@ void loop() {
     // Either disable menu in automatic modes or erase snapshot in such cases.
     // On 32u4 and Mega it is possible to separate buffers while on 328p it is not.
     if (btn1Pressed) {
+        timeToTurnBacklightOn = 16;
         // Try to enter menu
         if (timeWhileBtn1Pressed < 16)
             timeWhileBtn1Pressed++;
     } else {
+        if (timeToTurnBacklightOn > 0)
+            timeToTurnBacklightOn--;
         if (timeWhileBtn1Pressed == 8 || timeWhileBtn1Pressed == 9) {
             if (BTN3_PRESSED) {
                 // Forcibly Save snapshot for debug purposes
@@ -997,7 +1015,7 @@ void loop() {
         timeWhileBtn1Pressed = 0;
     }
     
-    current_altitude = myPressure.readAltitude() - ground_altitude; // ground_altitude may get changed via menu
+    current_altitude -= ground_altitude; // ground_altitude may get changed via menu
 
     if ((interval_number & 63) == 0 || powerMode == MODE_PREFILL) {
         // Check and refresh battery meter
@@ -1013,7 +1031,7 @@ void loop() {
     if (powerMode != previousPowerMode)
         interval_number = 0;
 
-    ShowLEDs(timeWhileBtn1Pressed);
+    ShowLEDs();
 
     // Refresh display once per 8s in ON_EARTH, each heartbeat pulse otherwise
     if (powerMode != MODE_ON_EARTH || refresh_display) {
@@ -1042,7 +1060,10 @@ void loop() {
     
             u8g2.drawHLine(0, DISPLAY_HEIGHT-8, DISPLAY_WIDTH-1);
     
-            sprintf_P(middlebuf, PSTR("&%1d' % 3d % 3d % 3d"), powerMode, currentVspeed, averageSpeed8, averageSpeed32);
+            if (powerMode == MODE_ON_EARTH)
+                sprintf_P(middlebuf, PSTR("&%1d'"), powerMode);
+            else
+                sprintf_P(middlebuf, PSTR("&%1d' % 3d % 3d % 3d"), powerMode, currentVspeed, averageSpeed8, averageSpeed32);
             u8g2.setFont(font_status_line);
             u8g2.setCursor(0, DISPLAY_HEIGHT - 1);
             u8g2.print(middlebuf);

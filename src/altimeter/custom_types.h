@@ -30,6 +30,7 @@ typedef struct {
 typedef struct {
     uint16_t battGranulationD; // Factory settings: min battery voltage, in items
     float battGranulationF; // Factory settings: battery percentage per 1 digitalRead item
+    byte display_rotation;
 } settings_t;
 
 typedef struct {

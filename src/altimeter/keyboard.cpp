@@ -1,5 +1,8 @@
 #include "hwconfig.h"
 #include "keyboard.h"
+#include "custom_types.h"
+
+extern settings_t settings;
 
 byte getKeypress(uint16_t timeout = 20000) {
     uint16_t i = 0;
@@ -14,11 +17,11 @@ byte getKeypress(uint16_t timeout = 20000) {
     // Wait for keypress
     for (;;) {
         if (BTN1_PRESSED)
-            return PIN_BTN1;
+            return (settings.display_rotation & 1) ? PIN_BTN1 : PIN_BTN3;
         if (BTN2_PRESSED)
             return PIN_BTN2;
         if (BTN3_PRESSED)
-            return PIN_BTN3;
+            return (settings.display_rotation & 1) ? PIN_BTN3 : PIN_BTN1;
         if ((++i) >= timeout)
             break;
         delay(15);
