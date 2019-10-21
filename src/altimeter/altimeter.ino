@@ -50,11 +50,14 @@ void(* resetFunc) (void) = 0;
 int vspeed[VSPEED_LENGTH]; // used in mode detector. TODO clean it in setup maybe?
 uint32_t interval_number; // global heartbeat counter
 long heartbeat; // heartbeat in 500ms ticks until auto turn off
-
 byte vspeedPtr = 0; // pointer to write to vspeed buffer
 int currentVspeed;
 int averageSpeed8;
 int averageSpeed32;
+// Auto jutter correction
+byte positive_jitter = 0;
+byte negative_jitter = 0;
+
 
 // ********* Main power move flag
 byte powerMode;
@@ -203,6 +206,43 @@ void processAltitudeChange() {
             averageSpeed8 = accumulatedVspeed / 8;
     }
     averageSpeed32 = accumulatedVspeed / VSPEED_LENGTH;
+
+    // Jitter compensation
+    if (powerMode == MODE_ON_EARTH) {
+        // Calculate jitter
+        int jitter = current_altitude - last_shown_altitude;
+        if (jitter > 4 || jitter < -4) {
+            last_shown_altitude = current_altitude;
+            positive_jitter = negative_jitter = 0;
+        } else {
+            // Inside jitter range. Try to correct zero drift.
+            if (last_shown_altitude == 0) { // Only zero drift will be corrected.
+                if (jitter > 0) { // 1..5
+                    positive_jitter++;
+                    negative_jitter = 0;
+                } else if (jitter < 0){ // -1..-5
+                    positive_jitter = 0;
+                    negative_jitter++;
+                } else
+                    positive_jitter = negative_jitter = 0;
+
+                if (positive_jitter > 250 || negative_jitter > 250) {
+                    // Do correct zero drift
+                    ground_altitude += current_altitude;
+                    IIC_WriteInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE, ground_altitude);
+                    current_altitude = last_shown_altitude = 0;
+                    positive_jitter = negative_jitter = 0;
+                }
+            } else {
+                // Too big change
+                positive_jitter = negative_jitter = 0;
+            }
+        }
+    } else
+        // Do not perform jitter compensation in modes other than MODE_ON_EARTH
+        last_shown_altitude = current_altitude;
+
+    
 
     switch (powerMode) {
         case MODE_DUMB:
@@ -1035,11 +1075,6 @@ void loop() {
 
     // Refresh display once per 8s in ON_EARTH, each heartbeat pulse otherwise
     if (powerMode != MODE_ON_EARTH || refresh_display) {
-        // Jitter compensation
-        int altDiff = current_altitude - last_shown_altitude;
-        if (altDiff > 2 || altDiff < -2 || averageSpeed8 > 1 || averageSpeed8 < -1)
-            last_shown_altitude = current_altitude;
-
         u8g2.firstPage();
         do {
             // Do not use bugbuf here, as it used for jump snapshot generation
