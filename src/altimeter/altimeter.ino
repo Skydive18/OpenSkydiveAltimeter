@@ -327,6 +327,8 @@ void processAltitudeChange() {
             saveToJumpSnapshot();
             if (averageSpeed32 < 1 && current_altitude < 25) {
                 powerMode = MODE_ON_EARTH;
+                // try to lock zero altitude
+                last_shown_altitude = 0;
                 // Save snapshot
                 EEPROM.put(SNAPSHOT_START, bigbuf);
                 // Save jump
@@ -1050,7 +1052,7 @@ void loop() {
     if ((interval_number & 63) == 0 || powerMode == MODE_PREFILL) {
         // Check and refresh battery meter
         batt = analogRead(PIN_BAT_SENSE);
-        rel_voltage = (int8_t)/*round*/((batt - settings.battGranulationD) * settings.battGranulationF);
+        rel_voltage = (int8_t)((batt - settings.battGranulationD) * settings.battGranulationF);
         if (rel_voltage < 0)
             rel_voltage = 0;
         if (rel_voltage > 100)
