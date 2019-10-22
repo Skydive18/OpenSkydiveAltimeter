@@ -206,7 +206,7 @@ void processAltitudeChange() {
     averageSpeed32 >>= 5;
 
     int jitter = current_altitude - last_shown_altitude;
-    bool jitter_in_range = (jitter > 4 || jitter < -4);
+    bool jitter_in_range = (jitter < 5 && jitter > -5);
     // Jitter compensation
     if (powerMode == MODE_ON_EARTH) {
         if (jitter_in_range) {
@@ -228,6 +228,7 @@ void processAltitudeChange() {
                 zero_drift_sense = 128;
             }
         } else {
+            // jitter out of range
             last_shown_altitude = current_altitude;
             zero_drift_sense = 128;
         }
@@ -813,7 +814,6 @@ void userMenu() {
 bool SetDate(uint8_t &day, uint8_t &month, uint16_t &year) {
     byte pos = 0;
     for(;;) {
-        u8g2.firstPage();
         pos = (pos + 5) % 5;
         if (year > 2100)
             year = 2100;
@@ -831,6 +831,7 @@ bool SetDate(uint8_t &day, uint8_t &month, uint16_t &year) {
             day = 29;
         if (month == 2 && day > 28 && (year & 3) != 0)
             day = 28;
+        u8g2.firstPage();
         do {
             u8g2.setCursor(0, FONT_HEIGHT);
             u8g2.print(F("Текущая дата"));
@@ -925,8 +926,8 @@ bool SetDate(uint8_t &day, uint8_t &month, uint16_t &year) {
 bool SetTime(byte &hour, byte &minute) {
     byte pos = 0;
     for(;;) {
-        u8g2.firstPage();
         pos &= 3;
+        u8g2.firstPage();
         do {
             u8g2.setCursor(0, FONT_HEIGHT);
             u8g2.print(F("Текущее время"));
