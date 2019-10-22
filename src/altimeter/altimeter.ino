@@ -1028,7 +1028,7 @@ void loop() {
     current_altitude = myPressure.readAltitude();
     previousPowerMode = powerMode;
     bool btn1Pressed = BTN1_PRESSED;
-    bool refresh_display = !(interval_number & 15);
+    bool refresh_display = (powerMode != MODE_ON_EARTH);
 
     // TODO. Opening menu when jump snapshot has not been saved leads to a broken snapshot.
     // Either disable menu in automatic modes or erase snapshot in such cases.
@@ -1069,13 +1069,15 @@ void loop() {
     }
     
     processAltitudeChange();
-    if (powerMode != previousPowerMode)
+    if (powerMode != previousPowerMode) {
         interval_number = 0;
+        refresh_display = true;
+    }
 
     ShowLEDs();
 
     // Refresh display once per 8s in ON_EARTH, each heartbeat pulse otherwise
-    if (powerMode != MODE_ON_EARTH || refresh_display) {
+    if (refresh_display) {
         u8g2.firstPage();
         do {
             // Do not use bugbuf here, as it used for jump snapshot generation
