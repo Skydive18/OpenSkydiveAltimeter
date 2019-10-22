@@ -194,16 +194,16 @@ void processAltitudeChange() {
     currentVspeed = (current_altitude - previous_altitude) << 1; // ok there; sign bit will be kept because <int> is big enough
     previous_altitude = current_altitude;
     vspeed[vspeedPtr & 31] = (int8_t)currentVspeed;
-    vspeedPtr++;
     // Calculate averages
-    byte startPtr = ((byte)(vspeedPtr - 32)) & 31;
+    byte startPtr = ((byte)(vspeedPtr)) & 31;
     averageSpeed32 = 0;
     for (byte i = 0; i < 32; i++) {
         averageSpeed32 += vspeed[(startPtr - i) & 31];
-        if (i == 8)
-            averageSpeed8 = averageSpeed32 >> 3; // sign extension used
+        if (i == 7)
+            averageSpeed8 = averageSpeed32 / 8; // sign extension used
     }
-    averageSpeed32 >>= 5;
+    averageSpeed32 /= 32;
+    vspeedPtr++;
 
     int jitter = current_altitude - last_shown_altitude;
     bool jitter_in_range = (jitter < 5 && jitter > -5);
