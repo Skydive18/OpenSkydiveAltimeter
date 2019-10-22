@@ -422,8 +422,7 @@ void ShowText(const byte x, const byte y, const char* text) {
         bigbuf[i] = 0;
         u8g2.firstPage();
         do {
-            u8g2.setCursor(x, y);
-            u8g2.print(bigbuf);
+            u8g2.drawUTF8(x, y, bigbuf);
         } while(u8g2.nextPage());
         delay(250);
     }
@@ -515,16 +514,14 @@ int8_t myMenu(char *menudef, int8_t event = 1) {
             ptr = 0;
             int8_t line = 1;
             // Print title and find ptr
-            u8g2.setCursor(0, FONT_HEIGHT);
-            u8g2.print(menudef);
+            u8g2.drawUTF8(0, FONT_HEIGHT, menudef);
             while (menudef[ptr++]); // set to the beginning of the next line
             u8g2.drawHLine(0, FONT_HEIGHT + 1, DISPLAY_WIDTH-1);
             while (menudef[ptr] != 0 && (line - firstline) < DISPLAY_LINES_IN_MENU) {
                 if (line >= firstline) {
-                    u8g2.setCursor(0, (FONT_HEIGHT * (line - firstline)) + (FONT_HEIGHT + FONT_HEIGHT + 2));
                     if (event > 0)
                         menudef[ptr] = (event == line) ? '}' : ' ';
-                    u8g2.print((char*)(menudef + ptr));
+                    u8g2.drawUTF8(0, (FONT_HEIGHT * (line - firstline)) + (FONT_HEIGHT + FONT_HEIGHT + 2), (char*)(menudef + ptr));
                 }
                 line++;
                 while (bigbuf[ptr++]); // set to the beginning of the next line
@@ -535,13 +532,11 @@ int8_t myMenu(char *menudef, int8_t event = 1) {
         byte key = getKeypress();
         if (event == 0)
             return key;
+        if (key == 255)
+            return -1;
+        if (key == PIN_BTN2)
+            return event;
         switch (key) {
-            case 255:
-                // Timeout
-                return -1;
-            case PIN_BTN2:
-                // Select
-                return event;
             case PIN_BTN1:
                 // up
                 event--;
@@ -833,8 +828,8 @@ bool SetDate(uint8_t &day, uint8_t &month, uint16_t &year) {
             day = 28;
         u8g2.firstPage();
         do {
-            u8g2.setCursor(0, FONT_HEIGHT);
-            u8g2.print(F("Текущая дата"));
+            sprintf_P(middlebuf, PSTR("Текущая дата"));
+            u8g2.drawUTF8(0, FONT_HEIGHT, middlebuf);
             u8g2.drawHLine(0, FONT_HEIGHT + 1, DISPLAY_WIDTH-1);
 
             sprintf_P(middlebuf, PSTR("%c%02d %c%02d %c%04d"),
@@ -845,20 +840,17 @@ bool SetDate(uint8_t &day, uint8_t &month, uint16_t &year) {
                 pos == 2 ? '}' : ' ',
                 year
             );
-            u8g2.setCursor(0, FONT_HEIGHT + FONT_HEIGHT + 3);
-            u8g2.print(middlebuf);
+            u8g2.drawUTF8(0, FONT_HEIGHT + FONT_HEIGHT + 3, middlebuf);
 
             sprintf_P(middlebuf, PSTR("%cОтмена"),
                 pos == 3 ? '}' : ' '
             );
-            u8g2.setCursor(0, FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + 5);
-            u8g2.print(middlebuf);
+            u8g2.drawUTF8(0, FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + 5, middlebuf);
             
             sprintf_P(middlebuf, PSTR("%cОК"),
                 pos == 4 ? '}' : ' '
             );
-            u8g2.setCursor(0, FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + 7);
-            u8g2.print(middlebuf);
+            u8g2.drawUTF8(0, FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + 7, middlebuf);
             
         } while(u8g2.nextPage());
         byte keyEvent = getKeypress();
@@ -929,8 +921,8 @@ bool SetTime(byte &hour, byte &minute) {
         pos &= 3;
         u8g2.firstPage();
         do {
-            u8g2.setCursor(0, FONT_HEIGHT);
-            u8g2.print(F("Текущее время"));
+            strcpy_P(middlebuf, PSTR("Текущее время"));
+            u8g2.drawUTF8(0, FONT_HEIGHT, middlebuf);
             u8g2.drawHLine(0, FONT_HEIGHT + 1, DISPLAY_WIDTH-1);
 
             sprintf_P(middlebuf, PSTR("%c%02d:%02d%c"),
@@ -939,20 +931,17 @@ bool SetTime(byte &hour, byte &minute) {
                 minute,
                 pos == 1 ? '{' : ' '
             );
-            u8g2.setCursor(0, FONT_HEIGHT + FONT_HEIGHT + 3);
-            u8g2.print(middlebuf);
+            u8g2.drawUTF8(0, FONT_HEIGHT + FONT_HEIGHT + 3, middlebuf);
 
             sprintf_P(middlebuf, PSTR("%cОтмена"),
                 pos == 2 ? '}' : ' '
             );
-            u8g2.setCursor(0, FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + 5);
-            u8g2.print(middlebuf);
+            u8g2.drawUTF8(0, FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + 5, middlebuf);
             
             sprintf_P(middlebuf, PSTR("%cОК"),
                 pos == 3 ? '}' : ' '
             );
-            u8g2.setCursor(0, FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + 7);
-            u8g2.print(middlebuf);
+            u8g2.drawUTF8(0, FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + 7, middlebuf);
             
         } while(u8g2.nextPage());
         byte keyEvent = getKeypress();
@@ -1061,7 +1050,7 @@ void loop() {
     if ((interval_number & 63) == 0 || powerMode == MODE_PREFILL) {
         // Check and refresh battery meter
         batt = analogRead(PIN_BAT_SENSE);
-        rel_voltage = (int8_t)round((batt - settings.battGranulationD) * settings.battGranulationF);
+        rel_voltage = (int8_t)/*round*/((batt - settings.battGranulationD) * settings.battGranulationF);
         if (rel_voltage < 0)
             rel_voltage = 0;
         if (rel_voltage > 100)
@@ -1082,35 +1071,31 @@ void loop() {
         do {
             // Do not use bugbuf here, as it used for jump snapshot generation
             u8g2.setFont(font_status_line);
-            u8g2.setCursor(0,6);
+
             sprintf_P(middlebuf, PSTR("%02d.%02d.%04d %02d:%02d"), rtc.day, rtc.month, rtc.year, rtc.hour, rtc.minute);
-            u8g2.print(middlebuf);
-            u8g2.setCursor(DISPLAY_WIDTH - 16, 6);
+            u8g2.drawUTF8(0, 6, middlebuf);
+            
             sprintf_P(smallbuf, PSTR("%3d%%"), rel_voltage);
-            u8g2.print(smallbuf);
+            u8g2.drawUTF8(DISPLAY_WIDTH - 16, 6, smallbuf);
     
             u8g2.drawHLine(0, 7, DISPLAY_WIDTH-1);
-    
-            u8g2.setFont(font_altitude);
-            sprintf_P(smallbuf, PSTR("%4d"), last_shown_altitude);
-            u8g2.setCursor(0,38);
-            u8g2.print(smallbuf);
-    
             u8g2.drawHLine(0, DISPLAY_HEIGHT-8, DISPLAY_WIDTH-1);
     
             if (powerMode == MODE_ON_EARTH)
                 sprintf_P(middlebuf, PSTR("&%1d'"), powerMode);
             else
                 sprintf_P(middlebuf, PSTR("&%1d' % 3d % 3d % 3d"), powerMode, currentVspeed, averageSpeed8, averageSpeed32);
-            u8g2.setFont(font_status_line);
-            u8g2.setCursor(0, DISPLAY_HEIGHT - 1);
-            u8g2.print(middlebuf);
+            u8g2.drawUTF8(0, DISPLAY_HEIGHT - 1, middlebuf);
             // Show heartbeat
             byte hbHrs = heartbeat / 7200;
             byte hbMin = ((heartbeat >> 1) % 3600) / 60;
             sprintf_P(smallbuf, PSTR("%02d:%02d"), hbHrs, hbMin);
-            u8g2.setCursor(DISPLAY_WIDTH - 20, DISPLAY_HEIGHT - 1);
-            u8g2.print(smallbuf);
+            u8g2.drawUTF8(DISPLAY_WIDTH - 20, DISPLAY_HEIGHT - 1, smallbuf);
+
+            u8g2.setFont(font_altitude);
+            sprintf_P(smallbuf, PSTR("%4d"), last_shown_altitude);
+            u8g2.drawUTF8(0, 38, smallbuf);
+            
         } while ( u8g2.nextPage() );
     }
 
