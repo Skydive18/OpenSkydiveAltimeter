@@ -46,17 +46,15 @@ PCF8583 rtc;
 void(* resetFunc) (void) = 0;
 
 #define CLEAR_PREVIOUS_ALTITUDE -30000
-#define VSPEED_LENGTH 32
-int vspeed[VSPEED_LENGTH]; // used in mode detector. TODO clean it in setup maybe?
+int vspeed[32]; // used in mode detector. TODO clean it in setup maybe?
 uint32_t interval_number; // global heartbeat counter
 long heartbeat; // heartbeat in 500ms ticks until auto turn off
 byte vspeedPtr = 0; // pointer to write to vspeed buffer
 int currentVspeed;
 int averageSpeed8;
 int averageSpeed32;
-// Auto jutter correction
-byte positive_jitter = 0;
-byte negative_jitter = 0;
+// Auto zero drift correction
+byte zero_drift_sense = 128;
 
 
 // ********* Main power move flag
@@ -159,7 +157,7 @@ void setup() {
     backLight = IIC_ReadByte(RTC_ADDRESS, ADDR_BACKLIGHT);
     heartbeat = ByteToHeartbeat(IIC_ReadByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF));
 
-    strcpy(bigbuf, ""); // need it to correctly allocate memory
+    //strcpy(bigbuf, ""); // need it to correctly allocate memory
 
     // Show greeting message
     ShowText(16, 30, PSTR("Ni Hao!"));
@@ -173,7 +171,7 @@ void saveToJumpSnapshot() {
     if (current_jump.total_jump_time < 2045)
         current_jump.total_jump_time++;
 
-    if (current_jump.total_jump_time > 1198 || (current_jump.total_jump_time & 1))
+    if (current_jump.total_jump_time > 1198 || (current_jump.total_jump_time & 1) /* write once per second */ )
         return;
     int speed_now = current_altitude - accumulated_altitude;
     // TODO. Limit acceleration (in fact, this is exactly what we store) with values depending on current speed.
@@ -193,19 +191,19 @@ void processAltitudeChange() {
         return;
     }
     
-    currentVspeed = (current_altitude - previous_altitude) * 2;
+    currentVspeed = (current_altitude - previous_altitude) << 1; // ok there; sign bit will be kept because <int> is big enough
     previous_altitude = current_altitude;
-    vspeed[vspeedPtr & (VSPEED_LENGTH - 1)] = (int8_t)currentVspeed;
+    vspeed[vspeedPtr & 31] = (int8_t)currentVspeed;
     vspeedPtr++;
     // Calculate averages
-    byte startPtr = (byte)((vspeedPtr - VSPEED_LENGTH)) & (VSPEED_LENGTH - 1);
-    int accumulatedVspeed = 0;
-    for (byte i = 0; i < VSPEED_LENGTH; i++) {
-        accumulatedVspeed += vspeed[(startPtr - i) & (VSPEED_LENGTH - 1)];
+    byte startPtr = ((byte)(vspeedPtr - 32)) & 31;
+    averageSpeed32 = 0;
+    for (byte i = 0; i < 32; i++) {
+        averageSpeed32 += vspeed[(startPtr - i) & 31];
         if (i == 8)
-            averageSpeed8 = accumulatedVspeed / 8;
+            averageSpeed8 = averageSpeed32 >> 3; // sign extension used
     }
-    averageSpeed32 = accumulatedVspeed / VSPEED_LENGTH;
+    averageSpeed32 >>= 5;
 
     // Jitter compensation
     if (powerMode == MODE_ON_EARTH) {
@@ -213,36 +211,31 @@ void processAltitudeChange() {
         int jitter = current_altitude - last_shown_altitude;
         if (jitter > 4 || jitter < -4) {
             last_shown_altitude = current_altitude;
-            positive_jitter = negative_jitter = 0;
+            zero_drift_sense = 128;
         } else {
             // Inside jitter range. Try to correct zero drift.
-            if (last_shown_altitude == 0) { // Only zero drift will be corrected.
-                if (jitter > 0) { // 1..5
-                    positive_jitter++;
-                    negative_jitter = 0;
-                } else if (jitter < 0){ // -1..-5
-                    positive_jitter = 0;
-                    negative_jitter++;
-                } else
-                    positive_jitter = negative_jitter = 0;
+            if (last_shown_altitude == 0) {
+                zero_drift_sense += jitter;
 
-                if (positive_jitter > 250 || negative_jitter > 250) {
+                if (zero_drift_sense < 8) {
                     // Do correct zero drift
                     ground_altitude += current_altitude;
                     IIC_WriteInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE, ground_altitude);
-                    current_altitude = last_shown_altitude = 0;
-                    positive_jitter = negative_jitter = 0;
+                    // Altitude already shown as 0. current_altitude is not needed anymore.
+                    // It will be re-read in next cycle and assumed to be zero, as we corrected
+                    // zero drift.
+                    zero_drift_sense = 128;
                 }
             } else {
-                // Too big change
-                positive_jitter = negative_jitter = 0;
+                // Not at ground
+                zero_drift_sense = 128;
             }
         }
-    } else
-        // Do not perform jitter compensation in modes other than MODE_ON_EARTH
+    } else {
+        // Do not perform zero drift compensation and jitter correction in modes other than MODE_ON_EARTH
         last_shown_altitude = current_altitude;
-
-    
+        zero_drift_sense = 128;
+    }
 
     switch (powerMode) {
         case MODE_DUMB:
@@ -250,8 +243,8 @@ void processAltitudeChange() {
             break;
         
         case MODE_PREFILL:
-            // Change mode to ON_EARTH if vspeed had been prefilled (approx. 16s after enter to this mode)
-            if (vspeedPtr > VSPEED_LENGTH)
+            // Change mode to ON_EARTH if vspeed has been prefilled (approx. 16s after enter to this mode)
+            if (vspeedPtr > 32)
                 powerMode = MODE_ON_EARTH;
             break;
         
