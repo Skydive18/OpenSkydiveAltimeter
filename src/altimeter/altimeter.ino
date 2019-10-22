@@ -205,14 +205,11 @@ void processAltitudeChange() {
     }
     averageSpeed32 >>= 5;
 
+    int jitter = current_altitude - last_shown_altitude;
+    bool jitter_in_range = (jitter > 4 || jitter < -4);
     // Jitter compensation
     if (powerMode == MODE_ON_EARTH) {
-        // Calculate jitter
-        int jitter = current_altitude - last_shown_altitude;
-        if (jitter > 4 || jitter < -4) {
-            last_shown_altitude = current_altitude;
-            zero_drift_sense = 128;
-        } else {
+        if (jitter_in_range) {
             // Inside jitter range. Try to correct zero drift.
             if (last_shown_altitude == 0) {
                 zero_drift_sense += jitter;
@@ -230,7 +227,11 @@ void processAltitudeChange() {
                 // Not at ground
                 zero_drift_sense = 128;
             }
+        } else {
+            last_shown_altitude = current_altitude;
+            zero_drift_sense = 128;
         }
+
     } else {
         // Do not perform zero drift compensation and jitter correction in modes other than MODE_ON_EARTH
         last_shown_altitude = current_altitude;
@@ -244,8 +245,14 @@ void processAltitudeChange() {
         
         case MODE_PREFILL:
             // Change mode to ON_EARTH if vspeed has been prefilled (approx. 16s after enter to this mode)
-            if (vspeedPtr > 32)
+            if (vspeedPtr > 32) {
+                // set to zero if we close to it
+                if (jitter_in_range) {
+                    last_shown_altitude = 0;
+                    ground_altitude += current_altitude;
+                }
                 powerMode = MODE_ON_EARTH;
+            }
             break;
         
         case MODE_ON_EARTH:
@@ -267,7 +274,7 @@ void processAltitudeChange() {
         case MODE_EXIT:
             if (currentVspeed <= BEGIN_FREEFALL_TH) {
                 powerMode = MODE_BEGIN_FREEFALL;
-                current_jump.exit_altitude = (accumulated_altitude = current_altitude) / 2;
+                current_jump.exit_altitude = (accumulated_altitude = current_altitude) >> 1;
                 current_jump.exit_timestamp = rtc.getTimestamp();
                 current_jump.total_jump_time = current_jump.max_freefall_speed_ms = 0;
                 bigbuf[0] = (char)currentVspeed;
@@ -300,7 +307,7 @@ void processAltitudeChange() {
                 powerMode = MODE_FREEFALL;
             else if (currentVspeed > OPENING_TH) {
                 powerMode = MODE_OPENING;
-                current_jump.deploy_altitude = current_altitude / 2;
+                current_jump.deploy_altitude = current_altitude >> 1;
                 current_jump.deploy_time = current_jump.total_jump_time;
             }
             break;
@@ -311,7 +318,7 @@ void processAltitudeChange() {
                 powerMode = MODE_PULLOUT;
             else if (currentVspeed > UNDER_PARACHUTE_TH) {
                 powerMode = MODE_UNDER_PARACHUTE;
-                current_jump.canopy_altitude = current_jump.deploy_altitude - (current_altitude / 2);
+                current_jump.canopy_altitude = current_jump.deploy_altitude - (current_altitude >> 1);
             }
             break;
 
@@ -551,7 +558,7 @@ int8_t myMenu(char *menudef, int8_t event = 1) {
 }
 
 void current_jump_to_bigbuf(uint16_t jump_to_show) {
-    int average_freefall_speed_ms = ((current_jump.exit_altitude - current_jump.deploy_altitude) * 2) / current_jump.deploy_time;
+    int average_freefall_speed_ms = ((current_jump.exit_altitude - current_jump.deploy_altitude) << 1) / current_jump.deploy_time;
     int average_freefall_speed_kmh = (int)(3.6f * average_freefall_speed_ms);
     int max_freefall_speed_kmh = (int)(3.6f * current_jump.max_freefall_speed_ms);
     uint8_t day = current_jump.exit_timestamp.day;
@@ -559,9 +566,9 @@ void current_jump_to_bigbuf(uint16_t jump_to_show) {
     uint16_t year = current_jump.exit_timestamp.year;
     uint8_t hour = current_jump.exit_timestamp.hour;
     uint8_t minute = current_jump.exit_timestamp.minute;
-    int16_t exit_altitude = current_jump.exit_altitude * 2;
-    int16_t deploy_altitude = current_jump.deploy_altitude * 2;
-    int16_t canopy_altitude = (current_jump.deploy_altitude - current_jump.canopy_altitude) * 2;
+    int16_t exit_altitude = current_jump.exit_altitude << 1;
+    int16_t deploy_altitude = current_jump.deploy_altitude << 1;
+    int16_t canopy_altitude = (current_jump.deploy_altitude - current_jump.canopy_altitude) << 1;
     uint16_t freefall_time = current_jump.deploy_time;
     uint16_t max_freefall_speed_ms = current_jump.max_freefall_speed_ms;
 
@@ -660,8 +667,8 @@ void userMenu() {
                             // For debug purposes: prefill
 
                             current_jump.exit_timestamp = rtc.getTimestamp();
-                            current_jump.exit_altitude = 4150 / 2;
-                            current_jump.deploy_altitude = 1250 / 2;
+                            current_jump.exit_altitude = 4150 << 1;
+                            current_jump.deploy_altitude = 1250 << 1;
                             current_jump.canopy_altitude = 120;
                             current_jump.deploy_time = 62;
                             current_jump.max_freefall_speed_ms = 67;
@@ -1097,7 +1104,7 @@ void loop() {
             u8g2.print(middlebuf);
             // Show heartbeat
             byte hbHrs = heartbeat / 7200;
-            byte hbMin = ((heartbeat /2) % 3600) / 60;
+            byte hbMin = ((heartbeat >> 1) % 3600) / 60;
             sprintf_P(smallbuf, PSTR("%02d:%02d"), hbHrs, hbMin);
             u8g2.setCursor(DISPLAY_WIDTH - 20, DISPLAY_HEIGHT - 1);
             u8g2.print(smallbuf);
