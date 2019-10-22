@@ -1069,11 +1069,11 @@ void loop() {
     }
     
     processAltitudeChange();
-    if (powerMode != previousPowerMode) {
+    if (powerMode != previousPowerMode)
         interval_number = 0;
-        refresh_display = true;
-    }
 
+    refresh_display += !(interval_number & 31);
+    
     ShowLEDs();
 
     // Refresh display once per 8s in ON_EARTH, each heartbeat pulse otherwise
