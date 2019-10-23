@@ -12,6 +12,10 @@
 */
 #include "U8x8lib.h"
 #include <SPI.h>
+// Allow to send data partially in background.
+// TODO: more benefits may be obtained if use USART in SPI mode
+// TODO: because it is buffered
+#define ARDUINO_HW_SPI_3W_OPTIMIZE
 
 static uint8_t arduino_hw_spi_3w_buffer[9];
 static uint8_t arduino_hw_spi_3w_bytepos;
@@ -23,20 +27,31 @@ static void arduino_hw_spi_3w_init() {
 }
 
 static void arduino_hw_spi_3w_flush() {
-    for(uint8_t i = 0; i <= arduino_hw_spi_3w_bytepos; i++)
+	uint8_t i
+#ifdef ARDUINO_HW_SPI_3W_OPTIMIZE
+	 = SPDR
+#endif
+	;
+    for(i = 0; i <= arduino_hw_spi_3w_bytepos; i++) {
+#ifdef ARDUINO_HW_SPI_3W_OPTIMIZE
+    	while (!(SPSR & _BV(SPIF))) ; // wait before sending next byte
+    	SPDR = arduino_hw_spi_3w_buffer[i];
+#else
         SPI.transfer(arduino_hw_spi_3w_buffer[i]);
-    arduino_hw_spi_3w_init();
+#endif
+    }
 }
 
 static void arduino_hw_spi_3w_sendbyte(uint8_t data) {
-    static uint16_t data16;
-    static uint8_t* adata = (uint8_t*)(&data16);
-    data16 = (arduino_hw_spi_3w_dc + data) << (7 - arduino_hw_spi_3w_bytepos);
+    static union { uint16_t val; struct { uint8_t lsb; uint8_t msb; }; } data16;
+    data16.val = (arduino_hw_spi_3w_dc + data) << (7 - arduino_hw_spi_3w_bytepos);
     // AVR stores least significant byte first
-    arduino_hw_spi_3w_buffer[arduino_hw_spi_3w_bytepos]   |= adata[1];
-    arduino_hw_spi_3w_buffer[++arduino_hw_spi_3w_bytepos] |= adata[0];
-    if (arduino_hw_spi_3w_bytepos == 8)
+    arduino_hw_spi_3w_buffer[arduino_hw_spi_3w_bytepos]   |= data16.msb;
+    arduino_hw_spi_3w_buffer[++arduino_hw_spi_3w_bytepos] |= data16.lsb;
+    if (arduino_hw_spi_3w_bytepos == 8) {
         arduino_hw_spi_3w_flush();
+    	arduino_hw_spi_3w_init();
+    }
 }
 
 extern "C" uint8_t u8x8_byte_arduino_hw_spi_3w(
@@ -64,7 +79,6 @@ extern "C" uint8_t u8x8_byte_arduino_hw_spi_3w(
             /* disable chipselect */
             u8x8_gpio_SetCS(u8x8, u8x8->display_info->chip_disable_level);
             SPI.begin();
-            arduino_hw_spi_3w_init();
         break;
       
         case U8X8_MSG_BYTE_SET_DC:
@@ -111,7 +125,13 @@ extern "C" uint8_t u8x8_byte_arduino_hw_spi_3w(
                 U8X8_MSG_DELAY_NANO,
                 u8x8->display_info->pre_chip_disable_wait_ns,
                 NULL);
-            arduino_hw_spi_3w_flush();
+            if(arduino_hw_spi_3w_bytepos)
+            	arduino_hw_spi_3w_flush();
+#ifdef ARDUINO_HW_SPI_3W_OPTIMIZE
+				// Make sure transmission is completed
+			    while (!(SPSR & _BV(SPIF))) ; // wait
+//    			i = SPDR;
+#endif
             u8x8_gpio_SetCS(u8x8, u8x8->display_info->chip_disable_level);
 
 #if ARDUINO >= 10600
