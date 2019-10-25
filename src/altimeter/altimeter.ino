@@ -1,3 +1,5 @@
+#include <TFT.h>
+
 #include <EEPROM.h>
 #include "powerctl.h"
 #include <SPI.h>
@@ -442,7 +444,8 @@ void PowerOff() {
     pinMode(SCL, INPUT);
     pinMode(SDA, INPUT);
     // turn off SPI
-    pinMode(MOSI, INPUT);
+    SPI.end();
+    pinMode(MOSI, INPUT); // todo: set all portB as input
     pinMode(MISO, INPUT);
     pinMode(SCK, INPUT);
     pinMode(SS, INPUT);
@@ -482,7 +485,7 @@ byte checkWakeCondition ()
 
 void showVersion() {
     u8g2.setFont(font_menu);
-    sprintf_P(bigbuf, PSTR("Альтимонстр I\nПлатформа A01\nВерсия 0.6\nCOM %ld/8N1\n"), SERIAL_SPEED);
+    sprintf_P(bigbuf, PSTR("Альтимонстр I\nПлатформа A01\nВерсия 0.7\nCOM %ld/8N1\n"), SERIAL_SPEED);
     myMenu(bigbuf, -1);
 }
 
@@ -665,8 +668,8 @@ void userMenu() {
                             // For debug purposes: prefill
 
                             current_jump.exit_timestamp = rtc.getTimestamp();
-                            current_jump.exit_altitude = 4150 << 1;
-                            current_jump.deploy_altitude = 1250 << 1;
+                            current_jump.exit_altitude = 4150 >> 1;
+                            current_jump.deploy_altitude = 1250 >> 1;
                             current_jump.canopy_altitude = 120;
                             current_jump.deploy_time = 62;
                             current_jump.max_freefall_speed_ms = 67;
