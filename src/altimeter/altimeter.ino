@@ -407,7 +407,13 @@ void ShowLEDs() {
 
         case MODE_ON_EARTH:
             if (interval_number < 8) {
-                LED_show(0, (interval_number & 1) ? 0 : 80, 0); // green blinks to indicate that altimeter is ready
+                if (interval_number & 1) {
+                    LED_show(0, 0, 0); // green blinks to indicate that altimeter is ready
+                    noTone(PIN_SOUND);
+                } else {
+                    LED_show(0, 80, 0); // green blinks to indicate that altimeter is ready
+                    tone(PIN_SOUND, 700);
+                }
             } else
                 break; // turn LED off
             return;
