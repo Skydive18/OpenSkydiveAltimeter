@@ -234,111 +234,107 @@ void processAltitudeChange() {
             last_shown_altitude = current_altitude;
             zero_drift_sense = 128;
         }
-
     } else {
         // Do not perform zero drift compensation and jitter correction in modes other than MODE_ON_EARTH
         last_shown_altitude = current_altitude;
         zero_drift_sense = 128;
     }
 
-    switch (powerMode) {
-        case MODE_DUMB:
-            // No logic in this mode. Manual change only.
-            break;
-        
-        case MODE_PREFILL:
-            // Change mode to ON_EARTH if vspeed has been prefilled (approx. 16s after enter to this mode)
-            if (vspeedPtr > 32) {
-                // set to zero if we close to it
-                if (jitter_in_range) {
-                    last_shown_altitude = 0;
-                    ground_altitude += current_altitude;
-                }
-                powerMode = MODE_ON_EARTH;
-            }
-            break;
-        
-        case MODE_ON_EARTH:
-            if ( (current_altitude > 250) || (current_altitude > 30 && averageSpeed8 > 1) )
-                powerMode = MODE_IN_AIRPLANE;
-            else if (averageSpeed8 < -25) {
-                powerMode = MODE_FREEFALL;
-                current_jump.total_jump_time = 2047; // do not store this jump in logbook
-            }
-            break;
-
-        case MODE_IN_AIRPLANE:
-            if (currentVspeed <= EXIT_TH)
-                powerMode = MODE_EXIT;
-            else if (averageSpeed32 < 1 && current_altitude < 25)
-                powerMode = MODE_ON_EARTH;
-            break;
-
-        case MODE_EXIT:
-            if (currentVspeed <= BEGIN_FREEFALL_TH) {
-                powerMode = MODE_BEGIN_FREEFALL;
-                current_jump.exit_altitude = (accumulated_altitude = current_altitude) >> 1;
-                current_jump.exit_timestamp = rtc.getTimestamp();
-                current_jump.total_jump_time = current_jump.max_freefall_speed_ms = 0;
-                bigbuf[0] = (char)currentVspeed;
-                accumulated_speed = currentVspeed;
-            }
-            else if (currentVspeed > EXIT_TH)
-                powerMode = MODE_IN_AIRPLANE;
-            break;
-
-        case MODE_BEGIN_FREEFALL:
-            saveToJumpSnapshot();
-            if (currentVspeed <= FREEFALL_TH)
-                powerMode = MODE_FREEFALL;
-            else if (currentVspeed > BEGIN_FREEFALL_TH)
-                powerMode = MODE_EXIT;
-            break;
-
-        case MODE_FREEFALL:
-            saveToJumpSnapshot();
-            if (currentVspeed > PULLOUT_TH)
-                powerMode = MODE_PULLOUT;
-            byte freefall_speed = 0 - averageSpeed8;
-            if (freefall_speed > current_jump.max_freefall_speed_ms)
-                current_jump.max_freefall_speed_ms = freefall_speed;
-            break;
-
-        case MODE_PULLOUT:
-            saveToJumpSnapshot();
-            if (currentVspeed <= PULLOUT_TH)
-                powerMode = MODE_FREEFALL;
-            else if (currentVspeed > OPENING_TH) {
-                powerMode = MODE_OPENING;
-                current_jump.deploy_altitude = current_altitude >> 1;
-                current_jump.deploy_time = current_jump.total_jump_time;
-            }
-            break;
-
-        case MODE_OPENING:
-            saveToJumpSnapshot();
-            if (currentVspeed <= OPENING_TH)
-                powerMode = MODE_PULLOUT;
-            else if (currentVspeed > UNDER_PARACHUTE_TH) {
-                powerMode = MODE_UNDER_PARACHUTE;
-                current_jump.canopy_altitude = current_jump.deploy_altitude - (current_altitude >> 1);
-            }
-            break;
-
-        case MODE_UNDER_PARACHUTE:
-            saveToJumpSnapshot();
-            if (averageSpeed32 < 1 && current_altitude < 25) {
-                powerMode = MODE_ON_EARTH;
-                // try to lock zero altitude
+    if (powerMode == MODE_PREFILL) {
+        // Change mode to ON_EARTH if vspeed has been populated (approx. 16s after enter to this mode)
+        if (vspeedPtr > 32) {
+            // set to zero if we close to it
+            if (settings.zero_after_reset & 1) {
                 last_shown_altitude = 0;
-                // Save snapshot
-                EEPROM.put(SNAPSHOT_START, bigbuf);
-                // Save jump
-                EEPROM.put(EEPROM_LOGBOOK_START +  (((total_jumps++) % (LOGBOOK_SIZE + 1)) * sizeof(jump_t)), current_jump);
-                EEPROM.put(EEPROM_JUMP_COUNTER, total_jumps);
+                ground_altitude += current_altitude;
             }
-            break;
+            powerMode = MODE_ON_EARTH;
+        }
+        return;
     }
+
+    //
+    // ************************
+    // ** MAIN STATE MACHINE **
+    // ************************
+    //
+    // Due to compiler optimization, **DO NOT** use `case` here.
+    // Also, **DO NOT** remove `else`'s.
+
+    if (powerMode == MODE_ON_EARTH) {
+        if ( (current_altitude > 250) || (current_altitude > 30 && averageSpeed8 > 1) )
+            powerMode = MODE_IN_AIRPLANE;
+        else if (averageSpeed8 < -25) {
+            powerMode = MODE_FREEFALL;
+            current_jump.total_jump_time = 2047; // do not store this jump in logbook
+        }
+    } else
+    if (powerMode == MODE_IN_AIRPLANE) {
+        if (currentVspeed <= EXIT_TH)
+            powerMode = MODE_EXIT;
+        else if (averageSpeed32 < 1 && current_altitude < 25)
+            powerMode = MODE_ON_EARTH;
+    } else
+    if (powerMode == MODE_EXIT) {
+        if (currentVspeed <= BEGIN_FREEFALL_TH) {
+            powerMode = MODE_BEGIN_FREEFALL;
+            current_jump.exit_altitude = (accumulated_altitude = current_altitude) >> 1;
+            current_jump.exit_timestamp = rtc.getTimestamp();
+            current_jump.total_jump_time = current_jump.max_freefall_speed_ms = 0;
+            bigbuf[0] = (char)currentVspeed;
+            accumulated_speed = currentVspeed;
+        }
+        else if (currentVspeed > EXIT_TH)
+            powerMode = MODE_IN_AIRPLANE;
+    } else
+    if (powerMode == MODE_BEGIN_FREEFALL) {
+        saveToJumpSnapshot();
+        if (currentVspeed <= FREEFALL_TH)
+            powerMode = MODE_FREEFALL;
+        else if (currentVspeed > BEGIN_FREEFALL_TH)
+            powerMode = MODE_EXIT;
+    } else
+    if (powerMode == MODE_FREEFALL) {
+        saveToJumpSnapshot();
+        if (currentVspeed > PULLOUT_TH)
+            powerMode = MODE_PULLOUT;
+        byte freefall_speed = 0 - averageSpeed8;
+        if (freefall_speed > current_jump.max_freefall_speed_ms)
+            current_jump.max_freefall_speed_ms = freefall_speed;
+    } else
+    if (powerMode == MODE_PULLOUT) {
+        saveToJumpSnapshot();
+        current_jump.deploy_altitude = current_altitude >> 1;
+        current_jump.deploy_time = current_jump.total_jump_time;
+        if (currentVspeed <= PULLOUT_TH)
+            powerMode = MODE_FREEFALL;
+        else if (currentVspeed > OPENING_TH) {
+            powerMode = MODE_OPENING;
+        }
+    } else
+    if (powerMode == MODE_OPENING) {
+        saveToJumpSnapshot();
+        if (currentVspeed <= OPENING_TH)
+            powerMode = MODE_PULLOUT;
+        else if (currentVspeed > UNDER_PARACHUTE_TH) {
+            powerMode = MODE_UNDER_PARACHUTE;
+            current_jump.canopy_altitude = current_jump.deploy_altitude - (current_altitude >> 1);
+        }
+    } else
+    if (powerMode == MODE_UNDER_PARACHUTE) {
+        saveToJumpSnapshot();
+        if (averageSpeed32 < 1 && current_altitude < 25) {
+            powerMode = MODE_ON_EARTH;
+            // try to lock zero altitude
+            last_shown_altitude = 0;
+            // Save snapshot
+            EEPROM.put(SNAPSHOT_START, bigbuf);
+            // Save jump
+            EEPROM.put(EEPROM_LOGBOOK_START +  (((total_jumps++) % (LOGBOOK_SIZE + 1)) * sizeof(jump_t)), current_jump);
+            EEPROM.put(EEPROM_JUMP_COUNTER, total_jumps);
+        }
+    }
+    
 }
 
 byte airplane_300m = 0;
@@ -491,7 +487,7 @@ byte checkWakeCondition ()
 
 void showVersion() {
     u8g2.setFont(font_menu);
-    sprintf_P(bigbuf, PSTR("Альтимонстр I\nПлатформа A01\nВерсия 0.7\nCOM %ld/8N1\n"), SERIAL_SPEED);
+    sprintf_P(bigbuf, PSTR("Альтимонстр I\nПлатформа A01\nВерсия 0.8\nCOM %ld/8N1\n"), SERIAL_SPEED);
     myMenu(bigbuf, -1);
 }
 
@@ -641,7 +637,7 @@ void userMenu() {
                             if (total_jumps == 0)
                                 break; // no jumps, nothing to show
                             uint16_t jump_to_show = total_jumps;
-                            uint8_t logbook_view_event;
+                            int8_t logbook_view_event;
                             for (;;) {
                                 if (jump_to_show == 0 || (jump_to_show + LOGBOOK_SIZE) == total_jumps)
                                     jump_to_show = total_jumps;
@@ -664,7 +660,7 @@ void userMenu() {
                                         jump_to_show++;
                                         break;
                                 }
-                                if (logbook_view_event == PIN_BTN2)
+                                if (logbook_view_event == PIN_BTN2 || logbook_view_event == -1)
                                     break;
                             };
                             break;
@@ -715,9 +711,12 @@ void userMenu() {
                 int8_t eventSettings = 1;
                 byte newAutoPowerOff = IIC_ReadByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF);
                 do {
-                    char* power_mode_string = powerMode == MODE_DUMB ? "выкл" : "вкл";
-                    sprintf_P(bigbuf, PSTR("Настройки\n Выход\n Время\n Дата\n Будильник\n Авторежим: %s\n Автовыкл: %sч\n Поворот экрана\n Версия ПО\n Дамп памяти\n"),
-                        power_mode_string, HeartbeatStr(newAutoPowerOff));
+                    char *on = "вкл";
+                    char *off = "выкл";
+                    char* power_mode_string = powerMode == MODE_DUMB ? off : on;
+                    char* zero_after_reset = settings.zero_after_reset & 1 ? on : off;
+                    sprintf_P(bigbuf, PSTR("Настройки\n Выход\n Время\n Дата\n Будильник\n Авторежим: %s\n Автовыкл: %sч\n Поворот экрана\n Авто ноль:%s\n Версия ПО\n Дамп памяти\n"),
+                        power_mode_string, HeartbeatStr(newAutoPowerOff), zero_after_reset);
                         
                     eventSettings = myMenu(bigbuf, eventSettings);
                     switch (eventSettings) {
@@ -769,13 +768,18 @@ void userMenu() {
                             u8g2.setDisplayRotation((settings.display_rotation & 1) ? U8G2_R0 : U8G2_R2);
                             EEPROM.put(EEPROM_SETTINGS, settings);
                             break;
-                        case 8: {
+                        case 8:
+                            // zero after reset
+                            settings.zero_after_reset++;
+                            EEPROM.put(EEPROM_SETTINGS, settings);
+                            break;
+                        case 9: {
                             // About
                             showVersion();
                             getKeypress();
                             break;
                         }
-                        case 9: {
+                        case 10: {
                             // TODO.
                             Serial.print(F("EEPROM"));
                             for (int i = 0; i < 1024; i++) {
