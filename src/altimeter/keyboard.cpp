@@ -4,7 +4,7 @@
 
 extern settings_t settings;
 
-byte getKeypress(uint16_t timeout = 20000) {
+uint8_t getKeypress(uint16_t timeout = 20000) {
     uint16_t i = 0;
     // Wait for all keys to be released
     for (;;) {

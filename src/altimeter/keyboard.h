@@ -10,5 +10,5 @@
 #define BTN3_PRESSED !digitalRead(PIN_BTN3)
 #define BTN3_RELEASED digitalRead(PIN_BTN3)
 
-byte getKeypress(uint16_t timeout = 20000); // timeout in 15ms chunks, default is 5 min
+uint8_t getKeypress(uint16_t timeout = 20000); // timeout in 15ms chunks, default is 5 min
 #endif

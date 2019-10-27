@@ -15,22 +15,20 @@
 
 class PCF8583 {
   public:
-    short minute;
-    short hour;
-    short day;
-    short month;
-    int year;
-    int year_base;
+    uint8_t minute;
+    uint8_t hour;
+    uint8_t day;
+    uint8_t month;
+    uint16_t year;
 
-    short alarm_minute;
-    short alarm_hour;
+    uint8_t alarm_minute;
+    uint8_t alarm_hour;
 
     void enableSeedInterrupt();
     void disableSeedInterrupt();
     
     PCF8583();
-    void begin();
-    void init ();
+    void init();
     
     void readTime();
     timestamp_t getTimestamp();
@@ -39,8 +37,8 @@ class PCF8583 {
     void get_alarm();
 
     void set_daily_alarm();
-    short bcd_to_short(byte bcd);
-    byte int_to_bcd(short in);
+    uint8_t bcd_to_bin(uint8_t bcd);
+    uint8_t bin_to_bcd(uint8_t in);
 
 private:
     byte status_register;

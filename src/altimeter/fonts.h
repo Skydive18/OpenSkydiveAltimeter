@@ -23,6 +23,7 @@ const uint8_t font_altitude[255] U8G2_FONT_SECTION("font_altitude") =
   "\217\0\0\71\24\221\217\220\216G\334\22\371\345- M\374\205,\36\1\0\0\0\0\4\377\377\0";
 
 
+#define MENU_FONT_HEIGHT 7
 //#define font_menu u8g2_font_5x8_t_cyrillic
 const uint8_t font_menu[1534] U8G2_FONT_SECTION("font_menu") = 
   "\237\0\2\2\3\4\3\4\4\5\10\0\377\6\377\6\0\1%\2L\3T \5\0~\3!\7\61c"

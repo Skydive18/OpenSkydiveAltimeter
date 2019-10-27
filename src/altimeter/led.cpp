@@ -193,7 +193,7 @@ void LED_showOne(byte pin, byte val) {
     }
 }
 
-void LED_show(byte red, byte green, byte blue, int delayMs = 0) {
+void LED_show(byte red, byte green, byte blue, uint8_t delayMs = 0) {
     pwm_active = false;
     LED_showOne(PIN_R, red);
     LED_showOne(PIN_G, green);

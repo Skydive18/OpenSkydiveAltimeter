@@ -3,19 +3,9 @@
 #include "PCF8583.h"
 #include "common.h"
 
-namespace {
-    bool IsLeapYear(int year) {
-        return !(year % 400) || ((year % 100) && !(year % 4));
-    }
-}
-
 PCF8583::PCF8583() {
     status_register = 0;
     alarm_register = 0;
-}
-
-void PCF8583::begin() {
-    Wire.begin();
 }
 
 // initialization 
@@ -29,18 +19,14 @@ void PCF8583::readTime() {
     Wire.endTransmission(false);
     Wire.requestFrom(RTC_ADDRESS, 4);
 
-    minute = bcd_to_short(Wire.read());
-    hour   = bcd_to_short(Wire.read());
-    byte incoming = Wire.read(); // year/date counter
-    day    = bcd_to_short(incoming & 0x3f);
-    year   = (int)((incoming >> 6) & 0x03);      // it will only hold 4 years...
+    minute = bcd_to_bin(Wire.read());
+    hour   = bcd_to_bin(Wire.read());
+    uint8_t incoming = Wire.read(); // year/date counter
+    day    = bcd_to_bin(incoming & 0x3f);
+    year   = (uint16_t)((incoming >> 6) & 0x03);      // it will only hold 4 years...
     incoming = Wire.read();
-    month  = bcd_to_short(incoming & 0x1f);
-
-    //  but that's not all - we need to find out what the base year is
-    //  so we can add the 2 bits we got above and find the real year
-    year_base = IIC_ReadInt(RTC_ADDRESS, ADDR_YEAR_BASE);
-    year = year + year_base;
+    month  = bcd_to_bin(incoming & 0x1f);
+    year += IIC_ReadInt(RTC_ADDRESS, ADDR_YEAR_BASE);
 
     init();
 }
@@ -57,25 +43,13 @@ timestamp_t PCF8583::getTimestamp() {
 }
 
 void PCF8583::setDate() {
-    if (!IsLeapYear(year) && 2 == month && 29 == day) {
-        month = 3;
-        day = 1;
-    }
-    // Attempt to find the previous leap year
-    year_base = year - year % 4;
-    if (!IsLeapYear(year_base)) {
-        // Not a leap year (new century), make sure the calendar won't use a 29 days February.
-        year_base = year - 1;
-    }
-
     IIC_WriteByte(RTC_ADDRESS, 0, 0xc0);
-
     Wire.beginTransmission(RTC_ADDRESS);
     Wire.write(0x05);
-    Wire.write(((byte)(year - year_base) << 6) | int_to_bcd(day));
-    Wire.write((int_to_bcd(month) & 0x1f));
+    Wire.write(((uint8_t)(year & 3) << 6) | bin_to_bcd(day));
+    Wire.write((bin_to_bcd(month) & 0x1f));
     Wire.endTransmission();
-    IIC_WriteInt(RTC_ADDRESS, ADDR_YEAR_BASE, year_base);
+    IIC_WriteInt(RTC_ADDRESS, ADDR_YEAR_BASE, year & 0xfffc);
 
     init(); // re set the control/status register to 0x04
 }
@@ -88,8 +62,8 @@ void PCF8583::setTime() {
     Wire.beginTransmission(RTC_ADDRESS);
     Wire.write(0x02);
     Wire.write(0);
-    Wire.write(int_to_bcd(minute));
-    Wire.write(int_to_bcd(hour));
+    Wire.write(bin_to_bcd(minute));
+    Wire.write(bin_to_bcd(hour));
     Wire.endTransmission();
 
     init(); // re set the control/status register to 0x04
@@ -121,8 +95,8 @@ void PCF8583::get_alarm() {
   Wire.endTransmission(false);
   Wire.requestFrom(RTC_ADDRESS, 2); // Read 4 values 
 
-  alarm_minute = bcd_to_short(Wire.read());
-  alarm_hour   = bcd_to_short(Wire.read());
+  alarm_minute = bcd_to_bin(Wire.read());
+  alarm_hour   = bcd_to_bin(Wire.read());
 }
 
 //Set a daily alarm
@@ -133,16 +107,16 @@ void PCF8583::set_daily_alarm() {
   Wire.beginTransmission(RTC_ADDRESS);
   Wire.write(0x0b); // Set the register pointer to (0x0a)
   Wire.write(0);
-  Wire.write(int_to_bcd(alarm_minute));
-  Wire.write(int_to_bcd(alarm_hour));
+  Wire.write(bin_to_bcd(alarm_minute));
+  Wire.write(bin_to_bcd(alarm_hour));
   Wire.write(0x00); // Set 00 at day 
   Wire.endTransmission();
 }
 
-short PCF8583::bcd_to_short(byte bcd){
+uint8_t PCF8583::bcd_to_bin(uint8_t bcd){
     return ((bcd >> 4) * 10) + (bcd & 0x0f);
 }
 
-byte PCF8583::int_to_bcd(short in){
+uint8_t PCF8583::bin_to_bcd(uint8_t in){
     return ((in / 10) << 4) + (in % 10);
 }

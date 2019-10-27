@@ -51,24 +51,24 @@ void(* resetFunc) (void) = 0;
 int vspeed[32]; // used in mode detector. TODO clean it in setup maybe?
 uint32_t interval_number; // global heartbeat counter
 long heartbeat; // heartbeat in 500ms ticks until auto turn off
-byte vspeedPtr = 0; // pointer to write to vspeed buffer
-int currentVspeed;
-int averageSpeed8;
-int averageSpeed32;
+uint8_t vspeedPtr = 0; // pointer to write to vspeed buffer
+int current_speed;
+int average_speed_8;
+int average_speed_32;
 // Auto zero drift correction
-byte zero_drift_sense = 128;
+uint8_t zero_drift_sense = 128;
 
 
 // ********* Main power move flag
-byte powerMode;
-byte previousPowerMode;
+uint8_t powerMode;
+uint8_t previousPowerMode;
 volatile bool INTACK;
 
 int current_altitude; // currently measured altitude, relative to ground_altitude
 int previous_altitude; // Previously measured altitude, relative to ground_altitude
 int ground_altitude; // Ground altitude, absolute
-int last_shown_altitude; // Last shown altitude (jitter corrected)
-byte backLight = 0; // Display backlight flag, 0=off, 1=on, 2 = auto
+int altitude_to_show; // Last shown altitude (jitter corrected)
+uint8_t backLight = 0; // Display backlight flag, 0=off, 1=on, 2 = auto
 int batt; // battery voltage as it goes from sensor
 int8_t rel_voltage; // ballery relative voltare, in percent (0-100). 0 relates to 3.6v and 100 relates to fully charged batt
 
@@ -85,19 +85,19 @@ char smallbuf[24];
 char middlebuf[48];
 char bigbuf[SNAPSHOT_SIZE]; // also used in snapshot writer
 
-byte timeWhileBtn1Pressed = 0;
-byte timeToTurnBacklightOn = 0;
+uint8_t timeWhileBtn1Pressed = 0;
+uint8_t timeToTurnBacklightOn = 0;
 
 // Prototypes
-void ShowText(const byte x, const byte y, const char* text);
-int8_t myMenu(char *menudef, int8_t event = 1);
+void ShowText(const uint8_t x, const uint8_t y, const char* text);
+uint8_t myMenu(char *menudef, uint8_t event = 1);
 void showVersion();
 void wake() { INTACK = true; }
 bool SetDate(timestamp_t &date);
 
 void setup() {
     // Read presets
-    last_shown_altitude = 0;
+    altitude_to_show = 0;
     powerMode = previousPowerMode = MODE_PREFILL;
     previous_altitude = CLEAR_PREVIOUS_ALTITUDE;
     vspeedPtr = 0;
@@ -112,7 +112,7 @@ void setup() {
   while (!Serial) delay(100); // wait for USB connect, 32u4 only.
   Serial.println("Scanning I2C Bus...");
   int i2cCount = 0;
-  for (byte i = 8; i > 0; i++)
+  for (uint8_t i = 8; i > 0; i++)
   {
     Wire.beginTransmission (i);
     if (Wire.endTransmission () == 0)
@@ -139,7 +139,7 @@ void setup() {
     // Turn ON hardware
     digitalWrite(PIN_HWPWR, 1);
     
-    rtc.begin();
+    Wire.begin();
     u8g2.begin(PIN_BTN2, PIN_BTN3, PIN_BTN1);
     u8g2.enableUTF8Print();    // enable UTF8 support for the Arduino print() function
     u8g2.setDisplayRotation((settings.display_rotation & 1) ? U8G2_R0 : U8G2_R2);
@@ -187,33 +187,35 @@ void saveToJumpSnapshot() {
 // Main state machine
 // Ideas got from EZ430 project at skycentre.net
 //
-void processAltitudeChange() {
+void processAltitude() {
     if (previous_altitude == CLEAR_PREVIOUS_ALTITUDE) { // unknown delay or first run; just save
         previous_altitude = current_altitude;
         return;
     }
     
-    currentVspeed = (current_altitude - previous_altitude) << 1; // ok there; sign bit will be kept because <int> is big enough
+    current_speed = (current_altitude - previous_altitude) << 1; // ok there; sign bit will be kept because <int> is big enough
     previous_altitude = current_altitude;
-    vspeed[vspeedPtr & 31] = (int8_t)currentVspeed;
+    vspeed[vspeedPtr & 31] = (int8_t)current_speed;
     // Calculate averages
-    byte startPtr = ((byte)(vspeedPtr)) & 31;
-    averageSpeed32 = 0;
-    for (byte i = 0; i < 32; i++) {
-        averageSpeed32 += vspeed[(startPtr - i) & 31];
+    uint8_t startPtr = ((uint8_t)(vspeedPtr)) & 31;
+    average_speed_32 = 0;
+    for (uint8_t i = 0; i < 32; i++) {
+        average_speed_32 += vspeed[(startPtr - i) & 31];
         if (i == 7)
-            averageSpeed8 = averageSpeed32 / 8; // sign extension used
+            average_speed_8 = average_speed_32 / 8; // sign extension used
     }
-    averageSpeed32 /= 32;
+    average_speed_32 /= 32;
     vspeedPtr++;
 
-    int jitter = current_altitude - last_shown_altitude;
+    int jitter = current_altitude - altitude_to_show;
     bool jitter_in_range = (jitter < 5 && jitter > -5);
-    // Jitter compensation
+
+    // Compute altitude to show
     if (powerMode == MODE_ON_EARTH) {
+        // Jitter compensation
         if (jitter_in_range) {
             // Inside jitter range. Try to correct zero drift.
-            if (last_shown_altitude == 0) {
+            if (altitude_to_show == 0) {
                 zero_drift_sense += jitter;
 
                 if (zero_drift_sense < 8) {
@@ -231,12 +233,12 @@ void processAltitudeChange() {
             }
         } else {
             // jitter out of range
-            last_shown_altitude = current_altitude;
+            altitude_to_show = current_altitude;
             zero_drift_sense = 128;
         }
     } else {
         // Do not perform zero drift compensation and jitter correction in modes other than MODE_ON_EARTH
-        last_shown_altitude = current_altitude;
+        altitude_to_show = current_altitude;
         zero_drift_sense = 128;
     }
 
@@ -245,12 +247,11 @@ void processAltitudeChange() {
         if (vspeedPtr > 32) {
             // set to zero if we close to it
             if (settings.zero_after_reset & 1) {
-                last_shown_altitude = 0;
+                altitude_to_show = 0;
                 ground_altitude += current_altitude;
             }
             powerMode = MODE_ON_EARTH;
         }
-        return;
     }
 
     //
@@ -262,43 +263,43 @@ void processAltitudeChange() {
     // Also, **DO NOT** remove `else`'s.
 
     if (powerMode == MODE_ON_EARTH) {
-        if ( (current_altitude > 250) || (current_altitude > 30 && averageSpeed8 > 1) )
+        if ( (current_altitude > 250) || (current_altitude > 30 && average_speed_8 > 1) )
             powerMode = MODE_IN_AIRPLANE;
-        else if (averageSpeed8 < -25) {
+        else if (average_speed_8 < -25) {
             powerMode = MODE_FREEFALL;
             current_jump.total_jump_time = 2047; // do not store this jump in logbook
         }
     } else
     if (powerMode == MODE_IN_AIRPLANE) {
-        if (currentVspeed <= EXIT_TH)
+        if (current_speed <= EXIT_TH)
             powerMode = MODE_EXIT;
-        else if (averageSpeed32 < 1 && current_altitude < 25)
+        else if (average_speed_32 < 1 && current_altitude < 25)
             powerMode = MODE_ON_EARTH;
     } else
     if (powerMode == MODE_EXIT) {
-        if (currentVspeed <= BEGIN_FREEFALL_TH) {
+        if (current_speed <= BEGIN_FREEFALL_TH) {
             powerMode = MODE_BEGIN_FREEFALL;
             current_jump.exit_altitude = (accumulated_altitude = current_altitude) >> 1;
             current_jump.exit_timestamp = rtc.getTimestamp();
             current_jump.total_jump_time = current_jump.max_freefall_speed_ms = 0;
-            bigbuf[0] = (char)currentVspeed;
-            accumulated_speed = currentVspeed;
+            bigbuf[0] = (char)current_speed;
+            accumulated_speed = current_speed;
         }
-        else if (currentVspeed > EXIT_TH)
+        else if (current_speed > EXIT_TH)
             powerMode = MODE_IN_AIRPLANE;
     } else
     if (powerMode == MODE_BEGIN_FREEFALL) {
         saveToJumpSnapshot();
-        if (currentVspeed <= FREEFALL_TH)
+        if (current_speed <= FREEFALL_TH)
             powerMode = MODE_FREEFALL;
-        else if (currentVspeed > BEGIN_FREEFALL_TH)
+        else if (current_speed > BEGIN_FREEFALL_TH)
             powerMode = MODE_EXIT;
     } else
     if (powerMode == MODE_FREEFALL) {
         saveToJumpSnapshot();
-        if (currentVspeed > PULLOUT_TH)
+        if (current_speed > PULLOUT_TH)
             powerMode = MODE_PULLOUT;
-        byte freefall_speed = 0 - averageSpeed8;
+        uint8_t freefall_speed = 0 - average_speed_8;
         if (freefall_speed > current_jump.max_freefall_speed_ms)
             current_jump.max_freefall_speed_ms = freefall_speed;
     } else
@@ -306,27 +307,27 @@ void processAltitudeChange() {
         saveToJumpSnapshot();
         current_jump.deploy_altitude = current_altitude >> 1;
         current_jump.deploy_time = current_jump.total_jump_time;
-        if (currentVspeed <= PULLOUT_TH)
+        if (current_speed <= PULLOUT_TH)
             powerMode = MODE_FREEFALL;
-        else if (currentVspeed > OPENING_TH) {
+        else if (current_speed > OPENING_TH) {
             powerMode = MODE_OPENING;
         }
     } else
     if (powerMode == MODE_OPENING) {
         saveToJumpSnapshot();
-        if (currentVspeed <= OPENING_TH)
+        if (current_speed <= OPENING_TH)
             powerMode = MODE_PULLOUT;
-        else if (currentVspeed > UNDER_PARACHUTE_TH) {
+        else if (current_speed > UNDER_PARACHUTE_TH) {
             powerMode = MODE_UNDER_PARACHUTE;
             current_jump.canopy_altitude = current_jump.deploy_altitude - (current_altitude >> 1);
         }
     } else
     if (powerMode == MODE_UNDER_PARACHUTE) {
         saveToJumpSnapshot();
-        if (averageSpeed32 < 1 && current_altitude < 25) {
+        if (average_speed_32 < 1 && current_altitude < 25) {
             powerMode = MODE_ON_EARTH;
             // try to lock zero altitude
-            last_shown_altitude = 0;
+            altitude_to_show = 0;
             // Save snapshot
             EEPROM.put(SNAPSHOT_START, bigbuf);
             // Save jump
@@ -337,7 +338,7 @@ void processAltitudeChange() {
     
 }
 
-byte airplane_300m = 0;
+uint8_t airplane_300m = 0;
 void ShowLEDs() {
     if ((powerMode != MODE_ON_EARTH && powerMode != MODE_PREFILL && powerMode != MODE_DUMB && backLight == 2) || backLight == 1 || timeToTurnBacklightOn > 0)
         DISPLAY_LIGHT_ON;
@@ -419,11 +420,11 @@ void ShowLEDs() {
     LED_show(0, 0, 0);
 }
 
-void ShowText(const byte x, const byte y, const char* text) {
+void ShowText(const uint8_t x, const uint8_t y, const char* text) {
     u8g2.setFont(u8g2_font_helvB10_tr);
     DISPLAY_LIGHT_ON;
-    byte maxlen = strlen_P(text);
-    for (byte i = 1; i <= maxlen; i++) {
+    uint8_t maxlen = strlen_P(text);
+    for (uint8_t i = 1; i <= maxlen; i++) {
         strcpy_P(bigbuf, text);
         bigbuf[i] = 0;
         u8g2.firstPage();
@@ -466,13 +467,13 @@ void PowerOff() {
     resetFunc();
 }
 
-byte checkWakeCondition ()
+uint8_t checkWakeCondition ()
 {
     // Determine wake condition
     if (BTN1_PRESSED) {
         // Wake by awake button. Should be kept pressed for 3s
         LED_show(0, 0, 80, 400);
-        for (byte i = 1; i < 193; ++i) {
+        for (uint8_t i = 1; i < 193; ++i) {
         if (BTN1_RELEASED)
             return 0;
         if (! (i & 63))
@@ -491,13 +492,12 @@ void showVersion() {
     myMenu(bigbuf, -1);
 }
 
-#define FONT_HEIGHT 7
-// Returns -1 on timeout; otherwise, current position
+// Returns 255 on timeout; otherwise, current position
 // event = 0 => show menu and wait for keypress, no navigation performed. Return keypress.
-// event == -1 => show menu and exit immediately.
-int8_t myMenu(char *menudef, int8_t event = 1) {
-    int ptr = 0;
-    int8_t number_of_menu_lines = -1;
+// event == 255 => show menu and exit immediately.
+uint8_t myMenu(char *menudef, uint8_t event = 1) {
+    uint16_t ptr = 0;
+    uint8_t number_of_menu_lines = 255;
     while(menudef[ptr]) {
         if (menudef[ptr] == '\n') {
             menudef[ptr] = '\0';
@@ -506,7 +506,7 @@ int8_t myMenu(char *menudef, int8_t event = 1) {
         ptr++;
     }
     
-    int8_t firstline = 1;
+    uint8_t firstline = 1;
 
     for (;;) {
         // check if we need to update scroll
@@ -519,28 +519,26 @@ int8_t myMenu(char *menudef, int8_t event = 1) {
         u8g2.firstPage();
         do {
             ptr = 0;
-            int8_t line = 1;
+            uint8_t line = 1;
             // Print title and find ptr
-            u8g2.drawUTF8(0, FONT_HEIGHT, menudef);
+            u8g2.drawUTF8(0, MENU_FONT_HEIGHT, menudef);
             while (menudef[ptr++]); // set to the beginning of the next line
-            u8g2.drawHLine(0, FONT_HEIGHT + 1, DISPLAY_WIDTH-1);
-            while (menudef[ptr] != 0 && (line - firstline) < DISPLAY_LINES_IN_MENU) {
-                if (line >= firstline) {
+            u8g2.drawHLine(0, MENU_FONT_HEIGHT + 1, DISPLAY_WIDTH-1);
+            while (menudef[ptr] != 0) {
+                if ((line >= firstline) && (line - firstline) < DISPLAY_LINES_IN_MENU) {
                     if (event > 0)
                         menudef[ptr] = (event == line) ? '}' : ' ';
-                    u8g2.drawUTF8(0, (FONT_HEIGHT * (line - firstline)) + (FONT_HEIGHT + FONT_HEIGHT + 2), (char*)(menudef + ptr));
+                    u8g2.drawUTF8(0, (MENU_FONT_HEIGHT * (line - firstline)) + (MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 2), (char*)(menudef + ptr));
                 }
                 line++;
                 while (bigbuf[ptr++]); // set to the beginning of the next line
             }
         } while (u8g2.nextPage());
-        if (event == -1)
-            return -1;
-        byte key = getKeypress();
-        if (event == 0)
+        if (event == 255)
+            return 255;
+        uint8_t key = getKeypress();
+        if (event == 0 || key == 255)
             return key;
-        if (key == 255)
-            return -1;
         if (key == PIN_BTN2)
             return event;
         switch (key) {
@@ -590,7 +588,7 @@ void userMenu() {
 
     u8g2.setFont(font_menu);
 
-    int8_t event = 1;
+    uint8_t event = 1;
     do {
         switch (backLight) {
             case 0: strcpy_P(smallbuf, PSTR("выкл")); break;
@@ -606,7 +604,7 @@ void userMenu() {
                     // Zero reset allowed on earth, in prefill and in dumb mode only.
                     ground_altitude = current_altitude;
                     IIC_WriteInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE, ground_altitude);
-                    last_shown_altitude = 0;
+                    altitude_to_show = 0;
                     LED_show(0, 80, 0, 250);
                     return;
                 } else {
@@ -624,7 +622,7 @@ void userMenu() {
                 break;
             case 4: {
                 // Logbook
-                int8_t logbook_event = 1;
+                uint8_t logbook_event = 1;
                 do {
                     strcpy_P(bigbuf, PSTR("Журнал прыжков\n Выход\n Просмотр\n Повтор прыжка\n Очистить журнал\n"));
                     logbook_event = myMenu(bigbuf, logbook_event);
@@ -637,7 +635,7 @@ void userMenu() {
                             if (total_jumps == 0)
                                 break; // no jumps, nothing to show
                             uint16_t jump_to_show = total_jumps;
-                            int8_t logbook_view_event;
+                            uint8_t logbook_view_event;
                             for (;;) {
                                 if (jump_to_show == 0 || (jump_to_show + LOGBOOK_SIZE) == total_jumps)
                                     jump_to_show = total_jumps;
@@ -647,10 +645,9 @@ void userMenu() {
                                 // Read jump from logbook
                                 EEPROM.get(EEPROM_LOGBOOK_START +  (((jump_to_show - 1) % (LOGBOOK_SIZE + 1)) * sizeof(jump_t)), current_jump);
                                 current_jump_to_bigbuf(jump_to_show);
-                                Serial.println(bigbuf);
                                 logbook_view_event = myMenu(bigbuf, 0);
                                 switch (logbook_view_event) {
-                                    case -1:
+                                    case 255:
                                         // timeout
                                         return;
                                     case PIN_BTN1:
@@ -660,41 +657,26 @@ void userMenu() {
                                         jump_to_show++;
                                         break;
                                 }
-                                if (logbook_view_event == PIN_BTN2 || logbook_view_event == -1)
+                                if (logbook_view_event == PIN_BTN2)
                                     break;
                             };
                             break;
                         }
-                        case 3: {
+                        case 3:
                             // replay latest jump
-                            // For debug purposes: prefill
-
-                            current_jump.exit_timestamp = rtc.getTimestamp();
-                            current_jump.exit_altitude = 4150 >> 1;
-                            current_jump.deploy_altitude = 1250 >> 1;
-                            current_jump.canopy_altitude = 120;
-                            current_jump.deploy_time = 62;
-                            current_jump.max_freefall_speed_ms = 67;
-                            current_jump.total_jump_time = 1150;
-                            EEPROM.put(EEPROM_LOGBOOK_START +  (((total_jumps++) % (LOGBOOK_SIZE + 1)) * sizeof(jump_t)), current_jump);
-                            EEPROM.put(EEPROM_JUMP_COUNTER, total_jumps);
-                            }
                             break; // not implemented
                             
                         case 4: {
                             // Erase logbook
                             strcpy_P(bigbuf, PSTR("Очистить журнал?\n Нет\n Да\n"));
-                            int8_t confirmCrearLogbook = myMenu(bigbuf, 1);
-                            if (confirmCrearLogbook == -1)
+                            uint8_t confirmCrearLogbook = myMenu(bigbuf, 1);
+                            if (confirmCrearLogbook == 255)
                                 return;
                             if (confirmCrearLogbook == 2) {
                                 // Really clear logbook
                                 total_jumps = 0;
                                 EEPROM.put(EEPROM_JUMP_COUNTER, total_jumps);
-                                strcpy_P(smallbuf, PSTR(" Понятно "));
-                                strcpy_P(middlebuf, PSTR("Журнал прыжков\nочищен"));
-                                //u8g2.userInterfaceMessage(middlebuf, bigbuf, bigbuf, smallbuf);
-                                logbook_event = 1; // exit menu
+                                return; // exit logbook menu
                             }
                             break;
                         }
@@ -708,8 +690,8 @@ void userMenu() {
             }
             case 6: {
                 // "Settings" submenu
-                int8_t eventSettings = 1;
-                byte newAutoPowerOff = IIC_ReadByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF);
+                uint8_t eventSettings = 1;
+                uint8_t newAutoPowerOff = IIC_ReadByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF);
                 do {
                     char *on = "вкл";
                     char *off = "выкл";
@@ -725,8 +707,8 @@ void userMenu() {
                         case 2: {
                             // Time
                             rtc.readTime();
-                            byte hour = rtc.hour;
-                            byte minute = rtc.minute;
+                            uint8_t hour = rtc.hour;
+                            uint8_t minute = rtc.minute;
                             if (SetTime(hour, minute)) {
                                 rtc.hour = hour;
                                 rtc.minute = minute;
@@ -766,12 +748,10 @@ void userMenu() {
                             // Screen rotate
                             settings.display_rotation++;
                             u8g2.setDisplayRotation((settings.display_rotation & 1) ? U8G2_R0 : U8G2_R2);
-                            EEPROM.put(EEPROM_SETTINGS, settings);
                             break;
                         case 8:
                             // zero after reset
                             settings.zero_after_reset++;
-                            EEPROM.put(EEPROM_SETTINGS, settings);
                             break;
                         case 9: {
                             // About
@@ -781,33 +761,27 @@ void userMenu() {
                         }
                         case 10: {
                             // TODO.
-                            Serial.print(F("EEPROM"));
-                            for (int i = 0; i < 1024; i++) {
-                                if ((i & 15) == 0) {
-                                    sprintf_P(smallbuf, PSTR("\n%03x: "), i);
-                                    Serial.print(smallbuf);
-                                }
-                                byte b = EEPROM.read(i);
-                                sprintf_P(smallbuf, PSTR("%02x "), b);
+                            Serial.print(F("\n:RAM"));
+                            for (uint16_t i = 16; i < 256; i++) {
+                                uint8_t b = IIC_ReadByte(RTC_ADDRESS, i);
+                                sprintf_P(smallbuf, PSTR(" %02x"), b);
                                 Serial.print(smallbuf);
                             }
-                            Serial.print(F("\n\nRTC NVRAM"));
-                            for (int i = 16; i < 256; i++) {
-                                if ((i & 15) == 0) {
-                                    sprintf_P(smallbuf, PSTR("\n%03x: "), i);
-                                    Serial.print(smallbuf);
-                                }
-                                byte b = IIC_ReadByte(RTC_ADDRESS, i);
-                                sprintf_P(smallbuf, PSTR("%02x "), b);
+                            Serial.print(F("\n:ROM"));
+                            for (uint16_t i = 0; i < 1024; i++) {
+                                uint8_t b = EEPROM.read(i);
+                                sprintf_P(smallbuf, PSTR(" %02x"), b);
                                 Serial.print(smallbuf);
                             }
-
+                            Serial.print(F("\n:END"));
                             break;
                         }
                         default:
                             // timeout
                             return;
                     }
+                    EEPROM.put(EEPROM_SETTINGS, settings);
+
                 } while (eventSettings != 1);
                 break;
             }
@@ -818,11 +792,11 @@ void userMenu() {
             default:
                 return;
         }
-    } while (event != 1 && event != -1);
+    } while (event != 1 && event != 255);
 }
 
 bool SetDate(uint8_t &day, uint8_t &month, uint16_t &year) {
-    byte pos = 0;
+    uint8_t pos = 0;
     for(;;) {
         pos = (pos + 5) % 5;
         if (year > 2100)
@@ -844,8 +818,8 @@ bool SetDate(uint8_t &day, uint8_t &month, uint16_t &year) {
         u8g2.firstPage();
         do {
             sprintf_P(middlebuf, PSTR("Текущая дата"));
-            u8g2.drawUTF8(0, FONT_HEIGHT, middlebuf);
-            u8g2.drawHLine(0, FONT_HEIGHT + 1, DISPLAY_WIDTH-1);
+            u8g2.drawUTF8(0, MENU_FONT_HEIGHT, middlebuf);
+            u8g2.drawHLine(0, MENU_FONT_HEIGHT + 1, DISPLAY_WIDTH-1);
 
             sprintf_P(middlebuf, PSTR("%c%02d %c%02d %c%04d"),
                 pos == 0 ? '}' : ' ',
@@ -855,20 +829,20 @@ bool SetDate(uint8_t &day, uint8_t &month, uint16_t &year) {
                 pos == 2 ? '}' : ' ',
                 year
             );
-            u8g2.drawUTF8(0, FONT_HEIGHT + FONT_HEIGHT + 3, middlebuf);
+            u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 3, middlebuf);
 
             sprintf_P(middlebuf, PSTR("%cОтмена"),
                 pos == 3 ? '}' : ' '
             );
-            u8g2.drawUTF8(0, FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + 5, middlebuf);
+            u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 5, middlebuf);
             
             sprintf_P(middlebuf, PSTR("%cОК"),
                 pos == 4 ? '}' : ' '
             );
-            u8g2.drawUTF8(0, FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + 7, middlebuf);
+            u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 7, middlebuf);
             
         } while(u8g2.nextPage());
-        byte keyEvent = getKeypress();
+        uint8_t keyEvent = getKeypress();
         switch (keyEvent) {
             case PIN_BTN1: {
                 switch (pos) {
@@ -930,15 +904,15 @@ bool SetDate(uint8_t &day, uint8_t &month, uint16_t &year) {
     };
 }
 
-bool SetTime(byte &hour, byte &minute) {
-    byte pos = 0;
+bool SetTime(uint8_t &hour, uint8_t &minute) {
+    uint8_t pos = 0;
     for(;;) {
         pos &= 3;
         u8g2.firstPage();
         do {
             strcpy_P(middlebuf, PSTR("Текущее время"));
-            u8g2.drawUTF8(0, FONT_HEIGHT, middlebuf);
-            u8g2.drawHLine(0, FONT_HEIGHT + 1, DISPLAY_WIDTH-1);
+            u8g2.drawUTF8(0, MENU_FONT_HEIGHT, middlebuf);
+            u8g2.drawHLine(0, MENU_FONT_HEIGHT + 1, DISPLAY_WIDTH-1);
 
             sprintf_P(middlebuf, PSTR("%c%02d:%02d%c"),
                 pos == 0 ? '}' : ' ',
@@ -946,20 +920,20 @@ bool SetTime(byte &hour, byte &minute) {
                 minute,
                 pos == 1 ? '{' : ' '
             );
-            u8g2.drawUTF8(0, FONT_HEIGHT + FONT_HEIGHT + 3, middlebuf);
+            u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 3, middlebuf);
 
             sprintf_P(middlebuf, PSTR("%cОтмена"),
                 pos == 2 ? '}' : ' '
             );
-            u8g2.drawUTF8(0, FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + 5, middlebuf);
+            u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 5, middlebuf);
             
             sprintf_P(middlebuf, PSTR("%cОК"),
                 pos == 3 ? '}' : ' '
             );
-            u8g2.drawUTF8(0, FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + FONT_HEIGHT + 7, middlebuf);
+            u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 7, middlebuf);
             
         } while(u8g2.nextPage());
-        byte keyEvent = getKeypress();
+        uint8_t keyEvent = getKeypress();
         switch (keyEvent) {
             case PIN_BTN1: {
                 switch (pos) {
@@ -1072,7 +1046,7 @@ void loop() {
             rel_voltage = 100;
     }
     
-    processAltitudeChange();
+    processAltitude();
     if (powerMode != previousPowerMode)
         interval_number = 0;
 
@@ -1099,16 +1073,16 @@ void loop() {
             if (powerMode == MODE_ON_EARTH)
                 sprintf_P(middlebuf, PSTR("&%1d'"), powerMode);
             else
-                sprintf_P(middlebuf, PSTR("&%1d' % 3d % 3d % 3d"), powerMode, currentVspeed, averageSpeed8, averageSpeed32);
+                sprintf_P(middlebuf, PSTR("&%1d' % 3d % 3d % 3d"), powerMode, current_speed, average_speed_8, average_speed_32);
             u8g2.drawUTF8(0, DISPLAY_HEIGHT - 1, middlebuf);
             // Show heartbeat
-            byte hbHrs = heartbeat / 7200;
-            byte hbMin = ((heartbeat >> 1) % 3600) / 60;
+            uint8_t hbHrs = heartbeat / 7200;
+            uint8_t hbMin = ((heartbeat >> 1) % 3600) / 60;
             sprintf_P(smallbuf, PSTR("%02d:%02d"), hbHrs, hbMin);
             u8g2.drawUTF8(DISPLAY_WIDTH - 20, DISPLAY_HEIGHT - 1, smallbuf);
 
             u8g2.setFont(font_altitude);
-            sprintf_P(smallbuf, PSTR("%4d"), last_shown_altitude);
+            sprintf_P(smallbuf, PSTR("%4d"), altitude_to_show);
             u8g2.drawUTF8(0, 38, smallbuf);
             
         } while ( u8g2.nextPage() );

@@ -59,14 +59,14 @@ int MPL3115A2::readAltitude()
     Wire.beginTransmission(MPL3115A2_ADDRESS);
     Wire.write(OUT_P_MSB);  // Address of data to get
     Wire.endTransmission(false); // Send data to I2C dev with option for a repeated start. THIS IS NECESSARY and not supported before Arduino V1.0.1!
-    if (Wire.requestFrom(MPL3115A2_ADDRESS, 3) != 3) { // Request three bytes
+    if (Wire.requestFrom(MPL3115A2_ADDRESS, 2) != 2) { // Request three bytes
         return -999;
     }
 
-    byte msb, csb, lsb;
+    byte msb, csb /*, lsb */;
     msb = Wire.read();
     csb = Wire.read();
-    lsb = Wire.read();
+//    lsb = Wire.read();
 
     // The least significant bytes l_altitude and l_temp are 4-bit,
     // fractional values, so you must cast the calulation in (float),
