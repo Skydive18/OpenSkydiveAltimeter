@@ -1,10 +1,8 @@
-#include <TFT.h>
-
 #include <EEPROM.h>
-#include "powerctl.h"
+#include "power.h"
 #include <SPI.h>
 #include <Wire.h>
-#include "osaMPL3115A2.h"
+#include "MPL.h"
 #include "hwconfig.h"
 #include "led.h"
 #include "keyboard.h"
@@ -35,11 +33,11 @@
 //
 #define EXIT_TH -7
 #define BEGIN_FREEFALL_TH -10
-#define FREEFALL_TH -25
+#define FREEFALL_TH -40
 
-#define PULLOUT_TH -25
+#define PULLOUT_TH -40
 #define OPENING_TH -14
-#define UNDER_PARACHUTE_TH -8
+#define UNDER_PARACHUTE_TH -7
 
 settings_t settings;
 
@@ -66,7 +64,6 @@ volatile bool INTACK;
 
 int current_altitude; // currently measured altitude, relative to ground_altitude
 int previous_altitude; // Previously measured altitude, relative to ground_altitude
-int ground_altitude; // Ground altitude, absolute
 int altitude_to_show; // Last shown altitude (jitter corrected)
 uint8_t backLight = 0; // Display backlight flag, 0=off, 1=on, 2 = auto
 int batt; // battery voltage as it goes from sensor
@@ -155,11 +152,8 @@ void setup() {
 
     pinMode(PIN_INTERRUPT, INPUT_PULLUP);
 
-    ground_altitude = IIC_ReadInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE);
     backLight = IIC_ReadByte(RTC_ADDRESS, ADDR_BACKLIGHT);
     heartbeat = ByteToHeartbeat(IIC_ReadByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF));
-
-    //strcpy(bigbuf, ""); // need it to correctly allocate memory
 
     // Show greeting message
     ShowText(16, 30, PSTR("Ni Hao!"));
@@ -220,8 +214,7 @@ void processAltitude() {
 
                 if (zero_drift_sense < 8) {
                     // Do correct zero drift
-                    ground_altitude += current_altitude;
-                    IIC_WriteInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE, ground_altitude);
+                    myPressure.zero();
                     // Altitude already shown as 0. current_altitude is not needed anymore.
                     // It will be re-read in next cycle and assumed to be zero, as we corrected
                     // zero drift.
@@ -248,7 +241,7 @@ void processAltitude() {
             // set to zero if we close to it
             if (settings.zero_after_reset & 1) {
                 altitude_to_show = 0;
-                ground_altitude += current_altitude;
+                myPressure.zero();
             }
             powerMode = MODE_ON_EARTH;
         }
@@ -271,19 +264,21 @@ void processAltitude() {
         }
     } else
     if (powerMode == MODE_IN_AIRPLANE) {
-        if (current_speed <= EXIT_TH)
+        if (current_speed <= EXIT_TH) {
             powerMode = MODE_EXIT;
-        else if (average_speed_32 < 1 && current_altitude < 25)
-            powerMode = MODE_ON_EARTH;
-    } else
-    if (powerMode == MODE_EXIT) {
-        if (current_speed <= BEGIN_FREEFALL_TH) {
-            powerMode = MODE_BEGIN_FREEFALL;
             current_jump.exit_altitude = (accumulated_altitude = current_altitude) >> 1;
             current_jump.exit_timestamp = rtc.getTimestamp();
             current_jump.total_jump_time = current_jump.max_freefall_speed_ms = 0;
             bigbuf[0] = (char)current_speed;
             accumulated_speed = current_speed;
+        }
+        else if (average_speed_32 < 1 && current_altitude < 25)
+            powerMode = MODE_ON_EARTH;
+    } else
+    if (powerMode == MODE_EXIT) {
+        saveToJumpSnapshot();
+        if (current_speed <= BEGIN_FREEFALL_TH) {
+            powerMode = MODE_BEGIN_FREEFALL;
         }
         else if (current_speed > EXIT_TH)
             powerMode = MODE_IN_AIRPLANE;
@@ -299,14 +294,14 @@ void processAltitude() {
         saveToJumpSnapshot();
         if (current_speed > PULLOUT_TH)
             powerMode = MODE_PULLOUT;
-        uint8_t freefall_speed = 0 - average_speed_8;
+        current_jump.deploy_altitude = current_altitude >> 1;
+        current_jump.deploy_time = current_jump.total_jump_time;
+        int8_t freefall_speed = 0 - average_speed_8;
         if (freefall_speed > current_jump.max_freefall_speed_ms)
             current_jump.max_freefall_speed_ms = freefall_speed;
     } else
     if (powerMode == MODE_PULLOUT) {
         saveToJumpSnapshot();
-        current_jump.deploy_altitude = current_altitude >> 1;
-        current_jump.deploy_time = current_jump.total_jump_time;
         if (current_speed <= PULLOUT_TH)
             powerMode = MODE_FREEFALL;
         else if (current_speed > OPENING_TH) {
@@ -324,7 +319,7 @@ void processAltitude() {
     } else
     if (powerMode == MODE_UNDER_PARACHUTE) {
         saveToJumpSnapshot();
-        if (average_speed_32 < 1 && current_altitude < 25) {
+        if (average_speed_32 > -1 && current_altitude < 25) {
             powerMode = MODE_ON_EARTH;
             // try to lock zero altitude
             altitude_to_show = 0;
@@ -387,6 +382,8 @@ void ShowLEDs() {
         case MODE_EXIT:
         case MODE_BEGIN_FREEFALL:
         case MODE_FREEFALL:
+        case MODE_PULLOUT:
+        case MODE_OPENING:
             if (current_altitude < 1000) {
                 LED_show(255, 0, 0); // red ligth below 1000m
             } else if (current_altitude < 1200) {
@@ -489,7 +486,7 @@ uint8_t checkWakeCondition ()
 void showVersion() {
     u8g2.setFont(font_menu);
     sprintf_P(bigbuf, PSTR("Альтимонстр I\nПлатформа A01\nВерсия 0.8\nCOM %ld/8N1\n"), SERIAL_SPEED);
-    myMenu(bigbuf, -1);
+    myMenu(bigbuf, 255);
 }
 
 // Returns 255 on timeout; otherwise, current position
@@ -510,7 +507,7 @@ uint8_t myMenu(char *menudef, uint8_t event = 1) {
 
     for (;;) {
         // check if we need to update scroll
-        if (event > 0) {
+        if (event != 0 && event != 255) {
             if ((event - firstline) >= DISPLAY_LINES_IN_MENU)
                 firstline = event - (DISPLAY_LINES_IN_MENU - 1);
             if (event < firstline)
@@ -526,7 +523,7 @@ uint8_t myMenu(char *menudef, uint8_t event = 1) {
             u8g2.drawHLine(0, MENU_FONT_HEIGHT + 1, DISPLAY_WIDTH-1);
             while (menudef[ptr] != 0) {
                 if ((line >= firstline) && (line - firstline) < DISPLAY_LINES_IN_MENU) {
-                    if (event > 0)
+                    if (event != 0 && event != 255)
                         menudef[ptr] = (event == line) ? '}' : ' ';
                     u8g2.drawUTF8(0, (MENU_FONT_HEIGHT * (line - firstline)) + (MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 2), (char*)(menudef + ptr));
                 }
@@ -559,7 +556,8 @@ uint8_t myMenu(char *menudef, uint8_t event = 1) {
 }
 
 void current_jump_to_bigbuf(uint16_t jump_to_show) {
-    int average_freefall_speed_ms = ((current_jump.exit_altitude - current_jump.deploy_altitude) << 1) / current_jump.deploy_time;
+    uint16_t freefall_time = current_jump.deploy_time >> 1;
+    int average_freefall_speed_ms = ((current_jump.exit_altitude - current_jump.deploy_altitude) << 1) / freefall_time;
     int average_freefall_speed_kmh = (int)(3.6f * average_freefall_speed_ms);
     int max_freefall_speed_kmh = (int)(3.6f * current_jump.max_freefall_speed_ms);
     uint8_t day = current_jump.exit_timestamp.day;
@@ -570,7 +568,6 @@ void current_jump_to_bigbuf(uint16_t jump_to_show) {
     int16_t exit_altitude = current_jump.exit_altitude << 1;
     int16_t deploy_altitude = current_jump.deploy_altitude << 1;
     int16_t canopy_altitude = (current_jump.deploy_altitude - current_jump.canopy_altitude) << 1;
-    uint16_t freefall_time = current_jump.deploy_time;
     uint16_t max_freefall_speed_ms = current_jump.max_freefall_speed_ms;
 
     sprintf_P(bigbuf, PSTR("%u/%u\n%02d.%02d.%04d %02d:%02d\nO:%4dм Р:%4dм\nП:%4dм В:%4dc\nС:%dм/с %dкм/ч\nМ:%dм/с %dкм/ч\n"),
@@ -602,9 +599,8 @@ void userMenu() {
                 // Set to zero
                 if (powerMode == MODE_ON_EARTH || powerMode == MODE_PREFILL || powerMode == MODE_DUMB) {
                     // Zero reset allowed on earth, in prefill and in dumb mode only.
-                    ground_altitude = current_altitude;
-                    IIC_WriteInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE, ground_altitude);
-                    altitude_to_show = 0;
+                    myPressure.zero();
+                    current_altitude = 0;
                     LED_show(0, 80, 0, 250);
                     return;
                 } else {
@@ -664,6 +660,8 @@ void userMenu() {
                         }
                         case 3:
                             // replay latest jump
+//                            myPressure.debugPrint();
+//                            return;
                             break; // not implemented
                             
                         case 4: {
@@ -1034,8 +1032,6 @@ void loop() {
         timeWhileBtn1Pressed = 0;
     }
     
-    current_altitude -= ground_altitude; // ground_altitude may get changed via menu
-
     if ((interval_number & 63) == 0 || powerMode == MODE_PREFILL) {
         // Check and refresh battery meter
         batt = analogRead(PIN_BAT_SENSE);
@@ -1073,7 +1069,7 @@ void loop() {
             if (powerMode == MODE_ON_EARTH)
                 sprintf_P(middlebuf, PSTR("&%1d'"), powerMode);
             else
-                sprintf_P(middlebuf, PSTR("&%1d' % 3d % 3d % 3d"), powerMode, current_speed, average_speed_8, average_speed_32);
+                sprintf_P(middlebuf, PSTR("&%1d' % 3d % 3d"), powerMode, average_speed_8, average_speed_32);
             u8g2.drawUTF8(0, DISPLAY_HEIGHT - 1, middlebuf);
             // Show heartbeat
             uint8_t hbHrs = heartbeat / 7200;
