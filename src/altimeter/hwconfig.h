@@ -65,4 +65,15 @@
 //#define DISPLAY_LIGHT_OFF digitalWrite(PIN_LIGHT,0)
 //#define DISPLAY_LIGHT_ON digitalWrite(PIN_LIGHT,1)
 
+
+// Configure sound subsystem.
+// Passive speaker/buzzer, connected to PIN_SOUND. Any frequency available.
+#define SOUND_PASSIVE
+
+// Active buzzer with internal generator connected to PIN_SOUND. Only fixed tone available.
+//#define SOUND_ACTIVE
+
+// External sound generator chip, i2c-based
+//#define SOUND_EXTERNAL
+
 #endif

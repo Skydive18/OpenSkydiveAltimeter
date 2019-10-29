@@ -39,4 +39,6 @@
 #define standby_8s      LowPower.powerStandby(SLEEP_8S,      ADC_OFF, BOD_OFF)
 #define standby_forever LowPower.powerStandby(SLEEP_FOREVER, ADC_OFF, BOD_OFF)
 
+extern uint8_t disable_sleep;
+
 #endif

@@ -1,9 +1,8 @@
 #include <Arduino.h>
 #include "hwconfig.h"
 #include "led.h"
+#include "power.h"
 #include "wiring_private.h"
-
-volatile bool pwm_active = false;
 
 void LED_showOne(byte pin, byte val) {
     // We need to make sure the PWM output is enabled for those pins
@@ -25,7 +24,7 @@ void LED_showOne(byte pin, byte val) {
     }
     else
     {
-        pwm_active = true;
+        disable_sleep |= 1;
         
         switch(digitalPinToTimer(pin))
         {
@@ -194,7 +193,7 @@ void LED_showOne(byte pin, byte val) {
 }
 
 void LED_show(byte red, byte green, byte blue, uint8_t delayMs = 0) {
-    pwm_active = false;
+    disable_sleep &= 0xfe;
     LED_showOne(PIN_R, red);
     LED_showOne(PIN_G, green);
     LED_showOne(PIN_B, blue);
@@ -203,10 +202,6 @@ void LED_show(byte red, byte green, byte blue, uint8_t delayMs = 0) {
         LED_showOne(PIN_R, 0);
         LED_showOne(PIN_G, 0);
         LED_showOne(PIN_B, 0);
-        pwm_active = false;
+        disable_sleep &= 0xfe;
     }
-}
-
-bool IsPWMActive() {
-    return pwm_active;
 }

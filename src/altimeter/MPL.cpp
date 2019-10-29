@@ -47,7 +47,7 @@ void MPL3115A2::begin(void) {
 }
 
 void MPL3115A2::zero() {
-    ground_altitude = readAltitude();
+    ground_altitude += readAltitude();
     IIC_WriteInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE, ground_altitude);
 }
 
@@ -120,3 +120,22 @@ void MPL3115A2::toggleOneShot(void) {
     tempSetting |= (1<<1); //Set OST bit
     IIC_WriteByte(MPL3115A2_ADDRESS, CTRL_REG1, tempSetting);
 }
+
+/*!
+ * Calculates the pressure at sea level (in hPa) from the specified altitude
+ * (in meters), and atmospheric pressure (in hPa).
+ * @param  altitude      Altitude in meters
+ * @param  atmospheric   Atmospheric pressure in hPa
+ * @return The approximate pressure
+ */
+/*
+float Adafruit_BMP280::seaLevelForAltitude(float altitude, float atmospheric) {
+  // Equation taken from BMP180 datasheet (page 17):
+  // http://www.adafruit.com/datasheets/BST-BMP180-DS000-09.pdf
+
+  // Note that using the equation from wikipedia can give bad results
+  // at high altitude.  See this thread for more information:
+  // http://forums.adafruit.com/viewtopic.php?f=22&t=58064
+  return atmospheric / pow(1.0 - (altitude / 44330.0), 5.255);
+}
+*/

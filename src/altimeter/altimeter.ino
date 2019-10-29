@@ -11,6 +11,7 @@
 #include "custom_types.h"
 #include "common.h"
 #include "PCF8583.h"
+#include "snd.h"
 
 // Altimeter modes (powerMode)
 #define MODE_ON_EARTH 0
@@ -66,8 +67,8 @@ int current_altitude; // currently measured altitude, relative to ground_altitud
 int previous_altitude; // Previously measured altitude, relative to ground_altitude
 int altitude_to_show; // Last shown altitude (jitter corrected)
 uint8_t backLight = 0; // Display backlight flag, 0=off, 1=on, 2 = auto
-int batt; // battery voltage as it goes from sensor
-int8_t rel_voltage; // ballery relative voltare, in percent (0-100). 0 relates to 3.6v and 100 relates to fully charged batt
+uint16_t batt; // battery voltage as it goes from sensor
+int8_t rel_voltage; // ballery relative voltage, in percent (0-100). 0 relates to 3.6v and 100 relates to fully charged batt
 
 // Current jump
 jump_t current_jump;
@@ -78,8 +79,7 @@ uint16_t total_jumps;
 uint16_t accumulated_altitude;
 int accumulated_speed;
 
-char smallbuf[24];
-char middlebuf[48];
+char textbuf[48];
 char bigbuf[SNAPSHOT_SIZE]; // also used in snapshot writer
 
 uint8_t timeWhileBtn1Pressed = 0;
@@ -128,15 +128,13 @@ void setup() {
   Serial.println (" device(s).");
 */
 
-    LED_show(0, 0, 0);
-
-    pinMode(PIN_SOUND, OUTPUT);
-    digitalWrite(PIN_SOUND, 0);
-
     // Turn ON hardware
     digitalWrite(PIN_HWPWR, 1);
-    
     Wire.begin();
+
+    LED_show(0, 0, 0);
+    initSound();
+    
     u8g2.begin(PIN_BTN2, PIN_BTN3, PIN_BTN1);
     u8g2.enableUTF8Print();    // enable UTF8 support for the Arduino print() function
     u8g2.setDisplayRotation((settings.display_rotation & 1) ? U8G2_R0 : U8G2_R2);
@@ -244,6 +242,7 @@ void processAltitude() {
                 myPressure.zero();
             }
             powerMode = MODE_ON_EARTH;
+            return;
         }
     }
 
@@ -403,10 +402,10 @@ void ShowLEDs() {
             if (interval_number < 8) {
                 if (interval_number & 1) {
                     LED_show(0, 0, 0); // green blinks to indicate that altimeter is ready
-                    noTone(PIN_SOUND);
+                    noSound();
                 } else {
                     LED_show(0, 80, 0); // green blinks to indicate that altimeter is ready
-                    tone(PIN_SOUND, 700);
+                    sound(700);
                 }
             } else
                 break; // turn LED off
@@ -415,6 +414,7 @@ void ShowLEDs() {
 
     airplane_300m = 0;
     LED_show(0, 0, 0);
+    noSound();
 }
 
 void ShowText(const uint8_t x, const uint8_t y, const char* text) {
@@ -439,7 +439,8 @@ void PowerOff() {
 
     rtc.disableSeedInterrupt();
   
-    digitalWrite(PIN_SOUND, 0);
+    termSound();
+    
     // turn off i2c
     pinMode(SCL, INPUT);
     pinMode(SDA, INPUT);
@@ -587,12 +588,12 @@ void userMenu() {
 
     uint8_t event = 1;
     do {
-        switch (backLight) {
-            case 0: strcpy_P(smallbuf, PSTR("выкл")); break;
-            case 2: strcpy_P(smallbuf, PSTR("авто")); break;
-            default: strcpy_P(smallbuf, PSTR("вкл")); break;
-        }
-        sprintf_P(bigbuf, PSTR("Меню\n Выход\n Сброс на ноль\n Подсветка: %s\n Журнал прыжков\n Сигналы\n Настройки\n Выключение\n"), smallbuf);
+        char bl_char = '~';
+        if (backLight == 0)
+            bl_char = '-';
+        if (backLight == 2)
+            bl_char = '*';
+        sprintf_P(bigbuf, PSTR("Меню\n Выход\n Сброс на ноль\n Подсветка: %c\n Журнал прыжков\n Сигналы\n Настройки\n Выключение\n"), bl_char);
         event = myMenu(bigbuf, event);
         switch (event) {
             case 2: {
@@ -642,19 +643,14 @@ void userMenu() {
                                 EEPROM.get(EEPROM_LOGBOOK_START +  (((jump_to_show - 1) % (LOGBOOK_SIZE + 1)) * sizeof(jump_t)), current_jump);
                                 current_jump_to_bigbuf(jump_to_show);
                                 logbook_view_event = myMenu(bigbuf, 0);
-                                switch (logbook_view_event) {
-                                    case 255:
-                                        // timeout
-                                        return;
-                                    case PIN_BTN1:
-                                        jump_to_show--;
-                                        break;
-                                    case PIN_BTN3:
-                                        jump_to_show++;
-                                        break;
-                                }
+                                if (logbook_view_event == PIN_BTN1)
+                                    jump_to_show--;
                                 if (logbook_view_event == PIN_BTN2)
                                     break;
+                                if (logbook_view_event == PIN_BTN3)
+                                    jump_to_show++;
+                                if (logbook_view_event == 255)
+                                    return;;
                             };
                             break;
                         }
@@ -691,12 +687,10 @@ void userMenu() {
                 uint8_t eventSettings = 1;
                 uint8_t newAutoPowerOff = IIC_ReadByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF);
                 do {
-                    char *on = "вкл";
-                    char *off = "выкл";
-                    char* power_mode_string = powerMode == MODE_DUMB ? off : on;
-                    char* zero_after_reset = settings.zero_after_reset & 1 ? on : off;
-                    sprintf_P(bigbuf, PSTR("Настройки\n Выход\n Время\n Дата\n Будильник\n Авторежим: %s\n Автовыкл: %sч\n Поворот экрана\n Авто ноль:%s\n Версия ПО\n Дамп памяти\n"),
-                        power_mode_string, HeartbeatStr(newAutoPowerOff), zero_after_reset);
+                    char power_mode_char = powerMode == MODE_DUMB ? '-' : '~';
+                    char zero_after_reset = settings.zero_after_reset & 1 ? '~' : '-';
+                    sprintf_P(bigbuf, PSTR("Настройки\n Выход\n Время\n Дата\n Будильник\n Авторежим: %c\n Автовыкл: %dч\n Поворот экрана\n Авто ноль:%c\n Версия ПО\n Дамп памяти\n"),
+                        power_mode_char, HeartbeatValue(newAutoPowerOff), zero_after_reset);
                         
                     eventSettings = myMenu(bigbuf, eventSettings);
                     switch (eventSettings) {
@@ -758,18 +752,13 @@ void userMenu() {
                             break;
                         }
                         case 10: {
-                            // TODO.
-                            Serial.print(F("\n:RAM"));
-                            for (uint16_t i = 16; i < 256; i++) {
-                                uint8_t b = IIC_ReadByte(RTC_ADDRESS, i);
-                                sprintf_P(smallbuf, PSTR(" %02x"), b);
-                                Serial.print(smallbuf);
-                            }
-                            Serial.print(F("\n:ROM"));
-                            for (uint16_t i = 0; i < 1024; i++) {
-                                uint8_t b = EEPROM.read(i);
-                                sprintf_P(smallbuf, PSTR(" %02x"), b);
-                                Serial.print(smallbuf);
+                            uint16_t addr;
+                            Serial.print(F("\n:DATA"));
+                            for (uint16_t i = 1263; i >= 0; i--) {
+                                addr = 1263 - i;
+                                uint8_t b = addr < 1024 ? EEPROM.read(addr) : IIC_ReadByte(RTC_ADDRESS, addr - 1008);
+                                sprintf_P(textbuf, PSTR(" %02x"), b);
+                                Serial.print(textbuf);
                             }
                             Serial.print(F("\n:END"));
                             break;
@@ -815,11 +804,11 @@ bool SetDate(uint8_t &day, uint8_t &month, uint16_t &year) {
             day = 28;
         u8g2.firstPage();
         do {
-            sprintf_P(middlebuf, PSTR("Текущая дата"));
-            u8g2.drawUTF8(0, MENU_FONT_HEIGHT, middlebuf);
+            sprintf_P(textbuf, PSTR("Текущая дата"));
+            u8g2.drawUTF8(0, MENU_FONT_HEIGHT, textbuf);
             u8g2.drawHLine(0, MENU_FONT_HEIGHT + 1, DISPLAY_WIDTH-1);
 
-            sprintf_P(middlebuf, PSTR("%c%02d %c%02d %c%04d"),
+            sprintf_P(textbuf, PSTR("%c%02d %c%02d %c%04d"),
                 pos == 0 ? '}' : ' ',
                 day,
                 pos == 1 ? '}' : ' ',
@@ -827,17 +816,17 @@ bool SetDate(uint8_t &day, uint8_t &month, uint16_t &year) {
                 pos == 2 ? '}' : ' ',
                 year
             );
-            u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 3, middlebuf);
+            u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 3, textbuf);
 
-            sprintf_P(middlebuf, PSTR("%cОтмена"),
+            sprintf_P(textbuf, PSTR("%cОтмена"),
                 pos == 3 ? '}' : ' '
             );
-            u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 5, middlebuf);
+            u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 5, textbuf);
             
-            sprintf_P(middlebuf, PSTR("%cОК"),
+            sprintf_P(textbuf, PSTR("%cОК"),
                 pos == 4 ? '}' : ' '
             );
-            u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 7, middlebuf);
+            u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 7, textbuf);
             
         } while(u8g2.nextPage());
         uint8_t keyEvent = getKeypress();
@@ -908,27 +897,27 @@ bool SetTime(uint8_t &hour, uint8_t &minute) {
         pos &= 3;
         u8g2.firstPage();
         do {
-            strcpy_P(middlebuf, PSTR("Текущее время"));
-            u8g2.drawUTF8(0, MENU_FONT_HEIGHT, middlebuf);
+            strcpy_P(textbuf, PSTR("Текущее время"));
+            u8g2.drawUTF8(0, MENU_FONT_HEIGHT, textbuf);
             u8g2.drawHLine(0, MENU_FONT_HEIGHT + 1, DISPLAY_WIDTH-1);
 
-            sprintf_P(middlebuf, PSTR("%c%02d:%02d%c"),
+            sprintf_P(textbuf, PSTR("%c%02d:%02d%c"),
                 pos == 0 ? '}' : ' ',
                 hour,
                 minute,
                 pos == 1 ? '{' : ' '
             );
-            u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 3, middlebuf);
+            u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 3, textbuf);
 
-            sprintf_P(middlebuf, PSTR("%cОтмена"),
+            sprintf_P(textbuf, PSTR("%cОтмена"),
                 pos == 2 ? '}' : ' '
             );
-            u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 5, middlebuf);
+            u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 5, textbuf);
             
-            sprintf_P(middlebuf, PSTR("%cОК"),
+            sprintf_P(textbuf, PSTR("%cОК"),
                 pos == 3 ? '}' : ' '
             );
-            u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 7, middlebuf);
+            u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 7, textbuf);
             
         } while(u8g2.nextPage());
         uint8_t keyEvent = getKeypress();
@@ -1057,29 +1046,29 @@ void loop() {
             // Do not use bugbuf here, as it used for jump snapshot generation
             u8g2.setFont(font_status_line);
 
-            sprintf_P(middlebuf, PSTR("%02d.%02d.%04d %02d:%02d"), rtc.day, rtc.month, rtc.year, rtc.hour, rtc.minute);
-            u8g2.drawUTF8(0, 6, middlebuf);
+            sprintf_P(textbuf, PSTR("%02d.%02d.%04d %02d:%02d"), rtc.day, rtc.month, rtc.year, rtc.hour, rtc.minute);
+            u8g2.drawUTF8(0, 6, textbuf);
             
-            sprintf_P(smallbuf, PSTR("%3d%%"), rel_voltage);
-            u8g2.drawUTF8(DISPLAY_WIDTH - 16, 6, smallbuf);
+            sprintf_P(textbuf, PSTR("%3d%%"), rel_voltage);
+            u8g2.drawUTF8(DISPLAY_WIDTH - 16, 6, textbuf);
     
             u8g2.drawHLine(0, 7, DISPLAY_WIDTH-1);
             u8g2.drawHLine(0, DISPLAY_HEIGHT-8, DISPLAY_WIDTH-1);
     
             if (powerMode == MODE_ON_EARTH)
-                sprintf_P(middlebuf, PSTR("&%1d'"), powerMode);
+                sprintf_P(textbuf, PSTR("&%1d'"), powerMode);
             else
-                sprintf_P(middlebuf, PSTR("&%1d' % 3d % 3d"), powerMode, average_speed_8, average_speed_32);
-            u8g2.drawUTF8(0, DISPLAY_HEIGHT - 1, middlebuf);
+                sprintf_P(textbuf, PSTR("&%1d' % 3d % 3d"), powerMode, average_speed_8, average_speed_32);
+            u8g2.drawUTF8(0, DISPLAY_HEIGHT - 1, textbuf);
             // Show heartbeat
             uint8_t hbHrs = heartbeat / 7200;
             uint8_t hbMin = ((heartbeat >> 1) % 3600) / 60;
-            sprintf_P(smallbuf, PSTR("%02d:%02d"), hbHrs, hbMin);
-            u8g2.drawUTF8(DISPLAY_WIDTH - 20, DISPLAY_HEIGHT - 1, smallbuf);
+            sprintf_P(textbuf, PSTR("%02d:%02d"), hbHrs, hbMin);
+            u8g2.drawUTF8(DISPLAY_WIDTH - 20, DISPLAY_HEIGHT - 1, textbuf);
 
             u8g2.setFont(font_altitude);
-            sprintf_P(smallbuf, PSTR("%4d"), altitude_to_show);
-            u8g2.drawUTF8(0, 38, smallbuf);
+            sprintf_P(textbuf, PSTR("%4d"), altitude_to_show);
+            u8g2.drawUTF8(0, 38, textbuf);
             
         } while ( u8g2.nextPage() );
     }
@@ -1096,8 +1085,8 @@ void loop() {
 
         INTACK = false;
         attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
-        if (IsPWMActive()) {
-            // When PWM led control is active, we cannot go into power down mode -
+        if (disable_sleep) {
+            // When PWM led control or sound delay is active, we cannot go into power down mode -
             // it will stop timers and break PWM control.
             for (int intcounter = 0; intcounter < 800; ++intcounter) {
                 if (INTACK)
