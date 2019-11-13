@@ -35,10 +35,10 @@
 #define PIN_BTN1 A3
 #define PIN_BTN2 A2
 #define PIN_BTN3 A1
-#define PIN_BAT_SENSE A6
+#define PIN_BAT_SENSE A0
 #define PIN_SOUND 3
 #define PIN_INTERRUPT 2
-#define PIN_DC A0
+#define PIN_DC 8
 #define LOGBOOK_SIZE 40
 #define SNAPSHOT_START 544
 #define SNAPSHOT_SIZE 480

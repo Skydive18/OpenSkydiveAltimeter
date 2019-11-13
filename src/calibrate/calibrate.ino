@@ -7,6 +7,7 @@
 #define PIN_R 6
 #define PIN_G 9
 #define PIN_B 10
+#define PIN_SOUND 5
 #define PIN_BAT_SENSE A0
 #else
 #if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
@@ -15,7 +16,8 @@
 #define PIN_R 5
 #define PIN_G 6
 #define PIN_B 9
-#define PIN_BAT_SENSE A6
+#define PIN_BAT_SENSE A0
+#define PIN_SOUND 3
 #endif // defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
 #endif // defined(__AVR_ATmega32U4__)
 
@@ -38,6 +40,9 @@ void setup() {
     pinMode(PIN_HWPWR, OUTPUT);
     pinMode(PIN_BAT_SENSE, INPUT);
 
+    pinMode(PIN_SOUND, OUTPUT);
+    digitalWrite(PIN_SOUND, 0);
+    
     // We need to turn hardware ON.
     // When hardware is OFF, BATT_SENSE is the same as Vref,
     // so calibration is not possible.
