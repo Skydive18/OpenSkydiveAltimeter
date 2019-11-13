@@ -56,19 +56,19 @@
 
 
 // Configure display. Use one of the following
-#define DISPLAY_NOKIA
-//#define DISPLAY_HX1230
+//#define DISPLAY_NOKIA
+#define DISPLAY_HX1230
 // Use these macros if display light is turned on with logic 0
-#define DISPLAY_LIGHT_OFF digitalWrite(PIN_LIGHT,1)
-#define DISPLAY_LIGHT_ON digitalWrite(PIN_LIGHT,0)
+//#define DISPLAY_LIGHT_OFF digitalWrite(PIN_LIGHT,1)
+//#define DISPLAY_LIGHT_ON digitalWrite(PIN_LIGHT,0)
 // Use these macros if display light is turned on with logic 1
-//#define DISPLAY_LIGHT_OFF digitalWrite(PIN_LIGHT,0)
-//#define DISPLAY_LIGHT_ON digitalWrite(PIN_LIGHT,1)
+#define DISPLAY_LIGHT_OFF digitalWrite(PIN_LIGHT,0)
+#define DISPLAY_LIGHT_ON digitalWrite(PIN_LIGHT,1)
 
 
 // Configure sound subsystem.
 // Passive speaker/buzzer, connected to PIN_SOUND. Any frequency available.
-#define SOUND_PASSIVE
+//#define SOUND_PASSIVE
 
 // Active buzzer with internal generator connected to PIN_SOUND. Only fixed tone available.
 //#define SOUND_ACTIVE

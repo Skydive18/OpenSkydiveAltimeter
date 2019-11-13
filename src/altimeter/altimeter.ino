@@ -133,9 +133,14 @@ void setup() {
     Wire.begin();
 
     LED_show(0, 0, 0);
-    initSound();
+
+    pinMode(PIN_SOUND, OUTPUT);
+    digitalWrite(PIN_SOUND, 0);
+
+//    initSound();
     
     u8g2.begin(PIN_BTN2, PIN_BTN3, PIN_BTN1);
+    u8g2.setContrast(130);
     u8g2.enableUTF8Print();    // enable UTF8 support for the Arduino print() function
     u8g2.setDisplayRotation((settings.display_rotation & 1) ? U8G2_R0 : U8G2_R2);
     pinMode(PIN_LIGHT, OUTPUT);
@@ -402,10 +407,10 @@ void ShowLEDs() {
             if (interval_number < 8) {
                 if (interval_number & 1) {
                     LED_show(0, 0, 0); // green blinks to indicate that altimeter is ready
-                    noSound();
+                    //noSound();
                 } else {
                     LED_show(0, 80, 0); // green blinks to indicate that altimeter is ready
-                    sound(700);
+                    //sound(700);
                 }
             } else
                 break; // turn LED off
@@ -414,7 +419,7 @@ void ShowLEDs() {
 
     airplane_300m = 0;
     LED_show(0, 0, 0);
-    noSound();
+    //noSound();
 }
 
 void ShowText(const uint8_t x, const uint8_t y, const char* text) {
@@ -439,7 +444,10 @@ void PowerOff() {
 
     rtc.disableSeedInterrupt();
   
-    termSound();
+    //termSound();
+
+    pinMode(PIN_SOUND, OUTPUT);
+    digitalWrite(PIN_SOUND, 0);
     
     // turn off i2c
     pinMode(SCL, INPUT);

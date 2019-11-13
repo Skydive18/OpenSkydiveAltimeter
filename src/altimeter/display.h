@@ -19,10 +19,11 @@ U8G2_PCD8544_84X48_1_4W_HW_SPI u8g2(U8G2_R2, SS, DC_PIN, U8X8_PIN_NONE);
 #define DISPLAY_LINES_IN_MENU 6
 
 // U8G2_HX1230_96X68_1_3W_SW_SPI u8g2(U8G2_R0, SS, U8X8_PIN_NONE);
-
+U8G2_HX1230_96X68_2_3W_SW_SPI u8g2(U8G2_R0, SCK, MOSI, SS, U8X8_PIN_NONE);
 // Comment it to use 3-wire hardware SPI emulation
 //#define DC_PIN PIN_DC
 
+/*
 extern "C" uint8_t u8x8_byte_arduino_hw_spi_3w(u8x8_t *u8g2, uint8_t msg, uint8_t arg_int, void *arg_ptr);
 
 class U8G2_HX1230_96X68_1_HW_SPI : public U8G2 {
@@ -38,6 +39,7 @@ class U8G2_HX1230_96X68_1_HW_SPI : public U8G2 {
 };
 
 U8G2_HX1230_96X68_1_HW_SPI u8g2(U8G2_R0, SS, PIN_DC);
+*/
 
 #endif
 #endif
