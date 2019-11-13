@@ -27,18 +27,8 @@ static void arduino_hw_spi_3w_init() {
 }
 
 static void arduino_hw_spi_3w_flush() {
-	uint8_t i
-#ifdef ARDUINO_HW_SPI_3W_OPTIMIZE
-	 = SPDR
-#endif
-	;
-    for(i = 0; i <= arduino_hw_spi_3w_bytepos; i++) {
-#ifdef ARDUINO_HW_SPI_3W_OPTIMIZE
-    	while (!(SPSR & _BV(SPIF))) ; // wait before sending next byte
-    	SPDR = arduino_hw_spi_3w_buffer[i];
-#else
+    for(uint8_t i = 0; i <= arduino_hw_spi_3w_bytepos; i++) {
         SPI.transfer(arduino_hw_spi_3w_buffer[i]);
-#endif
     }
 }
 
@@ -127,11 +117,6 @@ extern "C" uint8_t u8x8_byte_arduino_hw_spi_3w(
                 NULL);
             if(arduino_hw_spi_3w_bytepos)
             	arduino_hw_spi_3w_flush();
-#ifdef ARDUINO_HW_SPI_3W_OPTIMIZE
-				// Make sure transmission is completed
-			    while (!(SPSR & _BV(SPIF))) ; // wait
-//    			i = SPDR;
-#endif
             u8x8_gpio_SetCS(u8x8, u8x8->display_info->chip_disable_level);
 
 #if ARDUINO >= 10600
