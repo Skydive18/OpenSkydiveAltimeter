@@ -7,11 +7,17 @@
 #include "led.h"
 #include "keyboard.h"
 #include "display.h"
-#include "fonts.h"
+#ifdef DISPLAY_NOKIA
+#include "fonts_nokia.h"
+#endif
+#ifdef DISPLAY_HX1230
+#include "fonts_hx1230.h"
+#endif
 #include "custom_types.h"
 #include "common.h"
 #include "PCF8583.h"
 #include "snd.h"
+#include "logbook.h"
 
 // Altimeter modes (powerMode)
 #define MODE_ON_EARTH 0
@@ -134,10 +140,7 @@ void setup() {
 
     LED_show(0, 0, 0);
 
-    pinMode(PIN_SOUND, OUTPUT);
-    digitalWrite(PIN_SOUND, 0);
-
-//    initSound();
+    initSound();
     
     u8g2.begin(PIN_BTN2, PIN_BTN3, PIN_BTN1);
     u8g2.setContrast(130);
@@ -407,10 +410,10 @@ void ShowLEDs() {
             if (interval_number < 8) {
                 if (interval_number & 1) {
                     LED_show(0, 0, 0); // green blinks to indicate that altimeter is ready
-                    //noSound();
+                    noSound();
                 } else {
                     LED_show(0, 80, 0); // green blinks to indicate that altimeter is ready
-                    //sound(700);
+                    sound(700, 0);
                 }
             } else
                 break; // turn LED off
@@ -419,7 +422,7 @@ void ShowLEDs() {
 
     airplane_300m = 0;
     LED_show(0, 0, 0);
-    //noSound();
+    noSound();
 }
 
 void ShowText(const uint8_t x, const uint8_t y, const char* text) {
@@ -444,11 +447,8 @@ void PowerOff() {
 
     rtc.disableSeedInterrupt();
   
-    //termSound();
+    termSound();
 
-    pinMode(PIN_SOUND, OUTPUT);
-    digitalWrite(PIN_SOUND, 0);
-    
     // turn off i2c
     pinMode(SCL, INPUT);
     pinMode(SDA, INPUT);
@@ -609,7 +609,7 @@ void userMenu() {
                 if (powerMode == MODE_ON_EARTH || powerMode == MODE_PREFILL || powerMode == MODE_DUMB) {
                     // Zero reset allowed on earth, in prefill and in dumb mode only.
                     myPressure.zero();
-                    current_altitude = 0;
+                    current_altitude = altitude_to_show = 0;
                     LED_show(0, 80, 0, 250);
                     return;
                 } else {

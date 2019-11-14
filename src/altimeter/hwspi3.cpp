@@ -12,10 +12,6 @@
 */
 #include "U8x8lib.h"
 #include <SPI.h>
-// Allow to send data partially in background.
-// TODO: more benefits may be obtained if use USART in SPI mode
-// TODO: because it is buffered
-#define ARDUINO_HW_SPI_3W_OPTIMIZE
 
 static uint8_t arduino_hw_spi_3w_buffer[9];
 static uint8_t arduino_hw_spi_3w_bytepos;
@@ -40,7 +36,7 @@ static void arduino_hw_spi_3w_sendbyte(uint8_t data) {
     arduino_hw_spi_3w_buffer[++arduino_hw_spi_3w_bytepos] |= data16.lsb;
     if (arduino_hw_spi_3w_bytepos == 8) {
         arduino_hw_spi_3w_flush();
-    	arduino_hw_spi_3w_init();
+        arduino_hw_spi_3w_init();
     }
 }
 
@@ -116,7 +112,7 @@ extern "C" uint8_t u8x8_byte_arduino_hw_spi_3w(
                 u8x8->display_info->pre_chip_disable_wait_ns,
                 NULL);
             if(arduino_hw_spi_3w_bytepos)
-            	arduino_hw_spi_3w_flush();
+                arduino_hw_spi_3w_flush();
             u8x8_gpio_SetCS(u8x8, u8x8->display_info->chip_disable_level);
 
 #if ARDUINO >= 10600

@@ -1,6 +1,11 @@
-#include "snd.h"
+#include <Arduino.h>
 #include "hwconfig.h"
 #include "custom_types.h"
+
+void initSound();
+void termSound();
+void sound(uint16_t frequency, uint8_t duration);
+void noSound();
 
 #ifdef SOUND_PASSIVE
 #include "NewTone.h"
@@ -30,9 +35,11 @@ namespace {
 #endif
 
 void initSound() {
-#if defined(SOUND_ACTIVE) || defined(SOUND_PASSIVE)
+#ifndef SOUND_EXTERNAL
     pinMode(PIN_SOUND, OUTPUT);
     digitalWrite(PIN_SOUND, 0);
+#endif
+#if defined(SOUND_ACTIVE) || defined(SOUND_PASSIVE)
     MsTimer2::set(100, pulseSound);
     MsTimer2::start();
 #endif
@@ -45,7 +52,7 @@ void termSound() {
 #endif
 }
 
-void sound(uint16_t frequency, uint8_t duration = 0) {
+void sound(uint16_t frequency, uint8_t duration) {
 #if defined(SOUND_ACTIVE)
     digitalWrite(PIN_SOUND, 1);
     if (duration > 0)
@@ -63,12 +70,14 @@ void noSound() {
 #if defined(SOUND_ACTIVE)
     disable_sleep &= 0xfd;
     sndduration = 0;
-    digitalWrite(PIN_SOUND, 0);
 #endif
 #if defined(SOUND_PASSIVE)
     disable_sleep &= 0xfd;
     sndduration = 0;
     noNewTone(PIN_SOUND);
+#endif
+#ifndef SOUND_EXTERNAL
+    digitalWrite(PIN_SOUND, 0);
 #endif
 }
 

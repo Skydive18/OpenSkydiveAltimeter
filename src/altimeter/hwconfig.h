@@ -21,9 +21,9 @@
 #define PIN_DC 30
 //#define LOGBOOK_SIZE 80
 // TODO!!
-#define LOGBOOK_SIZE 20
-#define SNAPSHOT_START 304
-#define SNAPSHOT_SIZE 720
+//#define LOGBOOK_SIZE 20
+//#define SNAPSHOT_START 304
+//#define SNAPSHOT_SIZE 720
 #else
 #if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
 // Pins for Arduino Pro Mini (Atmega-328[P] - based)
@@ -45,6 +45,22 @@
 #endif // defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
 #endif // defined(__AVR_ATmega32U4__)
 
+// Jump snapshot configuration.
+// For location, possible values RAM (=RTC RAM), EEPROM (= Controller's EEPROM), FLASH (External flash card).
+// Max SNAPSHOT_SIZE seconds will be stored. Compression level is 5/8
+#define SNAPSHOT_ENABLE
+#define SNAPSHOT_JOURNAL_LOCATION EEPROM
+#define SNAPSHOT_JOURNAL_START 544
+#define SNAPSHOT_JOURNAL_SIZE 1
+#define SNAPSHOT_SIZE 480
+#define SNAPSHOT_COMPRESSED_SIZE 1+ (SNAPSHOT_SIZE*5/8)
+
+// Logbook configuration.
+// For location, possible values EEPROM and FLASH
+#define LOGBOOK_ENABLE
+#define LOGBOOK_LOCATION EEPROM
+#define LOGBOOK_SIZE 40
+
 // EEPROM
 #define EEPROM_JUMP_COUNTER 0
 #define EEPROM_SETTINGS 2
@@ -54,16 +70,9 @@
 #define LED_COMMON_CATHODE
 //#define LED_COMMON_ANODE
 
-
 // Configure display. Use one of the following
 //#define DISPLAY_NOKIA
 #define DISPLAY_HX1230
-// Use these macros if display light is turned on with logic 0
-//#define DISPLAY_LIGHT_OFF digitalWrite(PIN_LIGHT,1)
-//#define DISPLAY_LIGHT_ON digitalWrite(PIN_LIGHT,0)
-// Use these macros if display light is turned on with logic 1
-#define DISPLAY_LIGHT_OFF digitalWrite(PIN_LIGHT,0)
-#define DISPLAY_LIGHT_ON digitalWrite(PIN_LIGHT,1)
 
 
 // Configure sound subsystem.
