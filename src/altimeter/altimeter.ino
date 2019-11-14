@@ -111,8 +111,16 @@ void setup() {
     pinMode(PIN_HWPWR, OUTPUT);
     Serial.begin(SERIAL_SPEED); // Console
 
+    // Turn ON hardware
+    digitalWrite(PIN_HWPWR, 1);
+    Wire.begin();
+
+    LED_show(0, 0, 0);
+
+    initSound();
+
 /*
-  while (!Serial) delay(100); // wait for USB connect, 32u4 only.
+//  while (!Serial) delay(100); // wait for USB connect, 32u4 only.
   Serial.println("Scanning I2C Bus...");
   int i2cCount = 0;
   for (uint8_t i = 8; i > 0; i++)
@@ -134,14 +142,6 @@ void setup() {
   Serial.println (" device(s).");
 */
 
-    // Turn ON hardware
-    digitalWrite(PIN_HWPWR, 1);
-    Wire.begin();
-
-    LED_show(0, 0, 0);
-
-    initSound();
-    
     u8g2.begin(PIN_BTN2, PIN_BTN3, PIN_BTN1);
     u8g2.setContrast(130);
     u8g2.enableUTF8Print();    // enable UTF8 support for the Arduino print() function
@@ -1076,7 +1076,7 @@ void loop() {
 
             u8g2.setFont(font_altitude);
             sprintf_P(textbuf, PSTR("%4d"), altitude_to_show);
-            u8g2.drawUTF8(0, 38, textbuf);
+            u8g2.drawUTF8(0, DISPLAY_HEIGHT - 10, textbuf);
             
         } while ( u8g2.nextPage() );
     }
