@@ -88,7 +88,7 @@ int accumulated_speed;
 char textbuf[48];
 char bigbuf[SNAPSHOT_SIZE]; // also used in snapshot writer
 
-uint8_t timeWhileBtn1Pressed = 0;
+uint8_t timeWhileBtnMenuPressed = 0;
 uint8_t timeToTurnBacklightOn = 0;
 
 // Prototypes
@@ -97,6 +97,19 @@ uint8_t myMenu(char *menudef, uint8_t event = 1);
 void showVersion();
 void wake() { INTACK = true; }
 bool SetDate(timestamp_t &date);
+
+#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
+
+void pciSetup(byte pin) {
+    *digitalPinToPCMSK(pin) |= bit (digitalPinToPCMSKbit(pin));  // enable pin
+    PCIFR  |= bit (digitalPinToPCICRbit(pin)); // clear any outstanding interrupt
+    PCICR  |= bit (digitalPinToPCICRbit(pin)); // enable interrupt for the group
+}
+
+ISR (PCINT1_vect) { // handle pin change interrupt for A0 to A5 here
+}
+
+#endif
 
 void setup() {
     // Read presets
@@ -142,7 +155,7 @@ void setup() {
   Serial.println (" device(s).");
 */
 
-    u8g2.begin(PIN_BTN2, PIN_BTN3, PIN_BTN1);
+    u8g2.begin();
     u8g2.setContrast(130);
     u8g2.enableUTF8Print();    // enable UTF8 support for the Arduino print() function
     u8g2.setDisplayRotation((settings.display_rotation & 1) ? U8G2_R0 : U8G2_R2);
@@ -348,7 +361,7 @@ void ShowLEDs() {
         DISPLAY_LIGHT_OFF;
     
     // Blink as we entering menu
-    switch (timeWhileBtn1Pressed) {
+    switch (timeWhileBtnMenuPressed) {
         case 0:
         case 14:
         case 15:
@@ -466,15 +479,48 @@ void PowerOff() {
     digitalWrite(PIN_HWPWR, 0);
     
     do {
+#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
+        pciSetup(PIN_BTN1);
+        pciSetup(PIN_BTN2);
+        pciSetup(PIN_BTN3);
+#endif
+#if defined(__AVR_ATmega32U4__)
         attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
+#endif
         off_forever;
+#if defined(__AVR_ATmega32U4__)
         detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
+#endif
     } while (!checkWakeCondition());
     resetFunc();
 }
 
-uint8_t checkWakeCondition ()
-{
+#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
+uint8_t checkWakeCondition () {
+    uint8_t pin;
+    if (BTN1_PRESSED)
+        pin = PIN_BTN1;
+    else if (BTN2_PRESSED)
+        pin = PIN_BTN2;
+    else if (BTN3_PRESSED)
+        pin = PIN_BTN3;
+    else
+        return 0;
+    // Determine wake condition
+    LED_show(0, 0, 80, 400);
+    for (uint8_t i = 1; i < 193; ++i) {
+        if (digitalRead(pin))
+            return 0;
+        if (! (i & 63))
+            LED_show(0, 0, 80, 200);
+        off_15ms;
+    }
+    return 1;
+}
+#endif
+
+#if defined(__AVR_ATmega32U4__)
+uint8_t checkWakeCondition () {
     // Determine wake condition
     if (BTN1_PRESSED) {
         // Wake by awake button. Should be kept pressed for 3s
@@ -491,10 +537,16 @@ uint8_t checkWakeCondition ()
 
     return 0;
 }
+#endif
 
 void showVersion() {
     u8g2.setFont(font_menu);
-    sprintf_P(bigbuf, PSTR("Альтимонстр I\nПлатформа A01\nВерсия 0.8\nCOM %ld/8N1\n"), SERIAL_SPEED);
+#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
+    sprintf_P(bigbuf, PSTR("Альтимонстр I\nПлатформа B01\nВерсия 0.90\nCOM %ld/8N1\n"), SERIAL_SPEED);
+#endif
+#if defined(__AVR_ATmega32U4__)
+    sprintf_P(bigbuf, PSTR("Альтимонстр I\nПлатформа A01\nВерсия 0.90\nCOM %ld/8N1\n"), SERIAL_SPEED);
+#endif
     myMenu(bigbuf, 255);
 }
 
@@ -992,29 +1044,30 @@ bool SetTime(uint8_t &hour, uint8_t &minute) {
 }
 
 void loop() {
+#if defined(__AVR_ATmega32U4__)
     // If we cannot use interrupts to wake from low-power modes,
     // we need to know a duration of a loop cycle, because we need it to be
     // *exactly* 500ms to achieve a precise speed calculation
     uint32_t this_millis = millis();
+#endif
     // Read sensors
     rtc.readTime();
     current_altitude = myPressure.readAltitude();
     previousPowerMode = powerMode;
-    bool btn1Pressed = BTN1_PRESSED;
     bool refresh_display = (powerMode != MODE_ON_EARTH);
 
     // TODO. Opening menu when jump snapshot has not been saved leads to a broken snapshot.
     // Either disable menu in automatic modes or erase snapshot in such cases.
     // On 32u4 and Mega it is possible to separate buffers while on 328p it is not.
-    if (btn1Pressed) {
+    if (BTN2_PRESSED) {
         timeToTurnBacklightOn = 16;
         // Try to enter menu
-        if (timeWhileBtn1Pressed < 16)
-            timeWhileBtn1Pressed++;
+        if (timeWhileBtnMenuPressed < 16)
+            timeWhileBtnMenuPressed++;
     } else {
         if (timeToTurnBacklightOn > 0)
             timeToTurnBacklightOn--;
-        if (timeWhileBtn1Pressed == 8 || timeWhileBtn1Pressed == 9) {
+        if (timeWhileBtnMenuPressed == 8 || timeWhileBtnMenuPressed == 9) {
             if (BTN3_PRESSED) {
                 // Forcibly Save snapshot for debug purposes
                 EEPROM.put(SNAPSHOT_START, bigbuf);
@@ -1026,7 +1079,7 @@ void loop() {
             refresh_display = true; // force display refresh
             previous_altitude = CLEAR_PREVIOUS_ALTITUDE;
         }
-        timeWhileBtn1Pressed = 0;
+        timeWhileBtnMenuPressed = 0;
     }
     
     if ((interval_number & 63) == 0 || powerMode == MODE_PREFILL) {
@@ -1081,13 +1134,16 @@ void loop() {
         } while ( u8g2.nextPage() );
     }
 
-    if (btn1Pressed) {
-        // If BTN1_PRESSED, we cannot use interrupt to wake from sleep/delay, as BTN1 utilizes the same interrupt pin.
+#if defined(__AVR_ATmega32U4__)
+    if (BTN1_PRESSED) {
+        // If BTN1_PRESSED, we cannot use interrupt to wake from sleep/delay, as BTN1 utilizes the same interrupt pin
+        // on Atmega32u4
         // In that case we will use measured delay instead.
         int delayMs = 500 - (millis() - this_millis);
         if (delayMs > 0)
             delay(delayMs);
     } else {
+#endif
         // Can use interrupt to wake to achieve maximum time measure precision
         rtc.enableSeedInterrupt();
 
@@ -1106,7 +1162,9 @@ void loop() {
         }
         detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
         rtc.disableSeedInterrupt();
+#if defined(__AVR_ATmega32U4__)
     }
+#endif
     interval_number++;
     if (powerMode == MODE_ON_EARTH || powerMode == MODE_DUMB) {
         // Check auto-poweroff. Prevent it in jump modes.
