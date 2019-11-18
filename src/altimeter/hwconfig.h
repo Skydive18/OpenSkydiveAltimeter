@@ -21,9 +21,9 @@
 #define PIN_DC 30
 //#define LOGBOOK_SIZE 80
 // TODO!!
-//#define LOGBOOK_SIZE 20
-//#define SNAPSHOT_START 304
-//#define SNAPSHOT_SIZE 720
+#define LOGBOOK_SIZE 20
+#define SNAPSHOT_START 304
+#define SNAPSHOT_SIZE 720
 #else
 #if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
 // Pins for Arduino Pro Mini (Atmega-328[P] - based)
@@ -48,6 +48,9 @@
 // Jump snapshot configuration.
 // For location, possible values RAM (=RTC RAM), EEPROM (= Controller's EEPROM), FLASH (External flash card).
 // Max SNAPSHOT_SIZE seconds will be stored. Compression level is 5/8
+
+/*
+
 #define SNAPSHOT_ENABLE
 #define SNAPSHOT_JOURNAL_LOCATION EEPROM
 #define SNAPSHOT_JOURNAL_START 544
@@ -60,6 +63,8 @@
 #define LOGBOOK_ENABLE
 #define LOGBOOK_LOCATION EEPROM
 #define LOGBOOK_SIZE 40
+
+*/
 
 // EEPROM
 #define EEPROM_JUMP_COUNTER 0

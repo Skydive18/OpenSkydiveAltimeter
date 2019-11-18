@@ -156,7 +156,9 @@ void setup() {
 */
 
     u8g2.begin();
-    u8g2.setContrast(130);
+#ifdef DISPLAY_HX1230    
+    u8g2.setContrast((uint8_t)(settings.contrast << 4) + 15);
+#endif
     u8g2.enableUTF8Print();    // enable UTF8 support for the Arduino print() function
     u8g2.setDisplayRotation((settings.display_rotation & 1) ? U8G2_R0 : U8G2_R2);
     pinMode(PIN_LIGHT, OUTPUT);
@@ -749,9 +751,13 @@ void userMenu() {
                 do {
                     char power_mode_char = powerMode == MODE_DUMB ? '-' : '~';
                     char zero_after_reset = settings.zero_after_reset & 1 ? '~' : '-';
-                    sprintf_P(bigbuf, PSTR("Настройки\n Выход\n Время\n Дата\n Будильник\n Авторежим: %c\n Автовыкл: %dч\n Поворот экрана\n Авто ноль:%c\n Версия ПО\n Дамп памяти\n"),
+#if defined(DISPLAY_HX1230)
+                    sprintf_P(bigbuf, PSTR("Настройки\n Выход\n Время\n Дата\n Будильник\n Автоматика: %c\n Автовыкл: %dч\n Поворот экрана\n Контраст %d\n Авто ноль: %c\n Версия ПО\n Дамп памяти\n"),
+                        power_mode_char, HeartbeatValue(newAutoPowerOff), settings.contrast & 15, zero_after_reset);
+#elif defined(DISPLAY_NOKIA)
+                    sprintf_P(bigbuf, PSTR("Настройки\n Выход\n Время\n Дата\n Будильник\n Автоматика: %c\n Автовыкл: %dч\n Поворот экрана\n Авто ноль: %c\n Версия ПО\n Дамп памяти\n"),
                         power_mode_char, HeartbeatValue(newAutoPowerOff), zero_after_reset);
-                        
+#endif
                     eventSettings = myMenu(bigbuf, eventSettings);
                     switch (eventSettings) {
                         case 1:
@@ -801,17 +807,34 @@ void userMenu() {
                             settings.display_rotation++;
                             u8g2.setDisplayRotation((settings.display_rotation & 1) ? U8G2_R0 : U8G2_R2);
                             break;
+#if defined(DISPLAY_HX1230)
                         case 8:
+                            // contrast
+                            settings.contrast++;
+                            settings.contrast &= 15;
+                            u8g2.setContrast((uint8_t)(settings.contrast << 4) + 15);
+                            break;
+                        case 9:
+#elif defined(DISPLAY_NOKIA)
+                        case 8:
+#endif
                             // zero after reset
                             settings.zero_after_reset++;
                             break;
-                        case 9: {
+#if defined(DISPLAY_HX1230)
+                        case 10:
+#elif defined(DISPLAY_NOKIA)
+                        case 9:
+#endif
                             // About
                             showVersion();
                             getKeypress();
                             break;
-                        }
+#if defined(DISPLAY_HX1230)
+                        case 11: {
+#elif defined(DISPLAY_NOKIA)
                         case 10: {
+#endif
                             uint16_t addr;
                             Serial.print(F("\n:DATA"));
                             for (uint16_t i = 1263; i >= 0; i--) {
