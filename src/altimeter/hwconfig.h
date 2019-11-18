@@ -13,7 +13,7 @@
 #define PIN_G 9
 #define PIN_B 10
 #define PIN_BTN1 A3
-#define PIN_BTN2 A2
+#define PIN_BTN2 0
 #define PIN_BTN3 A1
 #define PIN_BAT_SENSE A0
 #define PIN_SOUND 5

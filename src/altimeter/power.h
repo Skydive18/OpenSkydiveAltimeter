@@ -39,6 +39,12 @@
 #define standby_8s      LowPower.powerStandby(SLEEP_8S,      ADC_OFF, BOD_OFF)
 #define standby_forever LowPower.powerStandby(SLEEP_FOREVER, ADC_OFF, BOD_OFF)
 
+#if defined (__AVR_ATmega328P__) || defined (__AVR_ATmega168__)
+#define idle_4s LowPower.idle(SLEEP_4S, ADC_OFF, TIMER2_ON, TIMER1_ON, TIMER0_ON, SPI_OFF, USART0_ON, TWI_OFF)
+#elif defined __AVR_ATmega32U4__    
+#define idle_4s LowPower.idle(SLEEP_4S, ADC_OFF, TIMER4_ON, TIMER3_ON, TIMER1_ON, TIMER0_ON, SPI_OFF, USART1_OFF, TWI_OFF, USB_OFF);     
+#endif
+
 extern uint8_t disable_sleep;
 
 #endif

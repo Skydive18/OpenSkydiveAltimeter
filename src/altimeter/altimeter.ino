@@ -67,7 +67,7 @@ uint8_t zero_drift_sense = 128;
 // ********* Main power move flag
 uint8_t powerMode;
 uint8_t previousPowerMode;
-volatile bool INTACK;
+//volatile bool INTACK;
 
 int current_altitude; // currently measured altitude, relative to ground_altitude
 int previous_altitude; // Previously measured altitude, relative to ground_altitude
@@ -95,7 +95,9 @@ uint8_t timeToTurnBacklightOn = 0;
 void ShowText(const uint8_t x, const uint8_t y, const char* text);
 uint8_t myMenu(char *menudef, uint8_t event = 1);
 void showVersion();
-void wake() { INTACK = true; }
+void wake() {
+//    INTACK = true;
+}
 bool SetDate(timestamp_t &date);
 
 #if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
@@ -482,16 +484,21 @@ void PowerOff() {
     
     do {
 #if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
+        // Wake by pin-change interrupt on any key
         pciSetup(PIN_BTN1);
         pciSetup(PIN_BTN2);
         pciSetup(PIN_BTN3);
 #endif
 #if defined(__AVR_ATmega32U4__)
-        attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
+        // Wake by BTN2 (Middle button)
+        attachInterrupt(digitalPinToInterrupt(PIN_BTN2), wake, LOW);
 #endif
+        // Also wake by alarm. TODO.
+//        attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
         off_forever;
+//        detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
 #if defined(__AVR_ATmega32U4__)
-        detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
+        detachInterrupt(digitalPinToInterrupt(PIN_BTN2));
 #endif
     } while (!checkWakeCondition());
     resetFunc();
@@ -507,7 +514,7 @@ uint8_t checkWakeCondition () {
     else if (BTN3_PRESSED)
         pin = PIN_BTN3;
     else
-        return 0;
+        return 0; // todo: check if alarm fired
     // Determine wake condition
     LED_show(0, 0, 80, 400);
     for (uint8_t i = 1; i < 193; ++i) {
@@ -524,7 +531,7 @@ uint8_t checkWakeCondition () {
 #if defined(__AVR_ATmega32U4__)
 uint8_t checkWakeCondition () {
     // Determine wake condition
-    if (BTN1_PRESSED) {
+    if (BTN2_PRESSED) {
         // Wake by awake button. Should be kept pressed for 3s
         LED_show(0, 0, 80, 400);
         for (uint8_t i = 1; i < 193; ++i) {
@@ -536,7 +543,7 @@ uint8_t checkWakeCondition () {
         }
         return 1;
     }
-
+    // todo: check if alarm fired
     return 0;
 }
 #endif
@@ -1067,12 +1074,6 @@ bool SetTime(uint8_t &hour, uint8_t &minute) {
 }
 
 void loop() {
-#if defined(__AVR_ATmega32U4__)
-    // If we cannot use interrupts to wake from low-power modes,
-    // we need to know a duration of a loop cycle, because we need it to be
-    // *exactly* 500ms to achieve a precise speed calculation
-    uint32_t this_millis = millis();
-#endif
     // Read sensors
     rtc.readTime();
     current_altitude = myPressure.readAltitude();
@@ -1157,37 +1158,26 @@ void loop() {
         } while ( u8g2.nextPage() );
     }
 
-#if defined(__AVR_ATmega32U4__)
-    if (BTN1_PRESSED) {
-        // If BTN1_PRESSED, we cannot use interrupt to wake from sleep/delay, as BTN1 utilizes the same interrupt pin
-        // on Atmega32u4
-        // In that case we will use measured delay instead.
-        int delayMs = 500 - (millis() - this_millis);
-        if (delayMs > 0)
-            delay(delayMs);
-    } else {
-#endif
-        // Can use interrupt to wake to achieve maximum time measure precision
-        rtc.enableSeedInterrupt();
+    rtc.enableSeedInterrupt();
 
-        INTACK = false;
-        attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
-        if (disable_sleep) {
-            // When PWM led control or sound delay is active, we cannot go into power down mode -
-            // it will stop timers and break PWM control.
-            for (int intcounter = 0; intcounter < 800; ++intcounter) {
-                if (INTACK)
-                    break;
-                delay(5);
-            }
-        } else {
-            off_4s;
-        }
-        detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
-        rtc.disableSeedInterrupt();
-#if defined(__AVR_ATmega32U4__)
+//    INTACK = false;
+    attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
+    if (disable_sleep) {
+        // When PWM led control or sound delay is active, we cannot go into power down mode -
+        // it will stop timers and break PWM control.
+        // TODO: Try to use Idle mode here keeping timers running, but stopping CPU clock.
+        idle_4s;
+//        for (int intcounter = 0; intcounter < 800; ++intcounter) {
+//            if (INTACK)
+//                break;
+//            delay(5);
+//        }
+    } else {
+        off_4s;
     }
-#endif
+    detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
+    rtc.disableSeedInterrupt();
+
     interval_number++;
     if (powerMode == MODE_ON_EARTH || powerMode == MODE_DUMB) {
         // Check auto-poweroff. Prevent it in jump modes.
