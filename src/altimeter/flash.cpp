@@ -22,11 +22,8 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include "flash.h"
+#include "hwconfig.h"
 
-// EEPROM page size is  32bytes for  24c32 and  24c64,
-//                      64bytes for 24c128 and 24c256
-//                     128bytes for 24c512
-#define EEPROM__PAGE_SIZE         32
 #define EEPROM__RD_BUFFER_SIZE    BUFFER_LENGTH
 #define EEPROM__WR_BUFFER_SIZE    (BUFFER_LENGTH - 2)
 
@@ -49,9 +46,9 @@ void FlashRom::writeByte(uint16_t address, uint8_t data) {
 void FlashRom::writeBytes(uint16_t address, uint16_t length, uint8_t* p_data) {
     // Write first page if not aligned.
     uint8_t notAlignedLength = 0;
-    uint8_t pageOffset = address % EEPROM__PAGE_SIZE;
+    uint8_t pageOffset = address % FLASH__PAGE_SIZE;
     if (pageOffset > 0) {
-        notAlignedLength = EEPROM__PAGE_SIZE - pageOffset;
+        notAlignedLength = FLASH__PAGE_SIZE - pageOffset;
         if (length < notAlignedLength) {
             notAlignedLength = length;
         }
@@ -64,12 +61,12 @@ void FlashRom::writeBytes(uint16_t address, uint16_t length, uint8_t* p_data) {
         p_data += notAlignedLength;
 
         // Write complete and aligned pages.
-        uint8_t pageCount = length / EEPROM__PAGE_SIZE;
+        uint8_t pageCount = length / FLASH__PAGE_SIZE;
         for (uint8_t i = 0; i < pageCount; i++) {
-            writePage(address, EEPROM__PAGE_SIZE, p_data);
-            address += EEPROM__PAGE_SIZE;
-            p_data += EEPROM__PAGE_SIZE;
-            length -= EEPROM__PAGE_SIZE;
+            writePage(address, FLASH__PAGE_SIZE, p_data);
+            address += FLASH__PAGE_SIZE;
+            p_data += FLASH__PAGE_SIZE;
+            length -= FLASH__PAGE_SIZE;
         }
 
         if (length > 0) {

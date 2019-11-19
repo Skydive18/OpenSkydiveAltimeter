@@ -45,14 +45,22 @@
 #endif // defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
 #endif // defined(__AVR_ATmega32U4__)
 
+// Flash chip
+// FLASH page size is  32bytes for  24c32 and  24c64,
+//                      64bytes for 24c128 and 24c256
+//                     128bytes for 24c512
+#define FLASH_ENABLE
+#define FLASH__PAGE_SIZE 32
+#define FLASH_ADDRESS 0x51
+
 // Jump snapshot configuration.
-// For location, possible values RAM (=RTC RAM), EEPROM (= Controller's EEPROM), FLASH (External flash card).
+// For location, possible values EEPROM (= Controller's EEPROM), FLASH (External flash card).
 // Max SNAPSHOT_SIZE seconds will be stored. Compression level is 5/8
 
+#define SNAPSHOT_ENABLE
+#define SNAPSHOT_JOURNAL_LOCATION FLASH
 /*
 
-#define SNAPSHOT_ENABLE
-#define SNAPSHOT_JOURNAL_LOCATION EEPROM
 #define SNAPSHOT_JOURNAL_START 544
 #define SNAPSHOT_JOURNAL_SIZE 1
 #define SNAPSHOT_SIZE 480
@@ -70,6 +78,10 @@
 #define EEPROM_JUMP_COUNTER 0
 #define EEPROM_SETTINGS 2
 #define EEPROM_LOGBOOK_START 64
+// FLASH page size is  32bytes for  24c32 and  24c64,
+//                      64bytes for 24c128 and 24c256
+//                     128bytes for 24c512
+#define FLASH__PAGE_SIZE         32
 
 // Configure RGB LED. Define one of the following
 #define LED_COMMON_CATHODE

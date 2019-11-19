@@ -18,6 +18,10 @@
 #include "PCF8583.h"
 #include "snd.h"
 #include "logbook.h"
+#ifdef FLASH_ENABLE
+#include "flash.h"
+FlashRom flash(FLASH_ADDRESS);
+#endif
 
 // Altimeter modes (powerMode)
 #define MODE_ON_EARTH 0
@@ -155,8 +159,20 @@ void setup() {
   Serial.print ("Scanning I2C Bus Done. Found ");
   Serial.print (i2cCount, DEC);
   Serial.println (" device(s).");
-*/
 
+// test flash
+    FlashRom flash(0xA1);
+    flash.initialize();
+    Serial.print(0, DEC);
+    Serial.print(' ');
+    flash.writeByte(0, 0);
+    Serial.println(flash.readByte(0));
+
+    Serial.print(10, DEC);
+    Serial.print(' ');
+    flash.writeByte(0, 10);
+    Serial.println(flash.readByte(0));
+*/
     u8g2.begin();
 #ifdef DISPLAY_HX1230    
     u8g2.setContrast((uint8_t)(settings.contrast << 4) + 15);
