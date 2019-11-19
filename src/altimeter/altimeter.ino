@@ -67,7 +67,7 @@ uint8_t zero_drift_sense = 128;
 // ********* Main power move flag
 uint8_t powerMode;
 uint8_t previousPowerMode;
-//volatile bool INTACK;
+volatile bool INTACK;
 
 int current_altitude; // currently measured altitude, relative to ground_altitude
 int previous_altitude; // Previously measured altitude, relative to ground_altitude
@@ -96,7 +96,7 @@ void ShowText(const uint8_t x, const uint8_t y, const char* text);
 uint8_t myMenu(char *menudef, uint8_t event = 1);
 void showVersion();
 void wake() {
-//    INTACK = true;
+    INTACK = true;
 }
 bool SetDate(timestamp_t &date);
 
@@ -1160,18 +1160,17 @@ void loop() {
 
     rtc.enableSeedInterrupt();
 
-//    INTACK = false;
     attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
+    INTACK = false;
     if (disable_sleep) {
         // When PWM led control or sound delay is active, we cannot go into power down mode -
         // it will stop timers and break PWM control.
         // TODO: Try to use Idle mode here keeping timers running, but stopping CPU clock.
-        idle_4s;
-//        for (int intcounter = 0; intcounter < 800; ++intcounter) {
-//            if (INTACK)
-//                break;
-//            delay(5);
-//        }
+        for (int intcounter = 0; intcounter < 800; ++intcounter) {
+            if (INTACK)
+                break;
+            delay(5);
+        }
     } else {
         off_4s;
     }
