@@ -9,6 +9,10 @@
 #define PIN_B 10
 #define PIN_SOUND 5
 #define PIN_BAT_SENSE A0
+#define PIN_BTN1 A3
+#define PIN_BTN2 0
+#define PIN_BTN3 A1
+#define PIN_LIGHT 4
 #else
 #if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
 // Pins for Arduino Pro Mini (Atmega-328[P] - based)
@@ -18,6 +22,10 @@
 #define PIN_B 9
 #define PIN_BAT_SENSE A0
 #define PIN_SOUND 3
+#define PIN_BTN1 A3
+#define PIN_BTN2 A2
+#define PIN_BTN3 A1
+#define PIN_LIGHT 7
 #endif // defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
 #endif // defined(__AVR_ATmega32U4__)
 
@@ -39,6 +47,11 @@ void setup() {
     pinMode(PIN_G, OUTPUT);
     pinMode(PIN_HWPWR, OUTPUT);
     pinMode(PIN_BAT_SENSE, INPUT);
+    pinMode(PIN_BTN1, INPUT_PULLUP);
+    pinMode(PIN_BTN2, INPUT_PULLUP);
+    pinMode(PIN_BTN3, INPUT_PULLUP);
+    pinMode(PIN_LIGHT, OUTPUT);
+    digitalWrite(PIN_LIGHT, 0);
 
     pinMode(PIN_SOUND, OUTPUT);
     digitalWrite(PIN_SOUND, 0);
@@ -69,7 +82,6 @@ void setup() {
     settings_t settings;
     settings.battGranulationD = batt_min_voltage;
     settings.battGranulationF = batt_percentage_multiplier;
-    EEPROM.put(EEPROM_SETTINGS, settings);
 
     // Also initialize jump counter.
     // BEWARE! It will effectively erase the logbook.
@@ -87,6 +99,16 @@ void setup() {
     Serial.println(batt_voltage_range);
     Serial.print("Multiplier: ");
     Serial.println(batt_percentage_multiplier);
+
+    byte state = 0;
+    do {
+        digitalWrite(PIN_G, state);
+        state = (++ state) & 1;
+        delay(250);
+    } while (digitalRead(PIN_BTN1) && digitalRead(PIN_BTN2) && digitalRead(PIN_BTN3));
+    
+    EEPROM.put(EEPROM_SETTINGS, settings);
+    digitalWrite(PIN_LIGHT, 1);
 }
 
 void loop() {

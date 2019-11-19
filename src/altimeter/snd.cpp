@@ -11,24 +11,24 @@ void noSound();
 #include "NewTone.h"
 #endif
 
-#if defined(SOUND_ACTIVE) || defined(SOUND_PASSIVE)
-#include <MsTimer2.h>
-#include "power.h"
-
-namespace {
-    volatile uint8_t sndmode = 0;
-    volatile uint8_t sndduration = 0;
-    volatile uint8_t sndptr = 0;
-
-    void pulseSound() {
-        if (sndduration > 0) {
-            sndduration--;
-            if (!sndduration)
-                noSound();
-        }
-    }
-}
-#endif
+//#if defined(SOUND_ACTIVE) || defined(SOUND_PASSIVE)
+//#include <MsTimer2.h>
+//#include "power.h"
+//
+//namespace {
+//    volatile uint8_t sndmode = 0;
+//    volatile uint8_t sndduration = 0;
+//    volatile uint8_t sndptr = 0;
+//
+//    void pulseSound() {
+//        if (sndduration > 0) {
+//            sndduration--;
+//            if (!sndduration)
+//                noSound();
+//        }
+//    }
+//}
+//#endif
 
 #if defined(SOUND_EXTERNAL)
 #include <Wire.h>
@@ -39,25 +39,25 @@ void initSound() {
     pinMode(PIN_SOUND, OUTPUT);
     digitalWrite(PIN_SOUND, 0);
 #endif
-#if defined(SOUND_ACTIVE) || defined(SOUND_PASSIVE)
-    MsTimer2::set(100, pulseSound);
-    MsTimer2::start();
-#endif
+//#if defined(SOUND_ACTIVE) || defined(SOUND_PASSIVE)
+//    MsTimer2::set(100, pulseSound);
+//    MsTimer2::start();
+//#endif
 }
 
 void termSound() {
     noSound();
-#if defined(SOUND_ACTIVE) || defined(SOUND_PASSIVE)
-    MsTimer2::stop();
-#endif
+//#if defined(SOUND_ACTIVE) || defined(SOUND_PASSIVE)
+//    MsTimer2::stop();
+//#endif
 }
 
 void sound(uint16_t frequency, uint8_t duration) {
 #if defined(SOUND_ACTIVE)
     digitalWrite(PIN_SOUND, 1);
-    if (duration > 0)
-        disable_sleep |= 0x2;
-    sndduration = duration;
+//    if (duration > 0)
+//        disable_sleep |= 0x2;
+//    sndduration = duration;
 #endif
 #if defined(SOUND_PASSIVE)
     if (duration > 0)
@@ -67,15 +67,15 @@ void sound(uint16_t frequency, uint8_t duration) {
 }
 
 void noSound() {
-#if defined(SOUND_ACTIVE)
-    disable_sleep &= 0xfd;
-    sndduration = 0;
-#endif
-#if defined(SOUND_PASSIVE)
-    disable_sleep &= 0xfd;
-    sndduration = 0;
-    noNewTone(PIN_SOUND);
-#endif
+//#if defined(SOUND_ACTIVE)
+//    disable_sleep &= 0xfd;
+//    sndduration = 0;
+//#endif
+//#if defined(SOUND_PASSIVE)
+//    disable_sleep &= 0xfd;
+//    sndduration = 0;
+//    noNewTone(PIN_SOUND);
+//#endif
 #ifndef SOUND_EXTERNAL
     digitalWrite(PIN_SOUND, 0);
 #endif

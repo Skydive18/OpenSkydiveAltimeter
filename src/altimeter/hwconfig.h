@@ -51,7 +51,7 @@
 //                     128bytes for 24c512
 #define FLASH_ENABLE
 #define FLASH__PAGE_SIZE 32
-#define FLASH_ADDRESS 0x51
+#define FLASH_ADDRESS (uint8_t)0x51
 
 // Jump snapshot configuration.
 // For location, possible values EEPROM (= Controller's EEPROM), FLASH (External flash card).
@@ -97,7 +97,7 @@
 //#define SOUND_PASSIVE
 
 // Active buzzer with internal generator connected to PIN_SOUND. Only fixed tone available.
-//#define SOUND_ACTIVE
+#define SOUND_ACTIVE
 
 // External sound generator chip, i2c-based
 //#define SOUND_EXTERNAL

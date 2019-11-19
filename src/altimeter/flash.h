@@ -27,14 +27,12 @@
 
 class FlashRom {
     public:
-        FlashRom(uint8_t deviceAddress);
-        void initialize();
+        FlashRom();
         void writeByte(uint16_t address, uint8_t data);
         void writeBytes(uint16_t address, uint16_t length, uint8_t* p_data);
         uint8_t readByte(uint16_t address);
         void readBytes(uint16_t address, uint16_t length, uint8_t* p_buffer);
     private:
-        uint8_t m_deviceAddress;
         void writePage(uint16_t address, uint8_t length, uint8_t* p_data);
         void writeBuffer(uint16_t address, uint8_t length, uint8_t* p_data);
         void readBuffer(uint16_t address, uint8_t length, uint8_t* p_data);

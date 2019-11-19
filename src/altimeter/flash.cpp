@@ -27,16 +27,11 @@
 #define EEPROM__RD_BUFFER_SIZE    BUFFER_LENGTH
 #define EEPROM__WR_BUFFER_SIZE    (BUFFER_LENGTH - 2)
 
-FlashRom::FlashRom(uint8_t deviceAddress) {
-    m_deviceAddress = deviceAddress;
-}
-
-void FlashRom::initialize() {
-    Wire.begin();
+FlashRom::FlashRom() {
 }
 
 void FlashRom::writeByte(uint16_t address, uint8_t data) {
-    Wire.beginTransmission(m_deviceAddress);
+    Wire.beginTransmission(FLASH_ADDRESS);
     Wire.write(address >> 8);
     Wire.write(address & 0xFF);
     Wire.write(data);
@@ -77,15 +72,12 @@ void FlashRom::writeBytes(uint16_t address, uint16_t length, uint8_t* p_data) {
 }
 
 uint8_t FlashRom::readByte(uint16_t address) {
-    Wire.beginTransmission(m_deviceAddress);
+    Wire.beginTransmission(FLASH_ADDRESS);
     Wire.write(address >> 8);
     Wire.write(address & 0xFF);
-    Wire.endTransmission();
-    Wire.requestFrom(m_deviceAddress, (uint8_t)1);
-    uint8_t data = 0;
-    if (Wire.available())
-        data = Wire.read();
-    return data;
+    Wire.endTransmission(false);
+    Wire.requestFrom(FLASH_ADDRESS, (uint8_t)1);
+    return Wire.read();
 }
 
 void FlashRom::readBytes(uint16_t address, uint16_t length, uint8_t* p_data) {
@@ -115,7 +107,7 @@ void FlashRom::writePage(uint16_t address, uint8_t length, uint8_t* p_data) {
 }
 
 void FlashRom::writeBuffer(uint16_t address, uint8_t length, uint8_t* p_data) {
-    Wire.beginTransmission(m_deviceAddress);
+    Wire.beginTransmission(FLASH_ADDRESS);
     Wire.write(address >> 8);
     Wire.write(address & 0xFF);
     for (uint8_t i = 0; i < length; i++) {
@@ -128,13 +120,12 @@ void FlashRom::writeBuffer(uint16_t address, uint8_t length, uint8_t* p_data) {
 }
 
 void FlashRom::readBuffer(uint16_t address, uint8_t length, uint8_t* p_data) {
-    Wire.beginTransmission(m_deviceAddress);
+    Wire.beginTransmission(FLASH_ADDRESS);
     Wire.write(address >> 8);
     Wire.write(address & 0xFF);
-    Wire.endTransmission();
-    Wire.requestFrom(m_deviceAddress, length);
+    Wire.endTransmission(false);
+    Wire.requestFrom(FLASH_ADDRESS, length);
     for (uint8_t i = 0; i < length; i++) {
-        if (Wire.available())
-            p_data[i] = Wire.read();
+        p_data[i] = Wire.read();
     }
 }
