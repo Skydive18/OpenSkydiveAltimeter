@@ -97,12 +97,13 @@ uint8_t timeToTurnBacklightOn = 0;
 
 // Prototypes
 void ShowText(const uint8_t x, const uint8_t y, const char* text);
-uint8_t myMenu(char *menudef, uint8_t event = 1);
+char myMenu(char *menudef, char event = ' ');
 void showVersion();
 void wake() {
     INTACK = true;
 }
 bool SetDate(timestamp_t &date);
+bool checkAlarm();
 
 #if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
 
@@ -118,6 +119,23 @@ ISR (PCINT1_vect) { // handle pin change interrupt for A0 to A5 here
 #endif
 
 void setup() {
+    // Configure keyboard and enable pullup resistors
+    pinMode(PIN_BTN1, INPUT_PULLUP);
+    pinMode(PIN_BTN2, INPUT_PULLUP);
+    pinMode(PIN_BTN3, INPUT_PULLUP);
+    pinMode(PIN_INTERRUPT, INPUT_PULLUP);
+    pinMode(PIN_LIGHT, OUTPUT);
+    DISPLAY_LIGHT_OFF;
+
+    // Turn ON hardware
+    pinMode(PIN_HWPWR, OUTPUT);
+    digitalWrite(PIN_HWPWR, 1);
+    Wire.begin();
+    delay(20); // Wait hardware to start
+
+    rtc.readTime();
+    rtc.readAlarm();
+
     // Read presets
     altitude_to_show = 0;
     powerMode = previousPowerMode = MODE_PREFILL;
@@ -127,17 +145,11 @@ void setup() {
     EEPROM.get(EEPROM_JUMP_COUNTER, total_jumps);
     EEPROM.get(EEPROM_SETTINGS, settings);
 
-    pinMode(PIN_HWPWR, OUTPUT);
     Serial.begin(SERIAL_SPEED); // Console
-
-    // Turn ON hardware
-    digitalWrite(PIN_HWPWR, 1);
-    Wire.begin();
 
     LED_show(0, 0, 0);
 
     initSound();
-
 
 //  while (!Serial) delay(100); // wait for USB connect, 32u4 only.
 /*
@@ -168,17 +180,12 @@ void setup() {
 #endif
     u8g2.enableUTF8Print();    // enable UTF8 support for the Arduino print() function
     u8g2.setDisplayRotation((settings.display_rotation & 1) ? U8G2_R0 : U8G2_R2);
-    pinMode(PIN_LIGHT, OUTPUT);
+
+    if (checkAlarm())
+        PowerOff();
 
     //Configure the sensor
     myPressure.begin(); // Get sensor online
-
-    // Configure keyboard
-    pinMode(PIN_BTN1, INPUT_PULLUP);
-    pinMode(PIN_BTN2, INPUT_PULLUP);
-    pinMode(PIN_BTN3, INPUT_PULLUP);
-
-    pinMode(PIN_INTERRUPT, INPUT_PULLUP);
 
     backLight = IIC_ReadByte(RTC_ADDRESS, ADDR_BACKLIGHT);
     heartbeat = ByteToHeartbeat(IIC_ReadByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF));
@@ -189,6 +196,39 @@ void setup() {
     showVersion();
     delay(4000);
     DISPLAY_LIGHT_OFF;
+}
+
+bool checkAlarm() {
+    if (rtc.alarm_enable && rtc.hour == rtc.alarm_hour && rtc.minute == rtc.alarm_minute) {
+        rtc.alarm_enable = false;
+        rtc.setAlarm();
+
+        sprintf_P(bigbuf, PSTR("%02d:%02d"), rtc.hour, rtc.minute);
+        u8g2.firstPage();
+        do {
+            u8g2.drawUTF8(20, 20, bigbuf);
+        } while(u8g2.nextPage());
+
+        while (BTN2_PRESSED) delay(100);
+        for (uint8_t i = 0; i < 90; ++i) {
+            DISPLAY_LIGHT_ON;
+            sound(500, 0);
+            delay(100);
+            noSound();
+            delay(100);
+            sound(500, 0);
+            delay(100);
+            noSound();
+            delay(200);
+            DISPLAY_LIGHT_OFF;
+            delay(500);
+            if (BTN2_PRESSED)
+                break;
+        }
+        return true;
+    }
+
+    return false;
 }
 
 void saveToJumpSnapshot() {
@@ -448,7 +488,7 @@ void ShowLEDs() {
 }
 
 void ShowText(const uint8_t x, const uint8_t y, const char* text) {
-    u8g2.setFont(u8g2_font_helvB10_tr);
+    u8g2.setFont(font_hello);
     DISPLAY_LIGHT_ON;
     uint8_t maxlen = strlen_P(text);
     for (uint8_t i = 1; i <= maxlen; i++) {
@@ -502,9 +542,9 @@ void PowerOff() {
         attachInterrupt(digitalPinToInterrupt(PIN_BTN2), wake, LOW);
 #endif
         // Also wake by alarm. TODO.
-//        attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
+        attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
         off_forever;
-//        detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
+        detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
 #if defined(__AVR_ATmega32U4__)
         detachInterrupt(digitalPinToInterrupt(PIN_BTN2));
 #endif
@@ -558,25 +598,34 @@ uint8_t checkWakeCondition () {
 
 void showVersion() {
     u8g2.setFont(font_menu);
-#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
-    sprintf_P(bigbuf, PSTR("Альтимонстр I\nПлатформа B01\nВерсия 0.90\nCOM %ld/8N1\n"), SERIAL_SPEED);
-#endif
+    sprintf_P(bigbuf, PSTR(
+        "Альтимонстр I\n"
 #if defined(__AVR_ATmega32U4__)
-    sprintf_P(bigbuf, PSTR("Альтимонстр I\nПлатформа A01\nВерсия 0.90\nCOM %ld/8N1\n"), SERIAL_SPEED);
+        "Платформа A01\n"
+#elif defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
+        "Платформа B01\n"
 #endif
-    myMenu(bigbuf, 255);
+        "Версия 0.90\n"
+        "COM %ld/8N1\n"),
+        SERIAL_SPEED);
+    myMenu(bigbuf, 'z');
 }
 
-// Returns 255 on timeout; otherwise, current position
-// event = 0 => show menu and wait for keypress, no navigation performed. Return keypress.
-// event == 255 => show menu and exit immediately.
-uint8_t myMenu(char *menudef, uint8_t event = 1) {
+// Returns ' ' on timeout; otherwise, current position
+// event = '\0' => show menu and wait for keypress, no navigation performed.
+// event == 'z' => show menu and exit immediately.
+char myMenu(char *menudef, char event = ' ') {
     uint16_t ptr = 0;
+    char ptrs[12];
+    uint8_t menupos = 0;
     uint8_t number_of_menu_lines = 255;
     while(menudef[ptr]) {
         if (menudef[ptr] == '\n') {
             menudef[ptr] = '\0';
             number_of_menu_lines++;
+            ptrs[number_of_menu_lines] = menudef[ptr + 1];
+            if (ptrs[number_of_menu_lines] == event)
+                menupos = number_of_menu_lines + 1;
         }
         ptr++;
     }
@@ -585,11 +634,11 @@ uint8_t myMenu(char *menudef, uint8_t event = 1) {
 
     for (;;) {
         // check if we need to update scroll
-        if (event != 0 && event != 255) {
-            if ((event - firstline) >= DISPLAY_LINES_IN_MENU)
-                firstline = event - (DISPLAY_LINES_IN_MENU - 1);
-            if (event < firstline)
-                firstline = event;
+        if (menupos != 0 && menupos != 255) {
+            if ((menupos - firstline) >= DISPLAY_LINES_IN_MENU)
+                firstline = menupos - (DISPLAY_LINES_IN_MENU - 1);
+            if (menupos < firstline)
+                firstline = menupos;
         }
         u8g2.firstPage();
         do {
@@ -601,33 +650,33 @@ uint8_t myMenu(char *menudef, uint8_t event = 1) {
             u8g2.drawHLine(0, MENU_FONT_HEIGHT + 1, DISPLAY_WIDTH-1);
             while (menudef[ptr] != 0) {
                 if ((line >= firstline) && (line - firstline) < DISPLAY_LINES_IN_MENU) {
-                    if (event != 0 && event != 255)
-                        menudef[ptr] = (event == line) ? '}' : ' ';
+                    if (menupos != 0 && menupos != 255)
+                        menudef[ptr] = (menupos == line) ? '}' : ' ';
                     u8g2.drawUTF8(0, (MENU_FONT_HEIGHT * (line - firstline)) + (MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 2), (char*)(menudef + ptr));
                 }
                 line++;
-                while (bigbuf[ptr++]); // set to the beginning of the next line
+                while (menudef[ptr++]); // set to the beginning of the next line
             }
         } while (u8g2.nextPage());
-        if (event == 255)
-            return 255;
+        if (event == 'z')
+            return 'z';
         uint8_t key = getKeypress();
-        if (event == 0 || key == 255)
-            return key;
+        if (event == '\0')
+            return (key == 255) ? 'z' : (char)key;
         if (key == PIN_BTN2)
-            return event;
+            return ptrs[menupos - 1];
         switch (key) {
             case PIN_BTN1:
                 // up
-                event--;
-                if (event == 0)
-                    event = number_of_menu_lines;
+                menupos--;
+                if (menupos == 0)
+                    menupos = number_of_menu_lines;
                 break;
             case PIN_BTN3:
                 // down
-                event++;
-                if (event > number_of_menu_lines)
-                    event = 1;
+                menupos++;
+                if (menupos > number_of_menu_lines)
+                    menupos = 1;
                 break;
         }
     }
@@ -663,17 +712,26 @@ void userMenu() {
 
     u8g2.setFont(font_menu);
 
-    uint8_t event = 1;
+    char event = ' ';
     do {
         char bl_char = '~';
         if (backLight == 0)
             bl_char = '-';
         if (backLight == 2)
             bl_char = '*';
-        sprintf_P(bigbuf, PSTR("Меню\n Выход\n Сброс на ноль\n Подсветка: %c\n Журнал прыжков\n Сигналы\n Настройки\n Выключение\n"), bl_char);
+        sprintf_P(bigbuf, PSTR(
+            "Меню\n"
+            " Выход\n"
+            "0Сброс на ноль\n"
+            "BПодсветка: %c\n"
+            "LЖурнал прыжков\n"
+//            "AСигналы\n"
+            "SНастройки\n"
+            "XВыключение\n"),
+            bl_char);
         event = myMenu(bigbuf, event);
         switch (event) {
-            case 2: {
+            case '0': {
                 // Set to zero
                 if (powerMode == MODE_ON_EARTH || powerMode == MODE_PREFILL || powerMode == MODE_DUMB) {
                     // Zero reset allowed on earth, in prefill and in dumb mode only.
@@ -686,7 +744,7 @@ void userMenu() {
                     break;;
                 }
             }
-            case 3:
+            case 'B':
                 // Backlight turn on/off
                 backLight++;
                 if (backLight > 2)
@@ -694,17 +752,22 @@ void userMenu() {
                 if (backLight != 1)
                     IIC_WriteByte(RTC_ADDRESS, ADDR_BACKLIGHT, backLight);
                 break;
-            case 4: {
+            case 'L': {
                 // Logbook
-                uint8_t logbook_event = 1;
+                char logbook_event = ' ';
                 do {
-                    strcpy_P(bigbuf, PSTR("Журнал прыжков\n Выход\n Просмотр\n Повтор прыжка\n Очистить журнал\n"));
+                    strcpy_P(bigbuf, PSTR(
+                        "Журнал прыжков\n"
+                        " Выход\n"
+                        "VПросмотр\n"
+                        "RПовтор прыжка\n"
+                        "CОчистить журнал\n"));
                     logbook_event = myMenu(bigbuf, logbook_event);
                     switch (logbook_event) {
-                        case 1:
+                        case  ' ':
                             // Exit submenu
                             break;
-                        case 2: {
+                        case 'V': {
                             // view logbook
                             if (total_jumps == 0)
                                 break; // no jumps, nothing to show
@@ -719,31 +782,34 @@ void userMenu() {
                                 // Read jump from logbook
                                 EEPROM.get(EEPROM_LOGBOOK_START +  (((jump_to_show - 1) % (LOGBOOK_SIZE + 1)) * sizeof(jump_t)), current_jump);
                                 current_jump_to_bigbuf(jump_to_show);
-                                logbook_view_event = myMenu(bigbuf, 0);
+                                logbook_view_event = (uint8_t)myMenu(bigbuf, '\0');
                                 if (logbook_view_event == PIN_BTN1)
                                     jump_to_show--;
                                 if (logbook_view_event == PIN_BTN2)
                                     break;
                                 if (logbook_view_event == PIN_BTN3)
                                     jump_to_show++;
-                                if (logbook_view_event == 255)
+                                if (logbook_view_event == ' ')
                                     return;;
                             };
                             break;
                         }
-                        case 3:
+                        case 'R':
                             // replay latest jump
 //                            myPressure.debugPrint();
 //                            return;
                             break; // not implemented
                             
-                        case 4: {
+                        case 'C': {
                             // Erase logbook
-                            strcpy_P(bigbuf, PSTR("Очистить журнал?\n Нет\n Да\n"));
-                            uint8_t confirmCrearLogbook = myMenu(bigbuf, 1);
-                            if (confirmCrearLogbook == 255)
+                            strcpy_P(bigbuf, PSTR(
+                                "Очистить журнал?\n"
+                                " Нет\n"
+                                "YДа\n"));
+                            char confirmCrearLogbook = myMenu(bigbuf, ' ');
+                            if (confirmCrearLogbook == 'z')
                                 return;
-                            if (confirmCrearLogbook == 2) {
+                            if (confirmCrearLogbook == 'Y') {
                                 // Really clear logbook
                                 total_jumps = 0;
                                 EEPROM.put(EEPROM_JUMP_COUNTER, total_jumps);
@@ -755,41 +821,55 @@ void userMenu() {
                             // timeout
                             return;
                     } // switch (logbook_event)
-                } while (logbook_event != 1);
+                } while (logbook_event != ' ');
                 // Logbook
                 break;
             }
-            case 6: {
+            case 'S': {
                 // "Settings" submenu
-                uint8_t eventSettings = 1;
+                char eventSettings = 1;
                 uint8_t newAutoPowerOff = IIC_ReadByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF);
                 do {
                     char power_mode_char = powerMode == MODE_DUMB ? '-' : '~';
                     char zero_after_reset = settings.zero_after_reset & 1 ? '~' : '-';
+                    sprintf_P(bigbuf, PSTR(
+                        "Настройки\n"
+                        " Выход\n"
+                        "TВремя\n"
+                        "DДата\n"
+//                        "AБудильник\n"
+                        "QАвтоматика: %c\n"
+                        "OАвтовыкл: %dч\n"
+                        "RПоворот экрана\n"
 #if defined(DISPLAY_HX1230)
-                    sprintf_P(bigbuf, PSTR("Настройки\n Выход\n Время\n Дата\n Будильник\n Автоматика: %c\n Автовыкл: %dч\n Поворот экрана\n Контраст %d\n Авто ноль: %c\n Версия ПО\n Дамп памяти\n"),
-                        power_mode_char, HeartbeatValue(newAutoPowerOff), settings.contrast & 15, zero_after_reset);
-#elif defined(DISPLAY_NOKIA)
-                    sprintf_P(bigbuf, PSTR("Настройки\n Выход\n Время\n Дата\n Будильник\n Автоматика: %c\n Автовыкл: %dч\n Поворот экрана\n Авто ноль: %c\n Версия ПО\n Дамп памяти\n"),
-                        power_mode_char, HeartbeatValue(newAutoPowerOff), zero_after_reset);
+                        "CКонтраст %d\n"
 #endif
+                        "0Авто ноль: %c\n"
+                        "VВерсия ПО\n"
+                        "UДамп памяти\n"),
+                        power_mode_char,
+                        HeartbeatValue(newAutoPowerOff),
+#if defined(DISPLAY_HX1230)
+                        settings.contrast & 15,
+#endif
+                        zero_after_reset);
                     eventSettings = myMenu(bigbuf, eventSettings);
                     switch (eventSettings) {
-                        case 1:
+                        case ' ':
                             break; // Exit menu
-                        case 2: {
+                        case 'T': {
                             // Time
                             rtc.readTime();
                             uint8_t hour = rtc.hour;
                             uint8_t minute = rtc.minute;
-                            if (SetTime(hour, minute)) {
+                            if (SetTime(hour, minute, PSTR("Текущее время"))) {
                                 rtc.hour = hour;
                                 rtc.minute = minute;
                                 rtc.setTime();
                             }
                             break;
                         }
-                        case 3: {
+                        case 'D': {
                             // Date
                             rtc.readTime();
                             uint8_t day = rtc.day;
@@ -803,53 +883,43 @@ void userMenu() {
                             }
                             break;
                         }
-                        case 4:
-                            // Alarm
-                            break;
-                        case 5:
+//                        case 'A':
+//                            // Alarm
+//                            break;
+                        case 'Q':
                             // Auto power mode
                             powerMode = powerMode == MODE_DUMB ? MODE_ON_EARTH : MODE_DUMB;
                             break;
-                        case 6: {
+                        case 'O': {
                             // Auto poweroff
                             newAutoPowerOff = (++newAutoPowerOff) & 3;
                             IIC_WriteByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF, newAutoPowerOff);
                             heartbeat = ByteToHeartbeat(newAutoPowerOff);
                             break;
                         }
-                        case 7:
+                        case 'R':
                             // Screen rotate
                             settings.display_rotation++;
                             u8g2.setDisplayRotation((settings.display_rotation & 1) ? U8G2_R0 : U8G2_R2);
                             break;
 #if defined(DISPLAY_HX1230)
-                        case 8:
-                            // contrast
+                        case 'C':
+                            // Contrast
                             settings.contrast++;
                             settings.contrast &= 15;
                             u8g2.setContrast((uint8_t)(settings.contrast << 4) + 15);
                             break;
-                        case 9:
-#elif defined(DISPLAY_NOKIA)
-                        case 8:
 #endif
-                            // zero after reset
+                        case '0':
+                            // Zero after reset
                             settings.zero_after_reset++;
                             break;
-#if defined(DISPLAY_HX1230)
-                        case 10:
-#elif defined(DISPLAY_NOKIA)
-                        case 9:
-#endif
+                        case 'V':
                             // About
                             showVersion();
                             getKeypress();
                             break;
-#if defined(DISPLAY_HX1230)
-                        case 11: {
-#elif defined(DISPLAY_NOKIA)
-                        case 10: {
-#endif
+                        case 'U': {
                             uint16_t addr;
                             Serial.print(F("\n:DATA"));
                             for (uint16_t i = 1263; i >= 0; i--) {
@@ -870,14 +940,14 @@ void userMenu() {
                 } while (eventSettings != 1);
                 break;
             }
-            case 7:
+            case 'X':
                 // Power off
                 PowerOff();
                 break;
             default:
                 return;
         }
-    } while (event != 1 && event != 255);
+    } while (event != ' ' && event != 'z');
 }
 
 bool SetDate(uint8_t &day, uint8_t &month, uint16_t &year) {
@@ -989,13 +1059,13 @@ bool SetDate(uint8_t &day, uint8_t &month, uint16_t &year) {
     };
 }
 
-bool SetTime(uint8_t &hour, uint8_t &minute) {
+bool SetTime(uint8_t &hour, uint8_t &minute, char* title) {
     uint8_t pos = 0;
     for(;;) {
         pos &= 3;
         u8g2.firstPage();
         do {
-            strcpy_P(textbuf, PSTR("Текущее время"));
+            strcpy_P(textbuf, title);
             u8g2.drawUTF8(0, MENU_FONT_HEIGHT, textbuf);
             u8g2.drawHLine(0, MENU_FONT_HEIGHT + 1, DISPLAY_WIDTH-1);
 
@@ -1122,6 +1192,8 @@ void loop() {
             rel_voltage = 0;
         if (rel_voltage > 100)
             rel_voltage = 100;
+        if (powerMode == MODE_ON_EARTH || powerMode == MODE_PREFILL || powerMode == MODE_DUMB)
+            checkAlarm();
     }
     
     processAltitude();

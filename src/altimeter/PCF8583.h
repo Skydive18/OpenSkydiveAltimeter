@@ -23,6 +23,7 @@ class PCF8583 {
 
     uint8_t alarm_minute;
     uint8_t alarm_hour;
+    uint8_t alarm_enable;
 
     void enableSeedInterrupt();
     void disableSeedInterrupt();
@@ -34,9 +35,9 @@ class PCF8583 {
     timestamp_t getTimestamp();
     void setDate();
     void setTime();
-    void get_alarm();
+    void readAlarm();
 
-    void set_daily_alarm();
+    void setAlarm();
     uint8_t bcd_to_bin(uint8_t bcd);
     uint8_t bin_to_bcd(uint8_t in);
 

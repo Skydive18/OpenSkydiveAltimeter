@@ -80,7 +80,7 @@ void PCF8583::enableSeedInterrupt() {
 
 void PCF8583::disableSeedInterrupt() {
     init();
-    alarm_register = (alarm_register & 0x30) | 0x01;
+    alarm_register = 0x01;
     writeAlarmControlRegister();
 }
 
@@ -89,28 +89,30 @@ void PCF8583::writeAlarmControlRegister() {
 }
 
 //Get the alarm at 0x09 adress
-void PCF8583::get_alarm() {
-  Wire.beginTransmission(RTC_ADDRESS);
-  Wire.write(0x0b); // Set the register pointer to (0x0A) 
-  Wire.endTransmission(false);
-  Wire.requestFrom(RTC_ADDRESS, 2); // Read 4 values 
+void PCF8583::readAlarm() {
+    Wire.beginTransmission(RTC_ADDRESS);
+    Wire.write(0x0b); // Set the register pointer to (0x0B) 
+    Wire.endTransmission(false);
+    Wire.requestFrom(RTC_ADDRESS, 3);
 
-  alarm_minute = bcd_to_bin(Wire.read());
-  alarm_hour   = bcd_to_bin(Wire.read());
+    alarm_minute = bcd_to_bin(Wire.read());
+    alarm_hour   = bcd_to_bin(Wire.read());
+    alarm_enable = Wire.read();
 }
 
 //Set a daily alarm
-void PCF8583::set_daily_alarm() {
-  alarm_register |= 0x90; // Daily alarm set
-  writeAlarmControlRegister();
+void PCF8583::setAlarm() {
+    // Daily alarm set -> alarm int, no timer alarm, daily, no timer int, no timer
+    alarm_register = alarm_enable ? 0x90 : 0x0;
+    writeAlarmControlRegister();
 
-  Wire.beginTransmission(RTC_ADDRESS);
-  Wire.write(0x0b); // Set the register pointer to (0x0a)
-  Wire.write(0);
-  Wire.write(bin_to_bcd(alarm_minute));
-  Wire.write(bin_to_bcd(alarm_hour));
-  Wire.write(0x00); // Set 00 at day 
-  Wire.endTransmission();
+    Wire.beginTransmission(RTC_ADDRESS);
+    Wire.write(0x0a); // Set the register pointer to (0x0a)
+    Wire.write(0); // alarm seconds
+    Wire.write(bin_to_bcd(alarm_minute));
+    Wire.write(bin_to_bcd(alarm_hour));
+    Wire.write(alarm_enable); // Set 00 at day 
+    Wire.endTransmission();
 }
 
 uint8_t PCF8583::bcd_to_bin(uint8_t bcd){
