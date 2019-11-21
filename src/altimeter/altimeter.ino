@@ -103,6 +103,7 @@ void wake() {
     INTACK = true;
 }
 bool SetDate(timestamp_t &date);
+bool checkAlarm();
 
 #if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
 
@@ -118,6 +119,23 @@ ISR (PCINT1_vect) { // handle pin change interrupt for A0 to A5 here
 #endif
 
 void setup() {
+    // Configure keyboard and enable pullup resistors
+    pinMode(PIN_BTN1, INPUT_PULLUP);
+    pinMode(PIN_BTN2, INPUT_PULLUP);
+    pinMode(PIN_BTN3, INPUT_PULLUP);
+    pinMode(PIN_INTERRUPT, INPUT_PULLUP);
+    pinMode(PIN_LIGHT, OUTPUT);
+    DISPLAY_LIGHT_OFF;
+
+    // Turn ON hardware
+    pinMode(PIN_HWPWR, OUTPUT);
+    digitalWrite(PIN_HWPWR, 1);
+    Wire.begin();
+    delay(20); // Wait hardware to start
+
+    rtc.readTime();
+    rtc.readAlarm();
+
     // Read presets
     altitude_to_show = 0;
     powerMode = previousPowerMode = MODE_PREFILL;
@@ -127,17 +145,11 @@ void setup() {
     EEPROM.get(EEPROM_JUMP_COUNTER, total_jumps);
     EEPROM.get(EEPROM_SETTINGS, settings);
 
-    pinMode(PIN_HWPWR, OUTPUT);
     Serial.begin(SERIAL_SPEED); // Console
-
-    // Turn ON hardware
-    digitalWrite(PIN_HWPWR, 1);
-    Wire.begin();
 
     LED_show(0, 0, 0);
 
     initSound();
-
 
 //  while (!Serial) delay(100); // wait for USB connect, 32u4 only.
 /*
@@ -168,17 +180,12 @@ void setup() {
 #endif
     u8g2.enableUTF8Print();    // enable UTF8 support for the Arduino print() function
     u8g2.setDisplayRotation((settings.display_rotation & 1) ? U8G2_R0 : U8G2_R2);
-    pinMode(PIN_LIGHT, OUTPUT);
+
+    if (checkAlarm())
+        PowerOff();
 
     //Configure the sensor
     myPressure.begin(); // Get sensor online
-
-    // Configure keyboard
-    pinMode(PIN_BTN1, INPUT_PULLUP);
-    pinMode(PIN_BTN2, INPUT_PULLUP);
-    pinMode(PIN_BTN3, INPUT_PULLUP);
-
-    pinMode(PIN_INTERRUPT, INPUT_PULLUP);
 
     backLight = IIC_ReadByte(RTC_ADDRESS, ADDR_BACKLIGHT);
     heartbeat = ByteToHeartbeat(IIC_ReadByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF));
@@ -189,6 +196,39 @@ void setup() {
     showVersion();
     delay(4000);
     DISPLAY_LIGHT_OFF;
+}
+
+bool checkAlarm() {
+    if (rtc.alarm_enable && rtc.hour == rtc.alarm_hour && rtc.minute == rtc.alarm_minute) {
+        rtc.alarm_enable = false;
+        rtc.setAlarm();
+
+        sprintf_P(bigbuf, PSTR("%02d:%02d"), rtc.hour, rtc.minute);
+        u8g2.firstPage();
+        do {
+            u8g2.drawUTF8(20, 20, bigbuf);
+        } while(u8g2.nextPage());
+
+        while (BTN2_PRESSED) delay(100);
+        for (uint8_t i = 0; i < 90; ++i) {
+            DISPLAY_LIGHT_ON;
+            sound(500, 0);
+            delay(100);
+            noSound();
+            delay(100);
+            sound(500, 0);
+            delay(100);
+            noSound();
+            delay(200);
+            DISPLAY_LIGHT_OFF;
+            delay(500);
+            if (BTN2_PRESSED)
+                break;
+        }
+        return true;
+    }
+
+    return false;
 }
 
 void saveToJumpSnapshot() {
@@ -448,7 +488,7 @@ void ShowLEDs() {
 }
 
 void ShowText(const uint8_t x, const uint8_t y, const char* text) {
-    u8g2.setFont(u8g2_font_helvB10_tr);
+    u8g2.setFont(font_hello);
     DISPLAY_LIGHT_ON;
     uint8_t maxlen = strlen_P(text);
     for (uint8_t i = 1; i <= maxlen; i++) {
@@ -1149,6 +1189,8 @@ void loop() {
             rel_voltage = 0;
         if (rel_voltage > 100)
             rel_voltage = 100;
+        if (powerMode == MODE_ON_EARTH || powerMode == MODE_PREFILL || powerMode == MODE_DUMB)
+            checkAlarm();
     }
     
     processAltitude();

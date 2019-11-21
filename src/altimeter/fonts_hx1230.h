@@ -1,6 +1,8 @@
 #ifndef __in_fonts_h
 #define __in_fonts_h
 
+#define font_hello u8g2_font_helvB10_tr
+
 const uint8_t font_status_line[218] U8G2_FONT_SECTION("font_status_line") = 
   "\33\0\2\3\3\3\3\3\4\4\6\0\377\5\377\5\377\0\0\0\0\0\275 \5\0\311\0!\10,\311"
   "I\241\262\0\42\10,\311I\241x\10#\7,\311I\341a$\7,\311I\307!%\10+\311\304P"
