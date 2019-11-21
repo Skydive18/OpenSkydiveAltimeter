@@ -493,6 +493,9 @@ void PowerOff() {
         pciSetup(PIN_BTN1);
         pciSetup(PIN_BTN2);
         pciSetup(PIN_BTN3);
+        Serial.end();
+        pinMode(0, INPUT);
+        pinMode(1, INPUT);
 #endif
 #if defined(__AVR_ATmega32U4__)
         // Wake by BTN2 (Middle button)
