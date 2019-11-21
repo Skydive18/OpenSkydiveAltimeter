@@ -539,9 +539,9 @@ void PowerOff() {
         attachInterrupt(digitalPinToInterrupt(PIN_BTN2), wake, LOW);
 #endif
         // Also wake by alarm. TODO.
-//        attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
+        attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
         off_forever;
-//        detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
+        detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
 #if defined(__AVR_ATmega32U4__)
         detachInterrupt(digitalPinToInterrupt(PIN_BTN2));
 #endif
@@ -859,7 +859,7 @@ void userMenu() {
                             rtc.readTime();
                             uint8_t hour = rtc.hour;
                             uint8_t minute = rtc.minute;
-                            if (SetTime(hour, minute)) {
+                            if (SetTime(hour, minute, PSTR("Текущее время"))) {
                                 rtc.hour = hour;
                                 rtc.minute = minute;
                                 rtc.setTime();
@@ -1056,13 +1056,13 @@ bool SetDate(uint8_t &day, uint8_t &month, uint16_t &year) {
     };
 }
 
-bool SetTime(uint8_t &hour, uint8_t &minute) {
+bool SetTime(uint8_t &hour, uint8_t &minute, char* title) {
     uint8_t pos = 0;
     for(;;) {
         pos &= 3;
         u8g2.firstPage();
         do {
-            strcpy_P(textbuf, PSTR("Текущее время"));
+            strcpy_P(textbuf, title);
             u8g2.drawUTF8(0, MENU_FONT_HEIGHT, textbuf);
             u8g2.drawHLine(0, MENU_FONT_HEIGHT + 1, DISPLAY_WIDTH-1);
 
