@@ -50,6 +50,7 @@
 //                      64bytes for 24c128 and 24c256
 //                     128bytes for 24c512
 #define FLASH_ENABLE
+#define FLASH__SIZE_KB 4
 #define FLASH__PAGE_SIZE 32
 #define FLASH_ADDRESS (uint8_t)0x51
 

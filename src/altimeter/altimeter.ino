@@ -104,6 +104,7 @@ void wake() {
 }
 bool SetDate(timestamp_t &date);
 bool checkAlarm();
+void PowerOff(bool verbose = true);
 
 #if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
 
@@ -145,15 +146,13 @@ void setup() {
     EEPROM.get(EEPROM_JUMP_COUNTER, total_jumps);
     EEPROM.get(EEPROM_SETTINGS, settings);
 
-    Serial.begin(SERIAL_SPEED); // Console
-
     LED_show(0, 0, 0);
 
     initSound();
 
-//  while (!Serial) delay(100); // wait for USB connect, 32u4 only.
 /*
-  Serial.println("Scanning I2C Bus...");
+  Serial.begin(SERIAL_SPEED);
+  //while (!Serial) delay(100); // wait for USB connect, 32u4 only.  Serial.println("Scanning I2C Bus...");
   int i2cCount = 0;
   for (uint8_t i = 8; i < 128; i++)
   {
@@ -182,7 +181,7 @@ void setup() {
     u8g2.setDisplayRotation((settings.display_rotation & 1) ? U8G2_R0 : U8G2_R2);
 
     if (checkAlarm())
-        PowerOff();
+        PowerOff(false);
 
     //Configure the sensor
     myPressure.begin(); // Get sensor online
@@ -204,6 +203,7 @@ bool checkAlarm() {
         rtc.setAlarm();
 
         sprintf_P(bigbuf, PSTR("%02d:%02d"), rtc.hour, rtc.minute);
+        u8g2.setFont(font_hello);
         u8g2.firstPage();
         do {
             u8g2.drawUTF8(20, 20, bigbuf);
@@ -504,11 +504,11 @@ void ShowText(const uint8_t x, const uint8_t y, const char* text) {
     DISPLAY_LIGHT_OFF;
 }
 
-void PowerOff() {
-    ShowText(6, 24, PSTR("Sayonara"));
+void PowerOff(bool verbose = true) {
+    if (verbose)
+        ShowText(6, 24, PSTR("Sayonara"));
 
-    rtc.disableSeedInterrupt();
-  
+    rtc.enableAlarmInterrupt();
     termSound();
 
     // turn off i2c
@@ -562,8 +562,8 @@ uint8_t checkWakeCondition () {
     else if (BTN3_PRESSED)
         pin = PIN_BTN3;
     else
-        return 0; // todo: check if alarm fired
-    // Determine wake condition
+        return !digitalRead(PIN_INTERRUPT); // alarm => interrupt => wake
+
     LED_show(0, 0, 80, 400);
     for (uint8_t i = 1; i < 193; ++i) {
         if (digitalRead(pin))
@@ -591,8 +591,7 @@ uint8_t checkWakeCondition () {
         }
         return 1;
     }
-    // todo: check if alarm fired
-    return 0;
+    return !digitalRead(PIN_INTERRUPT); // alarm => interrupt => wake;
 }
 #endif
 
@@ -827,17 +826,20 @@ void userMenu() {
             }
             case 'S': {
                 // "Settings" submenu
-                char eventSettings = 1;
+                char eventSettings = ' ';
                 uint8_t newAutoPowerOff = IIC_ReadByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF);
                 do {
                     char power_mode_char = powerMode == MODE_DUMB ? '-' : '~';
                     char zero_after_reset = settings.zero_after_reset & 1 ? '~' : '-';
+                    textbuf[0] = '\0';
+                    if (rtc.alarm_enable & 1)
+                        sprintf_P(textbuf, PSTR("%02d:%02d"), rtc.alarm_hour, rtc.alarm_minute);
                     sprintf_P(bigbuf, PSTR(
                         "Настройки\n"
                         " Выход\n"
                         "TВремя\n"
                         "DДата\n"
-//                        "AБудильник\n"
+                        "AБудильник %s\n"
                         "QАвтоматика: %c\n"
                         "OАвтовыкл: %dч\n"
                         "RПоворот экрана\n"
@@ -847,6 +849,7 @@ void userMenu() {
                         "0Авто ноль: %c\n"
                         "VВерсия ПО\n"
                         "UДамп памяти\n"),
+                        textbuf,
                         power_mode_char,
                         HeartbeatValue(newAutoPowerOff),
 #if defined(DISPLAY_HX1230)
@@ -883,9 +886,30 @@ void userMenu() {
                             }
                             break;
                         }
-//                        case 'A':
-//                            // Alarm
-//                            break;
+                        case 'A': {
+                            // Alarm
+                            rtc.readAlarm();
+                            char alarmEvent = ' ';
+                            do {
+                                sprintf_P(bigbuf, PSTR("Будильник\n Выход\nSВключен: %c\nTВремя\n"), (rtc.alarm_enable & 1) ? '~' : '-');
+                                alarmEvent = myMenu(bigbuf, alarmEvent);
+                                switch(alarmEvent) {
+                                    case 'S':
+                                        rtc.alarm_enable = (++rtc.alarm_enable) & 1;
+                                        break;
+                                    case 'T': {
+                                        uint8_t hour = rtc.alarm_hour;
+                                        uint8_t minute = rtc.alarm_minute;
+                                        if (SetTime(hour, minute, PSTR("Будильник"))) {
+                                            rtc.alarm_hour = hour;
+                                            rtc.alarm_minute = minute;
+                                        }
+                                    }
+                                }
+                            } while (alarmEvent != ' ');
+                            rtc.setAlarm();
+                            }
+                            break;
                         case 'Q':
                             // Auto power mode
                             powerMode = powerMode == MODE_DUMB ? MODE_ON_EARTH : MODE_DUMB;
@@ -920,6 +944,10 @@ void userMenu() {
                             getKeypress();
                             break;
                         case 'U': {
+                            Serial.begin(SERIAL_SPEED); // Console
+#if defined(__AVR_ATmega32U4__)
+                            while (!Serial) delay(20);
+#endif
                             uint16_t addr;
                             Serial.print(F("\n:DATA"));
                             for (uint16_t i = 1263; i >= 0; i--) {
@@ -929,6 +957,7 @@ void userMenu() {
                                 Serial.print(textbuf);
                             }
                             Serial.print(F("\n:END"));
+                            Serial.end();
                             break;
                         }
                         default:
@@ -937,7 +966,7 @@ void userMenu() {
                     }
                     EEPROM.put(EEPROM_SETTINGS, settings);
 
-                } while (eventSettings != 1);
+                } while (eventSettings != ' ');
                 break;
             }
             case 'X':
@@ -1214,7 +1243,7 @@ void loop() {
             sprintf_P(textbuf, PSTR("%02d.%02d.%04d %02d:%02d"), rtc.day, rtc.month, rtc.year, rtc.hour, rtc.minute);
             u8g2.drawUTF8(0, 6, textbuf);
             
-            sprintf_P(textbuf, PSTR("%3d%%"), rel_voltage);
+            sprintf_P(textbuf, PSTR("%3d%c"), rel_voltage, rtc.alarm_enable & 1 ? '@' : '$');
             u8g2.drawUTF8(DISPLAY_WIDTH - 16, 6, textbuf);
     
             u8g2.drawHLine(0, 7, DISPLAY_WIDTH-1);
@@ -1255,7 +1284,7 @@ void loop() {
         off_4s;
     }
     detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
-    rtc.disableSeedInterrupt();
+    rtc.disableInterrupt();
 
     interval_number++;
     if (powerMode == MODE_ON_EARTH || powerMode == MODE_DUMB) {

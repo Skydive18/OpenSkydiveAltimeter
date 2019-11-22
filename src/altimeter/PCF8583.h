@@ -26,7 +26,8 @@ class PCF8583 {
     uint8_t alarm_enable;
 
     void enableSeedInterrupt();
-    void disableSeedInterrupt();
+    void enableAlarmInterrupt();
+    void disableInterrupt();
     
     PCF8583();
     void init();
