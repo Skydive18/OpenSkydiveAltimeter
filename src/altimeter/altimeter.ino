@@ -583,7 +583,7 @@ uint8_t checkWakeCondition () {
         // Wake by awake button. Should be kept pressed for 3s
         LED_show(0, 0, 80, 400);
         for (uint8_t i = 1; i < 193; ++i) {
-        if (BTN1_RELEASED)
+        if (BTN2_RELEASED)
             return 0;
         if (! (i & 63))
             LED_show(0, 0, 80, 200);
