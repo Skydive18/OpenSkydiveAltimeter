@@ -203,10 +203,10 @@ bool checkAlarm() {
         rtc.setAlarm();
 
         sprintf_P(bigbuf, PSTR("%02d:%02d"), rtc.hour, rtc.minute);
-        u8g2.setFont(font_hello);
+        u8g2.setFont(font_alarm);
         u8g2.firstPage();
         do {
-            u8g2.drawUTF8(20, 20, bigbuf);
+            u8g2.drawUTF8((DISPLAY_WIDTH - 80) / 2, (DISPLAY_HEIGHT / 2) + 12, bigbuf);
         } while(u8g2.nextPage());
 
         while (BTN2_PRESSED) delay(100);
@@ -891,7 +891,8 @@ void userMenu() {
                             rtc.readAlarm();
                             char alarmEvent = ' ';
                             do {
-                                sprintf_P(bigbuf, PSTR("Будильник\n Выход\nSВключен: %c\nTВремя\n"), (rtc.alarm_enable & 1) ? '~' : '-');
+                                sprintf_P(textbuf, PSTR("%02d:%02d"), rtc.alarm_hour, rtc.alarm_minute);
+                                sprintf_P(bigbuf, PSTR("Будильник\n Выход\nSВключен: %c\nTВремя %s\n"), (rtc.alarm_enable & 1) ? '~' : '-', textbuf);
                                 alarmEvent = myMenu(bigbuf, alarmEvent);
                                 switch(alarmEvent) {
                                     case 'S':
@@ -903,6 +904,7 @@ void userMenu() {
                                         if (SetTime(hour, minute, PSTR("Будильник"))) {
                                             rtc.alarm_hour = hour;
                                             rtc.alarm_minute = minute;
+                                            rtc.alarm_enable = 1;
                                         }
                                     }
                                 }
