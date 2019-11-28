@@ -66,8 +66,8 @@
 *** Ресурсы PWM и прерываний
 
        Atmega328  Atmega32u4
-LED_R    OC0B       OC4D
+LED_R    OC0B       OC3A
 LED_G    OC0A       OC1A
 LED_B    OC1A       OC1B
-SPKR     OC2B       OC3A
+SPKR     OC2B       OC4D
 Timer   Timer2     Timer4
