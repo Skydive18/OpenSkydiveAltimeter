@@ -32,7 +32,8 @@ typedef struct {
     float battGranulationF; // Factory settings: battery percentage per 1 digitalRead item
     byte display_rotation;
     byte zero_after_reset;
-    byte contrast;    
+    byte contrast;
+    byte auto_power_off;
 } settings_t;
 
 typedef struct {

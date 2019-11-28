@@ -187,7 +187,7 @@ void setup() {
     myPressure.begin(); // Get sensor online
 
     backLight = IIC_ReadByte(RTC_ADDRESS, ADDR_BACKLIGHT);
-    heartbeat = ByteToHeartbeat(IIC_ReadByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF));
+    heartbeat = ByteToHeartbeat(settings.auto_power_off);
 
     // Show greeting message
     ShowText(16, 30, PSTR("Ni Hao!"));
@@ -759,7 +759,7 @@ void userMenu() {
                         "Журнал прыжков\n"
                         " Выход\n"
                         "VПросмотр\n"
-                        "RПовтор прыжка\n"
+//                        "RПовтор прыжка\n"
                         "CОчистить журнал\n"));
                     logbook_event = myMenu(bigbuf, logbook_event);
                     switch (logbook_event) {
@@ -793,11 +793,11 @@ void userMenu() {
                             };
                             break;
                         }
-                        case 'R':
-                            // replay latest jump
+//                        case 'R':
+//                            // replay latest jump
 //                            myPressure.debugPrint();
 //                            return;
-                            break; // not implemented
+//                            break; // not implemented
                             
                         case 'C': {
                             // Erase logbook
@@ -827,7 +827,6 @@ void userMenu() {
             case 'S': {
                 // "Settings" submenu
                 char eventSettings = ' ';
-                uint8_t newAutoPowerOff = IIC_ReadByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF);
                 do {
                     char power_mode_char = powerMode == MODE_DUMB ? '-' : '~';
                     char zero_after_reset = settings.zero_after_reset & 1 ? '~' : '-';
@@ -851,7 +850,7 @@ void userMenu() {
                         "UДамп памяти\n"),
                         textbuf,
                         power_mode_char,
-                        HeartbeatValue(newAutoPowerOff),
+                        HeartbeatValue(settings.auto_power_off),
 #if defined(DISPLAY_HX1230)
                         settings.contrast & 15,
 #endif
@@ -891,8 +890,7 @@ void userMenu() {
                             rtc.readAlarm();
                             char alarmEvent = ' ';
                             do {
-                                sprintf_P(textbuf, PSTR("%02d:%02d"), rtc.alarm_hour, rtc.alarm_minute);
-                                sprintf_P(bigbuf, PSTR("Будильник\n Выход\nSВключен: %c\nTВремя %s\n"), (rtc.alarm_enable & 1) ? '~' : '-', textbuf);
+                                sprintf_P(bigbuf, PSTR("Будильник\n Выход\nSВключен: %c\nTВремя %02d:%02d\n"), (rtc.alarm_enable & 1) ? '~' : '-', rtc.alarm_hour, rtc.alarm_minute);
                                 alarmEvent = myMenu(bigbuf, alarmEvent);
                                 switch(alarmEvent) {
                                     case 'S':
@@ -918,9 +916,8 @@ void userMenu() {
                             break;
                         case 'O': {
                             // Auto poweroff
-                            newAutoPowerOff = (++newAutoPowerOff) & 3;
-                            IIC_WriteByte(RTC_ADDRESS, ADDR_AUTO_POWEROFF, newAutoPowerOff);
-                            heartbeat = ByteToHeartbeat(newAutoPowerOff);
+                            settings.auto_power_off = (++settings.auto_power_off) & 3;
+                            heartbeat = ByteToHeartbeat(settings.auto_power_off);
                             break;
                         }
                         case 'R':
@@ -932,7 +929,6 @@ void userMenu() {
                         case 'C':
                             // Contrast
                             settings.contrast++;
-                            settings.contrast &= 15;
                             u8g2.setContrast((uint8_t)(settings.contrast << 4) + 15);
                             break;
 #endif
@@ -948,7 +944,7 @@ void userMenu() {
                         case 'U': {
                             Serial.begin(SERIAL_SPEED); // Console
 #if defined(__AVR_ATmega32U4__)
-                            while (!Serial) delay(20);
+                            while (!Serial);
 #endif
                             uint16_t addr;
                             Serial.print(F("\n:DATA"));
@@ -1277,13 +1273,12 @@ void loop() {
         // When PWM led control or sound delay is active, we cannot go into power down mode -
         // it will stop timers and break PWM control.
         // TODO: Try to use Idle mode here keeping timers running, but stopping CPU clock.
-        for (int intcounter = 0; intcounter < 800; ++intcounter) {
+        for (;;) {
             if (INTACK)
                 break;
-            delay(5);
         }
     } else {
-        off_4s;
+        off_forever;
     }
     detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
     rtc.disableInterrupt();

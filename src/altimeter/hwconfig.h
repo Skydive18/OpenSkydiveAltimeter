@@ -9,14 +9,14 @@
 // Pins for Arduino Pro Micro (Atmega-32u4)
 #define PIN_HWPWR 8
 #define PIN_LIGHT 4
-#define PIN_R 6
+#define PIN_R 5
 #define PIN_G 9
 #define PIN_B 10
 #define PIN_BTN1 A3
 #define PIN_BTN2 0
 #define PIN_BTN3 A1
 #define PIN_BAT_SENSE A0
-#define PIN_SOUND 5
+#define PIN_SOUND 6
 #define PIN_INTERRUPT 7
 #define PIN_DC 30
 //#define LOGBOOK_SIZE 80
@@ -89,8 +89,8 @@
 //#define LED_COMMON_ANODE
 
 // Configure display. Use one of the following
-//#define DISPLAY_NOKIA
-#define DISPLAY_HX1230
+#define DISPLAY_NOKIA
+//#define DISPLAY_HX1230
 
 
 // Configure sound subsystem.
