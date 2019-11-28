@@ -4,16 +4,17 @@
 
 void initSound();
 void termSound();
-void sound(uint16_t frequency, uint8_t duration);
+void sound(uint16_t frequency, uint16_t duration);
 void noSound();
+void LED_showOne(byte pin, byte val, byte disableSleepMask);
 
-#ifdef SOUND_PASSIVE
-#include "NewTone.h"
-#endif
+//#ifdef SOUND_PASSIVE
+//#include "NewTone.h"
+//#endif
 
-//#if defined(SOUND_ACTIVE) || defined(SOUND_PASSIVE)
+#if defined(SOUND_ACTIVE) || defined(SOUND_PASSIVE)
 //#include <MsTimer2.h>
-//#include "power.h"
+#include "power.h"
 //
 //namespace {
 //    volatile uint8_t sndmode = 0;
@@ -28,7 +29,7 @@ void noSound();
 //        }
 //    }
 //}
-//#endif
+#endif
 
 #if defined(SOUND_EXTERNAL)
 #include <Wire.h>
@@ -52,7 +53,7 @@ void termSound() {
 //#endif
 }
 
-void sound(uint16_t frequency, uint8_t duration) {
+void sound(uint16_t frequency, uint16_t duration) {
 #if defined(SOUND_ACTIVE)
     digitalWrite(PIN_SOUND, 1);
 //    if (duration > 0)
@@ -60,17 +61,21 @@ void sound(uint16_t frequency, uint8_t duration) {
 //    sndduration = duration;
 #endif
 #if defined(SOUND_PASSIVE)
-    if (duration > 0)
-        disable_sleep |= 0x2;
-    NewTone(PIN_SOUND, frequency);
+//    if (duration > 0)
+//        disable_sleep |= 0x2;
+//    if (frequency)
+//        NewTone(PIN_SOUND, frequency);
+//    else {
+        LED_showOne(PIN_SOUND, 128, 2);
+//    }
 #endif
 }
 
 void noSound() {
-//#if defined(SOUND_ACTIVE)
-//    disable_sleep &= 0xfd;
+#if defined(SOUND_ACTIVE)
+    disable_sleep &= 0xfd;
 //    sndduration = 0;
-//#endif
+#endif
 //#if defined(SOUND_PASSIVE)
 //    disable_sleep &= 0xfd;
 //    sndduration = 0;
