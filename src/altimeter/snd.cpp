@@ -8,12 +8,7 @@ void sound(uint8_t signalNumber);
 void noSound();
 void LED_showOne(byte pin, byte val, byte disableSleepMask);
 
-//#ifdef SOUND_PASSIVE
-//#include "NewTone.h"
-//#endif
-
 #if defined(SOUND_ACTIVE) || defined(SOUND_PASSIVE)
-//#include <MsTimer2.h>
 #include "power.h"
 //
 //namespace {
