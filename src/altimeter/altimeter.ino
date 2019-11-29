@@ -19,6 +19,8 @@
 #include "snd.h"
 #include "logbook.h"
 
+#include "messages_ru.h"
+
 // Altimeter modes (powerMode)
 #define MODE_ON_EARTH 0
 #define MODE_IN_AIRPLANE 1
@@ -193,7 +195,7 @@ void setup() {
     heartbeat = ByteToHeartbeat(settings.auto_power_off);
 
     // Show greeting message
-    ShowText(16, 30, PSTR("Ni Hao!"));
+    ShowText(16, 30, MSG_HELLO);
     DISPLAY_LIGHT_ON;
     showVersion();
     delay(4000);
@@ -539,7 +541,7 @@ void ShowText(const uint8_t x, const uint8_t y, const char* text) {
 
 void PowerOff(bool verbose = true) {
     if (verbose)
-        ShowText(6, 24, PSTR("Sayonara"));
+        ShowText(6, 24, MSG_BYE);
 
     rtc.enableAlarmInterrupt();
     termSound();
@@ -630,11 +632,7 @@ uint8_t checkWakeCondition () {
 
 void showVersion() {
     u8g2.setFont(font_menu);
-    sprintf_P(bigbuf, PSTR(
-        "Альтимонстр I\n"
-        "Платформа %c%c%c%c\n"
-        "Версия 0.90\n"
-        "COM %ld/8N1\n"),
+    sprintf_P(bigbuf, MSG_VERSION,
         PLATFORM_1, PLATFORM_2, PLATFORM_3, PLATFORM_4,
         SERIAL_SPEED);
     myMenu(bigbuf, 'z');
@@ -726,7 +724,7 @@ void current_jump_to_bigbuf(uint16_t jump_to_show) {
     int16_t canopy_altitude = (current_jump.deploy_altitude - current_jump.canopy_altitude) << 1;
     uint16_t max_freefall_speed_ms = current_jump.max_freefall_speed_ms;
 
-    sprintf_P(bigbuf, PSTR("%u/%u\n%02d.%02d.%04d %02d:%02d\nO:%4dм Р:%4dм\nП:%4dм В:%4dc\nС:%dм/с %dкм/ч\nМ:%dм/с %dкм/ч\n"),
+    sprintf_P(bigbuf, MSG_JUMP_CONTENT,
         jump_to_show, total_jumps,
         day, month, year, hour, minute,
         exit_altitude, deploy_altitude,
@@ -749,16 +747,16 @@ void userMenu() {
         if (backLight == 2)
             bl_char = '*';
         sprintf_P(bigbuf, PSTR(
-            "Меню\n"
-            " Выход\n"
-            "0Сброс на ноль\n"
-            "BПодсветка: %c\n"
+            MSG_MENU
+            MSG_EXIT
+            MSG_SET_TO_ZERO
+            MSG_BACKLIGHT
 #ifdef LOGBOOK_ENABLE
-            "LЖурнал прыжков\n"
+            MSG_LOGBOOK
 #endif
 //            "AСигналы\n"
-            "SНастройки\n"
-            "XВыключение\n"),
+            MSG_SETTINGS
+            MSG_POWEROFF),
             bl_char);
         event = myMenu(bigbuf, event);
         switch (event) {
@@ -789,11 +787,11 @@ void userMenu() {
                 char logbook_event = ' ';
                 do {
                     strcpy_P(bigbuf, PSTR(
-                        "Журнал прыжков\n"
-                        " Выход\n"
-                        "VПросмотр\n"
-//                        "RПовтор прыжка\n"
-                        "CОчистить журнал\n"));
+                        MSG_LOGBOOK_TITLE
+                        MSG_EXIT
+                        MSG_LOGBOOK_VIEW
+//                        MSG_LOGBOOK_REPLAY_JUMP
+                        MSG_LOGBOOK_CLEAR));
                     logbook_event = myMenu(bigbuf, logbook_event);
                     switch (logbook_event) {
                         case  ' ':
@@ -835,9 +833,9 @@ void userMenu() {
                         case 'C': {
                             // Erase logbook
                             strcpy_P(bigbuf, PSTR(
-                                "Очистить журнал?\n"
-                                " Нет\n"
-                                "YДа\n"));
+                                MSG_LOGBOOK_CLEAR_CONFIRM_TITLE
+                                MSG_CONFIRM_NO
+                                MSG_CONFIRM_YES));
                             char confirmCrearLogbook = myMenu(bigbuf, ' ');
                             if (confirmCrearLogbook == 'z')
                                 return;
@@ -868,20 +866,20 @@ void userMenu() {
                     if (rtc.alarm_enable & 1)
                         sprintf_P(textbuf, PSTR("%02d:%02d"), rtc.alarm_hour, rtc.alarm_minute);
                     sprintf_P(bigbuf, PSTR(
-                        "Настройки\n"
-                        " Выход\n"
-                        "TВремя\n"
-                        "DДата\n"
-                        "AБудильник %s\n"
-                        "QАвтоматика: %c\n"
-                        "OАвтовыкл: %dч\n"
-                        "RПоворот экрана\n"
+                        MSG_SETTINGS_TITLE
+                        MSG_EXIT
+                        MSG_SETTINGS_SET_TIME
+                        MSG_SETTINGS_SET_DATE
+                        MSG_SETTINGS_SET_ALARM
+                        MSG_SETTINGS_SET_MODE
+                        MSG_SETTINGS_SET_AUTO_POWER_OFF
+                        MSG_SETTINGS_SET_SCREEN_ROTATION
 #if defined(DISPLAY_HX1230)
-                        "CКонтраст %d\n"
+                        MSG_SETTINGS_SET_SCREEN_CONTRAST
 #endif
-                        "0Авто ноль: %c\n"
-                        "VВерсия ПО\n"
-                        "UДамп памяти\n"),
+                        MSG_SETTINGS_SET_AUTO_ZERO
+                        MSG_SETTINGS_ABOUT
+                        MSG_SETTINGS_PC_LINK),
                         textbuf,
                         power_mode_char,
                         HeartbeatValue(settings.auto_power_off),
@@ -898,7 +896,7 @@ void userMenu() {
                             rtc.readTime();
                             uint8_t hour = rtc.hour;
                             uint8_t minute = rtc.minute;
-                            if (SetTime(hour, minute, PSTR("Текущее время"))) {
+                            if (SetTime(hour, minute, PSTR(MSG_SETTINGS_SET_TIME_TITLE))) {
                                 rtc.hour = hour;
                                 rtc.minute = minute;
                                 rtc.setTime();
@@ -924,7 +922,12 @@ void userMenu() {
                             rtc.readAlarm();
                             char alarmEvent = ' ';
                             do {
-                                sprintf_P(bigbuf, PSTR("Будильник\n Выход\nSВключен: %c\nTВремя %02d:%02d\n"), (rtc.alarm_enable & 1) ? '~' : '-', rtc.alarm_hour, rtc.alarm_minute);
+                                sprintf_P(bigbuf, PSTR(
+                                    MSG_SETTINGS_SET_ALARM_TITLE
+                                    MSG_EXIT
+                                    MSG_SETTINGS_SET_ALARM_TOGGLE
+                                    MSG_SETTINGS_SET_ALARM_TIME),
+                                    (rtc.alarm_enable & 1) ? '~' : '-', rtc.alarm_hour, rtc.alarm_minute);
                                 alarmEvent = myMenu(bigbuf, alarmEvent);
                                 switch(alarmEvent) {
                                     case 'S':
@@ -933,7 +936,7 @@ void userMenu() {
                                     case 'T': {
                                         uint8_t hour = rtc.alarm_hour;
                                         uint8_t minute = rtc.alarm_minute;
-                                        if (SetTime(hour, minute, PSTR("Будильник"))) {
+                                        if (SetTime(hour, minute, PSTR(MSG_SETTINGS_SET_ALARM_TITLE))) {
                                             rtc.alarm_hour = hour;
                                             rtc.alarm_minute = minute;
                                             rtc.alarm_enable = 1;
@@ -1033,7 +1036,7 @@ bool SetDate(uint8_t &day, uint8_t &month, uint16_t &year) {
             day = 28;
         u8g2.firstPage();
         do {
-            sprintf_P(textbuf, PSTR("Текущая дата"));
+            sprintf_P(textbuf, PSTR(MSG_SETDATE_TITLE));
             u8g2.drawUTF8(0, MENU_FONT_HEIGHT, textbuf);
             u8g2.drawHLine(0, MENU_FONT_HEIGHT + 1, DISPLAY_WIDTH-1);
 
@@ -1047,12 +1050,12 @@ bool SetDate(uint8_t &day, uint8_t &month, uint16_t &year) {
             );
             u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 3, textbuf);
 
-            sprintf_P(textbuf, PSTR("%cОтмена"),
+            sprintf_P(textbuf, PSTR(MSG_SETDATETIME_CANCEL),
                 pos == 3 ? '}' : ' '
             );
             u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 5, textbuf);
             
-            sprintf_P(textbuf, PSTR("%cОК"),
+            sprintf_P(textbuf, PSTR(MSG_SETDATETIME_OK),
                 pos == 4 ? '}' : ' '
             );
             u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 7, textbuf);
@@ -1138,12 +1141,12 @@ bool SetTime(uint8_t &hour, uint8_t &minute, char* title) {
             );
             u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 3, textbuf);
 
-            sprintf_P(textbuf, PSTR("%cОтмена"),
+            sprintf_P(textbuf, PSTR(MSG_SETDATETIME_CANCEL),
                 pos == 2 ? '}' : ' '
             );
             u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 5, textbuf);
             
-            sprintf_P(textbuf, PSTR("%cОК"),
+            sprintf_P(textbuf, PSTR(MSG_SETDATETIME_OK),
                 pos == 3 ? '}' : ' '
             );
             u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 7, textbuf);
