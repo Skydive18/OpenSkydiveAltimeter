@@ -4,7 +4,7 @@
 
 void initSound();
 void termSound();
-void sound(uint16_t frequency, uint16_t duration);
+void sound(uint8_t signalNumber);
 void noSound();
 void LED_showOne(byte pin, byte val, byte disableSleepMask);
 
@@ -53,7 +53,7 @@ void termSound() {
 //#endif
 }
 
-void sound(uint16_t frequency, uint16_t duration) {
+void sound(uint8_t signalNumber) {
 #if defined(SOUND_ACTIVE)
     digitalWrite(PIN_SOUND, 1);
 //    if (duration > 0)

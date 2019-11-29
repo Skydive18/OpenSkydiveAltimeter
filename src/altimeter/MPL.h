@@ -64,6 +64,8 @@
 
 class MPL3115A2 {
 
+// WHO_AM_I must respond with 0xc4
+
 public:
     MPL3115A2();
     //Public Functions

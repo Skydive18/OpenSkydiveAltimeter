@@ -18,10 +18,6 @@
 #include "PCF8583.h"
 #include "snd.h"
 #include "logbook.h"
-#ifdef FLASH_ENABLE
-#include "flash.h"
-FlashRom flash;
-#endif
 
 // Altimeter modes (powerMode)
 #define MODE_ON_EARTH 0
@@ -80,14 +76,19 @@ uint8_t backLight = 0; // Display backlight flag, 0=off, 1=on, 2 = auto
 uint16_t batt; // battery voltage as it goes from sensor
 int8_t rel_voltage; // ballery relative voltage, in percent (0-100). 0 relates to 3.6v and 100 relates to fully charged batt
 
-// Current jump
+#ifdef LOGBOOK_ENABLE
 jump_t current_jump;
-// logbook
-uint16_t total_jumps;
+#endif
 
+#ifdef SNAPSHOT_ENABLE
 // Used in snapshot saver
 uint16_t accumulated_altitude;
 int accumulated_speed;
+#endif
+
+#if defined(LOGBOOK_ENABLE) || defined(SNAPSHOT_ENABLE)
+uint16_t total_jumps;
+#endif
 
 char textbuf[48];
 char bigbuf[SNAPSHOT_SIZE]; // also used in snapshot writer
@@ -143,7 +144,9 @@ void setup() {
     previous_altitude = CLEAR_PREVIOUS_ALTITUDE;
     vspeedPtr = 0;
     interval_number = 0;
+#if defined(LOGBOOK_ENABLE) || defined(SNAPSHOT_ENABLE)
     EEPROM.get(EEPROM_JUMP_COUNTER, total_jumps);
+#endif
     EEPROM.get(EEPROM_SETTINGS, settings);
 
     LED_show(0, 0, 0);
@@ -212,11 +215,11 @@ bool checkAlarm() {
         while (BTN2_PRESSED) delay(100);
         for (uint8_t i = 0; i < 90; ++i) {
             DISPLAY_LIGHT_ON;
-            sound(500, 0);
+            sound(0);
             delay(100);
             noSound();
             delay(100);
-            sound(500, 0);
+            sound(0);
             delay(100);
             noSound();
             delay(200);
@@ -231,11 +234,12 @@ bool checkAlarm() {
     return false;
 }
 
+#ifdef SNAPSHOT_ENABLE
 void saveToJumpSnapshot() {
     if (current_jump.total_jump_time < 2045)
         current_jump.total_jump_time++;
 
-    if (current_jump.total_jump_time > 1198 || (current_jump.total_jump_time & 1) /* write once per second */ )
+    if (current_jump.total_jump_time >= (SNAPSHOT_SIZE * 2) || (current_jump.total_jump_time & 1) /* write once per second */ )
         return;
     int speed_now = current_altitude - accumulated_altitude;
     // TODO. Limit acceleration (in fact, this is exactly what we store) with values depending on current speed.
@@ -244,6 +248,7 @@ void saveToJumpSnapshot() {
     accumulated_altitude = current_altitude;
     accumulated_speed = speed_now;
 }
+#endif
 
 //
 // Main state machine
@@ -329,23 +334,32 @@ void processAltitude() {
             powerMode = MODE_IN_AIRPLANE;
         else if (average_speed_8 < -25) {
             powerMode = MODE_FREEFALL;
+#ifdef LOGBOOK_ENABLE
             current_jump.total_jump_time = 2047; // do not store this jump in logbook
+#endif
         }
     } else
     if (powerMode == MODE_IN_AIRPLANE) {
         if (current_speed <= EXIT_TH) {
             powerMode = MODE_EXIT;
-            current_jump.exit_altitude = (accumulated_altitude = current_altitude) >> 1;
+#ifdef LOGBOOK_ENABLE
+            current_jump.exit_altitude = (current_altitude) >> 1;
             current_jump.exit_timestamp = rtc.getTimestamp();
             current_jump.total_jump_time = current_jump.max_freefall_speed_ms = 0;
+#endif
+#ifdef SNAPSHOT_ENABLE
             bigbuf[0] = (char)current_speed;
+            accumulated_altitude = current_altitude;
             accumulated_speed = current_speed;
+#endif
         }
         else if (average_speed_32 < 1 && current_altitude < 25)
             powerMode = MODE_ON_EARTH;
     } else
     if (powerMode == MODE_EXIT) {
+#ifdef SNAPSHOT_ENABLE
         saveToJumpSnapshot();
+#endif
         if (current_speed <= BEGIN_FREEFALL_TH) {
             powerMode = MODE_BEGIN_FREEFALL;
         }
@@ -353,24 +367,32 @@ void processAltitude() {
             powerMode = MODE_IN_AIRPLANE;
     } else
     if (powerMode == MODE_BEGIN_FREEFALL) {
+#ifdef SNAPSHOT_ENABLE
         saveToJumpSnapshot();
+#endif
         if (current_speed <= FREEFALL_TH)
             powerMode = MODE_FREEFALL;
         else if (current_speed > BEGIN_FREEFALL_TH)
             powerMode = MODE_EXIT;
     } else
     if (powerMode == MODE_FREEFALL) {
+#ifdef SNAPSHOT_ENABLE
         saveToJumpSnapshot();
+#endif
         if (current_speed > PULLOUT_TH)
             powerMode = MODE_PULLOUT;
+#ifdef LOGBOOK_ENABLE
         current_jump.deploy_altitude = current_altitude >> 1;
         current_jump.deploy_time = current_jump.total_jump_time;
         int8_t freefall_speed = 0 - average_speed_8;
         if (freefall_speed > current_jump.max_freefall_speed_ms)
             current_jump.max_freefall_speed_ms = freefall_speed;
+#endif
     } else
     if (powerMode == MODE_PULLOUT) {
+#ifdef SNAPSHOT_ENABLE
         saveToJumpSnapshot();
+#endif
         if (current_speed <= PULLOUT_TH)
             powerMode = MODE_FREEFALL;
         else if (current_speed > OPENING_TH) {
@@ -378,25 +400,36 @@ void processAltitude() {
         }
     } else
     if (powerMode == MODE_OPENING) {
+#ifdef SNAPSHOT_ENABLE
         saveToJumpSnapshot();
+#endif
         if (current_speed <= OPENING_TH)
             powerMode = MODE_PULLOUT;
         else if (current_speed > UNDER_PARACHUTE_TH) {
             powerMode = MODE_UNDER_PARACHUTE;
+#ifdef LOGBOOK_ENABLE
             current_jump.canopy_altitude = current_jump.deploy_altitude - (current_altitude >> 1);
+#endif
         }
     } else
     if (powerMode == MODE_UNDER_PARACHUTE) {
+#ifdef SNAPSHOT_ENABLE
         saveToJumpSnapshot();
+#endif
         if (average_speed_32 > -1 && current_altitude < 25) {
             powerMode = MODE_ON_EARTH;
             // try to lock zero altitude
             altitude_to_show = 0;
-            // Save snapshot
-            EEPROM.put(SNAPSHOT_START, bigbuf);
-            // Save jump
-            EEPROM.put(EEPROM_LOGBOOK_START +  (((total_jumps++) % (LOGBOOK_SIZE + 1)) * sizeof(jump_t)), current_jump);
+#ifdef SNAPSHOT_ENABLE
+            saveSnapshot();
+#endif
+#ifdef LOGBOOK_ENABLE
+            saveJump();
+#endif
+#if defined(LOGBOOK_ENABLE) || defined(SNAPSHOT_ENABLE)
+            total_jumps++;
             EEPROM.put(EEPROM_JUMP_COUNTER, total_jumps);
+#endif
         }
     }
     
@@ -475,7 +508,7 @@ void ShowLEDs() {
                     noSound();
                 } else {
                     LED_show(0, 80, 0); // green blinks to indicate that altimeter is ready
-                    sound(700, 0);
+                    sound(0);
                 }
             } else
                 break; // turn LED off
@@ -723,7 +756,9 @@ void userMenu() {
             " Выход\n"
             "0Сброс на ноль\n"
             "BПодсветка: %c\n"
+#ifdef LOGBOOK_ENABLE
             "LЖурнал прыжков\n"
+#endif
 //            "AСигналы\n"
             "SНастройки\n"
             "XВыключение\n"),
@@ -751,6 +786,7 @@ void userMenu() {
                 if (backLight != 1)
                     IIC_WriteByte(RTC_ADDRESS, ADDR_BACKLIGHT, backLight);
                 break;
+#ifdef LOGBOOK_ENABLE
             case 'L': {
                 // Logbook
                 char logbook_event = ' ';
@@ -779,7 +815,7 @@ void userMenu() {
                                     jump_to_show = (total_jumps > LOGBOOK_SIZE) ? total_jumps - LOGBOOK_SIZE : 1;
 
                                 // Read jump from logbook
-                                EEPROM.get(EEPROM_LOGBOOK_START +  (((jump_to_show - 1) % (LOGBOOK_SIZE + 1)) * sizeof(jump_t)), current_jump);
+                                loadJump(jump_to_show - 1);
                                 current_jump_to_bigbuf(jump_to_show);
                                 logbook_view_event = (uint8_t)myMenu(bigbuf, '\0');
                                 if (logbook_view_event == PIN_BTN1)
@@ -824,6 +860,7 @@ void userMenu() {
                 // Logbook
                 break;
             }
+#endif            
             case 'S': {
                 // "Settings" submenu
                 char eventSettings = ' ';
@@ -1199,10 +1236,16 @@ void loop() {
         if (timeWhileBtnMenuPressed == 8 || timeWhileBtnMenuPressed == 9) {
             if (BTN3_PRESSED) {
                 // Forcibly Save snapshot for debug purposes
-                EEPROM.put(SNAPSHOT_START, bigbuf);
-                // Save jump
-                EEPROM.put(EEPROM_LOGBOOK_START +  (((total_jumps++) % (LOGBOOK_SIZE + 1)) * sizeof(jump_t)), current_jump);
+#ifdef SNAPSHOT_ENABLE
+                saveSnapshot();
+#endif
+#ifdef LOGBOOK_ENABLE
+                saveJump();
+#endif
+#if defined(LOGBOOK_ENABLE) || defined(SNAPSHOT_ENABLE)
+                total_jumps++;
                 EEPROM.put(EEPROM_JUMP_COUNTER, total_jumps);
+#endif
             }
             userMenu();
             refresh_display = true; // force display refresh

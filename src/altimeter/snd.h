@@ -6,10 +6,13 @@ void initSound();
 void termSound();
 void noSound();
 
+// Signals:
+// 0 Buzz until termination
+
 #if defined(SOUND_PASSIVE) || defined(SOUND_ACTIVE) || defined(SOUND_EXTERNAL)
-void sound(uint16_t frequency, uint16_t duration);
+void sound(uint8_t signalNumber);
 #else
-#define sound(a,b)
+#define sound(a)
 #endif
 
 #endif

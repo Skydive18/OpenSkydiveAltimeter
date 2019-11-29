@@ -1,9 +1,20 @@
-#ifndef __in_hwconfig_inc
-#define __in_hwconfig_inc
+#ifndef __in_hwconfig_h
+#define __in_hwconfig_h
 
+// Features
+#define LOGBOOK_ENABLE           /* Enables logbook */
+#define SNAPSHOT_ENABLE          /* Enables jump trace recording. Requires LOGBOOK_ENABLE */
+#define ALARM_ENABLE             /* Enables alarm clock. Requires sound system to be configured. */
+#define AUDIBLE_SIGNALS_ENABLE   /* TODO!! Enables audible altitude signals. Requires sound system to be configured. */
+#define TETRIS_ENABLE            /* TODO!! Enable 'tetris' game */
+#define SNAKE_ENABLE             /* TODO!! Enable 'snake' game */
+
+// RTC epoch year
 #define EPOCH 2016
 
 #define SERIAL_SPEED 57600
+
+// Pin wiring
 
 #if defined(__AVR_ATmega32U4__)
 // Pins for Arduino Pro Micro (Atmega-32u4)
@@ -19,13 +30,8 @@
 #define PIN_SOUND 6
 #define PIN_INTERRUPT 7
 #define PIN_DC 30
-//#define LOGBOOK_SIZE 80
-// TODO!!
-#define LOGBOOK_SIZE 20
-#define SNAPSHOT_START 304
-#define SNAPSHOT_SIZE 720
-#else
-#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
+
+#elif defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
 // Pins for Arduino Pro Mini (Atmega-328[P] - based)
 #define PIN_HWPWR 4
 #define PIN_LIGHT 7
@@ -39,50 +45,39 @@
 #define PIN_SOUND 3
 #define PIN_INTERRUPT 2
 #define PIN_DC 8
-#define LOGBOOK_SIZE 40
-#define SNAPSHOT_START 544
-#define SNAPSHOT_SIZE 480
 #endif // defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
-#endif // defined(__AVR_ATmega32U4__)
 
-// Flash chip
-// FLASH page size is  32bytes for  24c32 and  24c64,
-//                      64bytes for 24c128 and 24c256
-//                     128bytes for 24c512
-#define FLASH_ENABLE
-#define FLASH__SIZE_KB 4
+// Flash chip.
+// Configure flash page size, depending on a flash chip used.
+// FLASH page size is  32bytes for  24c32 ( 4K) and  24c64 ( 8K)
+//                     64bytes for 24c128 (16K) and 24c256 (32K)
+//                    128bytes for 24c512 (64K)
 #define FLASH__PAGE_SIZE 32
+#define FLASH__PAGES 128 /* 24c32 */
+//#define FLASH__PAGES 256 /* 24c64, 24c128 */
+//#define FLASH__PAGES 512 /* 24c256, 24c512 */
+// I2C addfess for flash chip. Note, the default 24cxx address is 0x50 = the same as RTC chip uses.
+// So flash chip should be put to a different i2c address by soldering its address lines accordingly.
 #define FLASH_ADDRESS (uint8_t)0x51
 
-// Jump snapshot configuration.
-// For location, possible values EEPROM (= Controller's EEPROM), FLASH (External flash card).
-// Max SNAPSHOT_SIZE seconds will be stored. Compression level is 5/8
-
-#define SNAPSHOT_ENABLE
-#define SNAPSHOT_JOURNAL_LOCATION FLASH
-/*
-
+// Jump snapshot journal configuration.
+// For location, possible values EEPROM (= Controller's EEPROM) and FLASH (External flash chip).
+// Max SNAPSHOT_SIZE seconds will be stored.
+// Please note, SNAPSHOT_SIZE also acts as a bugbuf[] size and thus must not be less than approx. 400 bytes
+#define SNAPSHOT_JOURNAL_LOCATION EEPROM
 #define SNAPSHOT_JOURNAL_START 544
 #define SNAPSHOT_JOURNAL_SIZE 1
 #define SNAPSHOT_SIZE 480
-#define SNAPSHOT_COMPRESSED_SIZE 1+ (SNAPSHOT_SIZE*5/8)
 
 // Logbook configuration.
-// For location, possible values EEPROM and FLASH
-#define LOGBOOK_ENABLE
+// For location, possible values EEPROM and FLASH. Each logbook record is sizeof(jump_t) bytes (=12).
 #define LOGBOOK_LOCATION EEPROM
+#define LOGBOOK_START 64
 #define LOGBOOK_SIZE 40
 
-*/
-
-// EEPROM
+// EEPROM addressing
 #define EEPROM_JUMP_COUNTER 0
 #define EEPROM_SETTINGS 2
-#define EEPROM_LOGBOOK_START 64
-// FLASH page size is  32bytes for  24c32 and  24c64,
-//                      64bytes for 24c128 and 24c256
-//                     128bytes for 24c512
-#define FLASH__PAGE_SIZE         32
 
 // Configure RGB LED. Define one of the following
 #define LED_COMMON_CATHODE
@@ -91,7 +86,6 @@
 // Configure display. Use one of the following
 #define DISPLAY_NOKIA
 //#define DISPLAY_HX1230
-
 
 // Configure sound subsystem.
 // Passive speaker/buzzer, connected to PIN_SOUND. Any frequency available.
@@ -103,4 +97,14 @@
 // External sound generator chip, i2c-based
 //#define SOUND_EXTERNAL
 
+// Checks
+
+#if defined(SNAPSHOT_ENABLE) && !defined(LOGBOOK_ENABLE)
+#error Jump snapshot feature requires Logbook feature to be enabled.
 #endif
+
+#if !defined(DISPLAY_NOKIA) && !defined(DISPLAY_HX1230)
+#error Display not configured.
+#endif
+
+#endif // __in_hwconfig_h
