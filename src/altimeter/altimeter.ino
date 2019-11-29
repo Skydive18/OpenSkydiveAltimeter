@@ -632,13 +632,10 @@ void showVersion() {
     u8g2.setFont(font_menu);
     sprintf_P(bigbuf, PSTR(
         "Альтимонстр I\n"
-#if defined(__AVR_ATmega32U4__)
-        "Платформа A01\n"
-#elif defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
-        "Платформа B01\n"
-#endif
+        "Платформа %c%c%c%c\n"
         "Версия 0.90\n"
         "COM %ld/8N1\n"),
+        PLATFORM_1, PLATFORM_2, PLATFORM_3, PLATFORM_4,
         SERIAL_SPEED);
     myMenu(bigbuf, 'z');
 }

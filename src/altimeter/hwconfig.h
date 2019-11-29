@@ -18,6 +18,7 @@
 
 #if defined(__AVR_ATmega32U4__)
 // Pins for Arduino Pro Micro (Atmega-32u4)
+#define PLATFORM_1 'A'
 #define PIN_HWPWR 8
 #define PIN_LIGHT 4
 #define PIN_R 5
@@ -33,6 +34,7 @@
 
 #elif defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
 // Pins for Arduino Pro Mini (Atmega-328[P] - based)
+#define PLATFORM_1 'B'
 #define PIN_HWPWR 4
 #define PIN_LIGHT 7
 #define PIN_R 5
@@ -45,13 +47,17 @@
 #define PIN_SOUND 3
 #define PIN_INTERRUPT 2
 #define PIN_DC 8
-#endif // defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
+
+#else
+#error CPU unsupported.
+#endif // Platform
 
 // Flash chip.
 // Configure flash page size, depending on a flash chip used.
 // FLASH page size is  32bytes for  24c32 ( 4K) and  24c64 ( 8K)
 //                     64bytes for 24c128 (16K) and 24c256 (32K)
 //                    128bytes for 24c512 (64K)
+#define FLASH_PRESENT
 #define FLASH__PAGE_SIZE 32
 #define FLASH__PAGES 128 /* 24c32 */
 //#define FLASH__PAGES 256 /* 24c64, 24c128 */
@@ -103,8 +109,42 @@
 #error Jump snapshot feature requires Logbook feature to be enabled.
 #endif
 
-#if !defined(DISPLAY_NOKIA) && !defined(DISPLAY_HX1230)
+#if defined(DISPLAY_NOKIA)
+#define PLATFORM_2 'N'
+#elif defined(DISPLAY_HX1230)
+#define PLATFORM_2 'H'
+#else
 #error Display not configured.
+#endif
+
+#if defined(FLASH_PRESENT)
+
+#if FLASH__PAGE_SIZE==128 && FLASH__PAGES == 512
+#define PLATFORM_3 '7' /* 24c512 */
+#elif FLASH__PAGE_SIZE==64 && FLASH__PAGES == 512
+#define PLATFORM_3 '6' /* 24c256 */
+#elif FLASH__PAGE_SIZE==64 && FLASH__PAGES == 256
+#define PLATFORM_3 '5' /* 24c128 */
+#elif FLASH__PAGE_SIZE==32 && FLASH__PAGES == 256
+#define PLATFORM_3 '4' /* 24c64 */
+#elif FLASH__PAGE_SIZE==32 && FLASH__PAGES == 128
+#define PLATFORM_3 '3' /* 24c32 */
+#else
+#define PLATFORM_3 'X'
+#endif
+
+#else
+#define PLATFORM_3 '0'
+#endif
+
+#if defined (SOUND_ACTIVE)
+#define PLATFORM_4 '1'
+#elif defined(SOUND_ACTIVE)
+#define PLATFORM_4 '2'
+#elif defined(SOUND_EXTERNAL)
+#define PLATFORM_4 '3'
+#else
+#define PLATFORM_4 '0'
 #endif
 
 #endif // __in_hwconfig_h
