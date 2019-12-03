@@ -5,11 +5,11 @@
 #define LOGBOOK_ENABLE           /* Enables logbook */
 #define SNAPSHOT_ENABLE          /* Enables jump trace recording. Requires LOGBOOK_ENABLE */
 #define ALARM_ENABLE             /* Enables alarm clock. Requires sound system to be configured. */
-#define AUDIBLE_SIGNALS_ENABLE   /* TODO!! Enables audible altitude signals. Requires sound system to be configured. */
-#define TETRIS_ENABLE            /* TODO!! Enable 'tetris' game */
-#define SNAKE_ENABLE             /* TODO!! Enable 'snake' game */
+//#define AUDIBLE_SIGNALS_ENABLE   /* TODO!! Enables audible altitude signals. Requires sound system to be configured. */
+//#define TETRIS_ENABLE            /* TODO!! Enable 'tetris' game */
+//#define SNAKE_ENABLE             /* TODO!! Enable 'snake' game */
 
-// RTC epoch year
+// RTC epoch year, for PFC8583
 #define EPOCH 2016
 
 #define SERIAL_SPEED 57600
@@ -19,7 +19,7 @@
 #if defined(__AVR_ATmega32U4__)
 // Pins for Arduino Pro Micro (Atmega-32u4)
 #define PLATFORM_1 'A'
-#define PIN_HWPWR 8
+#define PIN_HWPWR 1
 #define PIN_LIGHT 4
 #define PIN_R 5
 #define PIN_G 9
@@ -57,7 +57,7 @@
 // FLASH page size is  32bytes for  24c32 ( 4K) and  24c64 ( 8K)
 //                     64bytes for 24c128 (16K) and 24c256 (32K)
 //                    128bytes for 24c512 (64K)
-#define FLASH_PRESENT
+//#define FLASH_PRESENT
 #define FLASH__PAGE_SIZE 32
 #define FLASH__PAGES 128 /* 24c32 */
 //#define FLASH__PAGES 256 /* 24c64, 24c128 */
