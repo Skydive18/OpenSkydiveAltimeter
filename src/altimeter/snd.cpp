@@ -71,11 +71,11 @@ void noSound() {
     disable_sleep &= 0xfd;
 //    sndduration = 0;
 #endif
-//#if defined(SOUND_PASSIVE)
-//    disable_sleep &= 0xfd;
+#if defined(SOUND_PASSIVE)
+    disable_sleep &= 0xfd;
 //    sndduration = 0;
 //    noNewTone(PIN_SOUND);
-//#endif
+#endif
 #ifndef SOUND_EXTERNAL
     digitalWrite(PIN_SOUND, 0);
 #endif
