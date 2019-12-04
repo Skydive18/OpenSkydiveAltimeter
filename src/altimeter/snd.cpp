@@ -1,3 +1,13 @@
+/*
+  Use parts of code from
+  
+  MsTimer2.h - Using timer2 with 1ms resolution
+  Javier Valencia <javiervalencia80@gmail.com>
+
+  https://github.com/PaulStoffregen/MsTimer2
+ 
+ */
+ 
 #include <Arduino.h>
 #include "hwconfig.h"
 #include "custom_types.h"
@@ -51,18 +61,8 @@ void termSound() {
 void sound(uint8_t signalNumber) {
 #if defined(SOUND_ACTIVE)
     digitalWrite(PIN_SOUND, 1);
-//    if (duration > 0)
-//        disable_sleep |= 0x2;
-//    sndduration = duration;
-#endif
-#if defined(SOUND_PASSIVE)
-//    if (duration > 0)
-//        disable_sleep |= 0x2;
-//    if (frequency)
-//        NewTone(PIN_SOUND, frequency);
-//    else {
-        LED_showOne(PIN_SOUND, 128, 2);
-//    }
+#elif defined(SOUND_PASSIVE)
+    LED_showOne(PIN_SOUND, 128, 2);
 #endif
 }
 
@@ -80,6 +80,119 @@ void noSound() {
     digitalWrite(PIN_SOUND, 0);
 #endif
 }
+
+#ifdef SOUND_USE_TIMER
+
+// Signal templates
+const uint16_t MsTimer2m::signal_2short[] PROGMEM = {600, 60, 20600, 60, 600, 60, 0};
+
+void MsTimer2m::set(uint16_t tick_frequncy, bool silent) {
+    disable_sleep |= 0x2;
+    count = 0;
+    
+#if defined (__AVR_ATmega328P__) || defined(__AVR_ATmega2560__)
+// Use FastPWM. WGM2 2:0 <- 7, will count from OCR2A to TOP.
+// OUTPUT will clear at bottom and set at match - COM2B <- 3.
+// COM2B = 0 will disable compare output.
+// Tick frequency should be greater than 250.
+
+//CS22:CS20
+// 000 - STOP
+// 001 - 1
+// 010 - 8
+// 011 - 32
+// 100 - 64
+// 101 - 128
+// 110 - 256
+// 111 - 1024
+
+    TIMSK2 &= ~(1<<TOIE2);
+    TCCR2A |= ((1<<WGM21) | (1<<WGM20)
+#if defined (SOUND_PASSIVE)
+    | (1 << COM2B0) | (1 << COM2B1)
+#endif
+    );
+    TCCR2B |= (1<<WGM22);
+    ASSR &= ~(1<<AS2);
+    TIMSK2 &= ~(1<<OCIE2A);
+
+    // Set prescaler to 128
+    TCCR2B |= (1<<CS22);
+    TCCR2B &= ~(1<<CS21);
+    TCCR2B |= (1<<CS20);
+#if defined(SOUND_PASSIVE)
+    // TODO: Adjust loudness here
+    OCR2B = silent ? 0 : ((uint8_t)256 - ((uint8_t) ((F_CPU >> 7) / tick_frequncy)) >> 1);
+#elif defined(SOUND_ACTIVE)
+    digitalWrite(PIN_SOUND, silent ? 0 : 1);
+#endif
+    tcnt2 = (uint8_t)256 - (uint8_t) ((F_CPU >> 7) / tick_frequncy);
+
+    // Start
+    TCNT2 = tcnt2;
+    TIMSK2 |= (1<<TOIE2);
+
+#elif defined (__AVR_ATmega32U4__)
+    TCCR4B = 0;
+    TCCR4A = 0;
+    TCCR4C = 0;
+    TCCR4D = 0;
+    TCCR4E = 0;
+    TCCR4B = (1<<CS43) | (1<<PSR4);
+//        prescaler = 128.0;
+    tcnt2 = (uint8_t)((float)F_CPU * 0.001 / 128.0) - 1;
+    OCR4C = tcnt2;
+
+    // Start
+    TIFR4 = (1<<TOV4);
+    TCNT4 = 0;
+    TIMSK4 = (1<<TOIE4);
+
+#endif
+
+    return;
+}
+
+void MsTimer2m::stop() {
+#if defined (__AVR_ATmega328P__) || defined(__AVR_ATmega2560__)
+    TIMSK2 &= ~(1<<TOIE2);
+    TCCR2A &= ~((1 << COM2B0) | (1 << COM2B1)); // Disable OCR2B output
+#elif defined (__AVR_ATmega32U4__)
+    TIMSK4 = 0;
+#endif
+    disable_sleep &= 0xfd;
+    digitalWrite(PIN_SOUND, 0);
+}
+
+#if defined (__AVR__)
+#if defined (__AVR_ATmega32U4__)
+ISR(TIMER4_OVF_vect) {
+#else
+ISR(TIMER2_OVF_vect) {
+#endif
+    count++;
+    if (count >= duration) {
+        void MsTimer2m::stop();
+        MsTimer2m::nextNote();
+    }
+}
+#endif // AVR
+
+void MsTimer2m::nextNote() {
+    if (MsTimer2m::sndptr) {
+        uint16_t freq = pgm_read_byte(sndptr + (sndpos++));
+        if (freq) {
+            duration = pgm_read_byte(sndptr + (sndpos++));
+            MsTimer2m::set(freq % 20000, freq > 20000);
+            return;
+        }
+    }
+    noSound();
+}
+
+
+
+#endif // SOUND_USE_TIMER
 
 #if false
 
@@ -113,6 +226,25 @@ ATmega32u4 version
 
 On the ATmega32u4 note uses Timer/Counter4, so D6 and D13 cannot be used for analogue PWM output 
 t the same time.
+
+FastPWM: PWM4D = 1 and WGM41:WGM40 = 00, counts from 0 to OCR4C. COM4D1=1, COM4D0 = 0 => non-inverted output
+TC4H = two high bits of 10-bit value
+
+TCCR4C:
+3:2 - COM4D1, COM4D0
+1 - FOC4D, force-compare
+0 - PWM4D, enable PWM on D-comparer
+
+TCCR4D:
+1:0 - WGM41, WGM40
+
+TIMSK4:
+7 - Compare D enabled, OCIE4D
+6 - Compare A enabled, OCIE4A
+5 - Compare B enabled, OCIE4B
+2 - TOIE4, overflow
+
+TIFR4 - same; contains interrupt flags
 
 const uint8_t scale[] PROGMEM = {239,226,213,201,190,179,169,160,151,142,134,127};
 
@@ -285,71 +417,6 @@ void MsTimer2::set(unsigned long ms, void (*f)()) {
     tcnt2 = 256 - (int)((float)F_CPU * 0.001 / prescaler);
 }
 
-void MsTimer2::start() {
-    count = 0;
-    overflowing = 0;
-#if defined (__AVR_ATmega168__) || defined (__AVR_ATmega48__) || defined (__AVR_ATmega88__) || defined (__AVR_ATmega328P__) || defined (__AVR_ATmega1280__) || defined(__AVR_ATmega2560__) || defined(__AVR_AT90USB646__) || defined(__AVR_AT90USB1286__)
-    TCNT2 = tcnt2;
-    TIMSK2 |= (1<<TOIE2);
-#elif defined (__AVR_ATmega128__)
-    TCNT2 = tcnt2;
-    TIMSK |= (1<<TOIE2);
-#elif defined (__AVR_ATmega8__)
-    TCNT2 = tcnt2;
-    TIMSK |= (1<<TOIE2);
-#elif defined (__AVR_ATmega32U4__)
-    TIFR4 = (1<<TOV4);
-    TCNT4 = 0;
-    TIMSK4 = (1<<TOIE4);
-#elif defined(__arm__) && defined(TEENSYDUINO)
-    itimer.begin(MsTimer2::_overflow, 1000);
-#endif
-}
-
-void MsTimer2::stop() {
-#if defined (__AVR_ATmega168__) || defined (__AVR_ATmega48__) || defined (__AVR_ATmega88__) || defined (__AVR_ATmega328P__) || defined (__AVR_ATmega1280__) || defined(__AVR_ATmega2560__) || defined(__AVR_AT90USB646__) || defined(__AVR_AT90USB1286__)
-    TIMSK2 &= ~(1<<TOIE2);
-#elif defined (__AVR_ATmega128__)
-    TIMSK &= ~(1<<TOIE2);
-#elif defined (__AVR_ATmega8__)
-    TIMSK &= ~(1<<TOIE2);
-#elif defined (__AVR_ATmega32U4__)
-    TIMSK4 = 0;
-#elif defined(__arm__) && defined(TEENSYDUINO)
-    itimer.end();
-#endif
-}
-
-void MsTimer2::_overflow() {
-    count += 1;
-    
-    if (count >= msecs && !overflowing) {
-        overflowing = 1;
-        count = count - msecs; // subtract ms to catch missed overflows
-                    // set to 0 if you don't want this.
-        (*func)();
-        overflowing = 0;
-    }
-}
-
-#if defined (__AVR__)
-#if defined (__AVR_ATmega32U4__)
-ISR(TIMER4_OVF_vect) {
-#else
-ISR(TIMER2_OVF_vect) {
-#endif
-#if defined (__AVR_ATmega168__) || defined (__AVR_ATmega48__) || defined (__AVR_ATmega88__) || defined (__AVR_ATmega328P__) || defined (__AVR_ATmega1280__) || defined(__AVR_ATmega2560__) || defined(__AVR_AT90USB646__) || defined(__AVR_AT90USB1286__)
-    TCNT2 = MsTimer2::tcnt2;
-#elif defined (__AVR_ATmega128__)
-    TCNT2 = MsTimer2::tcnt2;
-#elif defined (__AVR_ATmega8__)
-    TCNT2 = MsTimer2::tcnt2;
-#elif defined (__AVR_ATmega32U4__)
-    // not necessary on 32u4's high speed timer4
-#endif
-    MsTimer2::_overflow();
-}
-#endif // AVR
 
 
 

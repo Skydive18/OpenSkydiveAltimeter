@@ -8,6 +8,7 @@ void noSound();
 
 // Signals:
 // 0 Buzz until termination
+// 1 Alarm buzz: 100ms sound + 100ms delay, twice
 
 #if defined(SOUND_PASSIVE) || defined(SOUND_ACTIVE) || defined(SOUND_EXTERNAL)
 void sound(uint8_t signalNumber);
@@ -15,35 +16,30 @@ void sound(uint8_t signalNumber);
 #define sound(a)
 #endif
 
-#endif
-
-#if false
-
-#ifndef MsTimer2_h
-#define MsTimer2_h
-
+#if defined(SOUND_PASSIVE) || defined(SOUND_ACTIVE)
+// Use timer
 #ifdef __AVR__
 #include <avr/interrupt.h>
 #elif defined(__arm__) && defined(TEENSYDUINO)
 #include <Arduino.h>
 #else
-#error MsTimer2 library only works on AVR architecture
+#error MsTimer2m library only works on AVR architecture
 #endif
 
-namespace MsTimer2 {
-    extern unsigned long msecs;
-    extern void (*func)();
-    extern volatile unsigned long count;
-    extern volatile char overflowing;
-    extern volatile unsigned int tcnt2;
+#define SOUND_USE_TIMER
+
+namespace MsTimer2m {
+    extern volatile uint8_t tcnt2;
+    extern volatile uint16_t count;
+    extern volatile uint16_t duration;
+    volatile uint8_t sndpos;
+    volatile uint16_t* sndptr;
     
-    void set(unsigned long ms, void (*f)());
-    void start();
+    void set(uint16_t tick_frequncy, bool silent);
     void stop();
-    void _overflow();
+    void nextNote();
 }
 
-#endif
-
+#endif // defined(SOUND_PASSIVE) || defined(SOUND_ACTIVE)
 
 #endif
