@@ -756,7 +756,8 @@ void userMenu() {
 #endif
 //            "AСигналы\n"
             MSG_SETTINGS
-            MSG_POWEROFF),
+            MSG_POWEROFF
+            "TTest\n"),
             bl_char);
         event = myMenu(bigbuf, event);
         switch (event) {
@@ -773,6 +774,9 @@ void userMenu() {
                     break;;
                 }
             }
+            case 'T':
+                sound(1);
+                break;
             case 'B':
                 // Backlight turn on/off
                 backLight++;

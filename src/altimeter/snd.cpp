@@ -58,29 +58,6 @@ void termSound() {
 //#endif
 }
 
-void sound(uint8_t signalNumber) {
-#if defined(SOUND_ACTIVE)
-    digitalWrite(PIN_SOUND, 1);
-#elif defined(SOUND_PASSIVE)
-    LED_showOne(PIN_SOUND, 128, 2);
-#endif
-}
-
-void noSound() {
-#if defined(SOUND_ACTIVE)
-    disable_sleep &= 0xfd;
-//    sndduration = 0;
-#endif
-#if defined(SOUND_PASSIVE)
-    disable_sleep &= 0xfd;
-//    sndduration = 0;
-//    noNewTone(PIN_SOUND);
-#endif
-#ifndef SOUND_EXTERNAL
-    digitalWrite(PIN_SOUND, 0);
-#endif
-}
-
 #ifdef SOUND_USE_TIMER
 
 // Signal templates
@@ -88,7 +65,7 @@ const uint16_t MsTimer2m::signal_2short[] PROGMEM = {600, 60, 20600, 60, 600, 60
 
 void MsTimer2m::set(uint16_t tick_frequncy, bool silent) {
     disable_sleep |= 0x2;
-    count = 0;
+    MsTimer2m::count = 0;
     
 #if defined (__AVR_ATmega328P__) || defined(__AVR_ATmega2560__)
 // Use FastPWM. WGM2 2:0 <- 7, will count from OCR2A to TOP.
@@ -133,21 +110,41 @@ void MsTimer2m::set(uint16_t tick_frequncy, bool silent) {
     TIMSK2 |= (1<<TOIE2);
 
 #elif defined (__AVR_ATmega32U4__)
+//FastPWM: PWM4D = 1 and WGM41:WGM40 = 00, counts from 0 to OCR4C. COM4D1=1, COM4D0 = 0 => non-inverted output
+//TC4H = two high bits of 10-bit value
+//
+//TCCR4C:
+//3:2 - COM4D1, COM4D0
+//1 - FOC4D, force-compare
+//0 - PWM4D, enable PWM on D-comparer
+//
+//TCCR4D:
+//1:0 - WGM41, WGM40
+//
+//TIMSK4:
+//7 - Compare D enabled, OCIE4D
+//6 - Compare A enabled, OCIE4A
+//5 - Compare B enabled, OCIE4B
+//2 - TOIE4, overflow
+//
+//TIFR4 - same; contains interrupt flags
     TCCR4B = 0;
     TCCR4A = 0;
-    TCCR4C = 0;
+    TCCR4C = 00001001B;
     TCCR4D = 0;
     TCCR4E = 0;
     TCCR4B = (1<<CS43) | (1<<PSR4);
 //        prescaler = 128.0;
-    tcnt2 = (uint8_t)((float)F_CPU * 0.001 / 128.0) - 1;
+    tcnt2 = (uint8_t) ((F_CPU >> 7) / tick_frequncy) - 1;
     OCR4C = tcnt2;
+    OCR4D = tcnt2 / 2;
 
     // Start
     TIFR4 = (1<<TOV4);
     TCNT4 = 0;
     TIMSK4 = (1<<TOIE4);
 
+    digitalWrite(PIN_B, 1);
 #endif
 
     return;
@@ -171,7 +168,9 @@ ISR(TIMER4_OVF_vect) {
 ISR(TIMER2_OVF_vect) {
 #endif
     count++;
+    LED_show(255, 0, 0, 250);
     if (count >= duration) {
+        LED_show(0, 0, 0, 0);
         void MsTimer2m::stop();
         MsTimer2m::nextNote();
     }
@@ -179,10 +178,12 @@ ISR(TIMER2_OVF_vect) {
 #endif // AVR
 
 void MsTimer2m::nextNote() {
+    LED_show(0, 0, 255, 250);
     if (MsTimer2m::sndptr) {
-        uint16_t freq = pgm_read_byte(sndptr + (sndpos++));
+    LED_show(0, 0, 255, 500);
+        uint16_t freq = pgm_read_byte(MsTimer2m::sndptr + (MsTimer2m::sndpos++));
         if (freq) {
-            duration = pgm_read_byte(sndptr + (sndpos++));
+            MsTimer2m::duration = pgm_read_byte(MsTimer2m::sndptr + (MsTimer2m::sndpos++));
             MsTimer2m::set(freq % 20000, freq > 20000);
             return;
         }
@@ -193,6 +194,38 @@ void MsTimer2m::nextNote() {
 
 
 #endif // SOUND_USE_TIMER
+
+void sound(uint8_t signalNumber) {
+    if (signalNumber ==0) {
+#if defined(SOUND_ACTIVE)
+    digitalWrite(PIN_SOUND, 1);
+#elif defined(SOUND_PASSIVE)
+    LED_showOne(PIN_SOUND, 128, 2);
+#endif
+    } else if (signalNumber == 1) {
+#if defined(SOUND_USE_TIMER)
+        MsTimer2m::sndptr = &MsTimer2m::signal_2short;
+        MsTimer2m::sndpos = 0;
+        nextNote();
+#endif
+    }
+}
+
+void noSound() {
+#if defined(SOUND_ACTIVE)
+    disable_sleep &= 0xfd;
+//    sndduration = 0;
+#endif
+#if defined(SOUND_PASSIVE)
+    disable_sleep &= 0xfd;
+//    sndduration = 0;
+//    noNewTone(PIN_SOUND);
+#endif
+#ifndef SOUND_EXTERNAL
+    digitalWrite(PIN_SOUND, 0);
+#endif
+}
+
 
 #if false
 
