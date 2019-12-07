@@ -11,6 +11,7 @@
 #include <Arduino.h>
 #include "hwconfig.h"
 #include "custom_types.h"
+#include "led.h"
 
 void initSound();
 void termSound();
@@ -18,22 +19,8 @@ void sound(uint8_t signalNumber);
 void noSound();
 void LED_showOne(byte pin, byte val, byte disableSleepMask);
 
-#if defined(SOUND_ACTIVE) || defined(SOUND_PASSIVE)
+#ifdef SOUND_USE_TIMER
 #include "power.h"
-//
-//namespace {
-//    volatile uint8_t sndmode = 0;
-//    volatile uint8_t sndduration = 0;
-//    volatile uint8_t sndptr = 0;
-//
-//    void pulseSound() {
-//        if (sndduration > 0) {
-//            sndduration--;
-//            if (!sndduration)
-//                noSound();
-//        }
-//    }
-//}
 #endif
 
 #if defined(SOUND_EXTERNAL)
@@ -60,95 +47,62 @@ void termSound() {
 
 #ifdef SOUND_USE_TIMER
 
-// Signal templates
-const uint16_t MsTimer2m::signal_2short[] PROGMEM = {600, 60, 20600, 60, 600, 60, 0};
-
-void MsTimer2m::set(uint16_t tick_frequncy, bool silent) {
-    disable_sleep |= 0x2;
-    MsTimer2m::count = 0;
+namespace MsTimer2m {
+    volatile uint16_t count;
+    volatile uint16_t duration;
+    volatile uint8_t* sndptr;
     
-#if defined (__AVR_ATmega328P__) || defined(__AVR_ATmega2560__)
-// Use FastPWM. WGM2 2:0 <- 7, will count from OCR2A to TOP.
-// OUTPUT will clear at bottom and set at match - COM2B <- 3.
-// COM2B = 0 will disable compare output.
-// Tick frequency should be greater than 250.
+    void stop();
+    void nextNote();
 
-//CS22:CS20
-// 000 - STOP
-// 001 - 1
-// 010 - 8
-// 011 - 32
-// 100 - 64
-// 101 - 128
-// 110 - 256
-// 111 - 1024
+// Signal templates
+//                                 C    C#   D    D#   E    F    F#   G    G#   A    A#   B
+  const uint8_t scale[] PROGMEM = {239, 226, 213, 201, 190, 179, 169, 160, 151, 142, 134, 127};
+//const uint8_t scale[] PROGMEM = {239,      213,      190, 179,      160,      142,      127};
+  const uint8_t freq[]  PROGMEM = {105, 111, 118, 125, 132, 140, 149, 157, 167, 174, 188, 194 };
+/* 1050 1111 1179 1249 1322 1404 1488 1572 1666 1773 1879 1984 */
 
-    TIMSK2 &= ~(1<<TOIE2);
-    TCCR2A |= ((1<<WGM21) | (1<<WGM20)
-#if defined (SOUND_PASSIVE)
-    | (1 << COM2B0) | (1 << COM2B1)
-#endif
-    );
-    TCCR2B |= (1<<WGM22);
-    ASSR &= ~(1<<AS2);
-    TIMSK2 &= ~(1<<OCIE2A);
+const uint8_t signal_2short[] PROGMEM = {29, 2, 255, 2, 29, 2, 0 };
+const uint8_t sineva[] PROGMEM = {
+40,8,   38,8,   40,8,   38,16,  36,4,   35,4,   33,16,  255,8,  38,4,   36,4,   38,8,   36,4,   35,20,
+255,24, 35,4,   38,4,   36,12,  35,4,   33,12,  31,4,   30,16,  35,8,   33,8,   35,12,  28,30,  0
+};
 
-    // Set prescaler to 128
-    TCCR2B |= (1<<CS22);
-    TCCR2B &= ~(1<<CS21);
-    TCCR2B |= (1<<CS20);
 #if defined(SOUND_PASSIVE)
-    // TODO: Adjust loudness here
-    OCR2B = silent ? 0 : ((uint8_t)256 - ((uint8_t) ((F_CPU >> 7) / tick_frequncy)) >> 1);
-#elif defined(SOUND_ACTIVE)
-    digitalWrite(PIN_SOUND, silent ? 0 : 1);
-#endif
-    tcnt2 = (uint8_t)256 - (uint8_t) ((F_CPU >> 7) / tick_frequncy);
 
+void note(uint8_t noteNumber) {
+#if defined(__AVR_ATmega32U4__)
+    TCCR4C = (1 << PWM4D) | (1 << COM4D1);
+    bool silent = false;
+    if (noteNumber > 250) {
+        silent = true;
+        noteNumber = 11;
+    }
+    uint8_t note = noteNumber % 12;
+    uint8_t octave = (noteNumber/12);
+    uint8_t prescaler = 9 - octave;
+//    if (prescaler < 1 || prescaler > 9)
+//        prescaler = 0;
+    uint8_t val = pgm_read_byte(&scale[note]);
+    OCR4C = val;
+    OCR4D = silent ? 0 : (val / 2);
+    TCCR4B = prescaler<<CS40;
+    count = 0;
+    duration = (duration * pgm_read_byte(&freq[note])) >> (5 - octave);
     // Start
-    TCNT2 = tcnt2;
-    TIMSK2 |= (1<<TOIE2);
-
-#elif defined (__AVR_ATmega32U4__)
-//FastPWM: PWM4D = 1 and WGM41:WGM40 = 00, counts from 0 to OCR4C. COM4D1=1, COM4D0 = 0 => non-inverted output
-//TC4H = two high bits of 10-bit value
-//
-//TCCR4C:
-//3:2 - COM4D1, COM4D0
-//1 - FOC4D, force-compare
-//0 - PWM4D, enable PWM on D-comparer
-//
-//TCCR4D:
-//1:0 - WGM41, WGM40
-//
-//TIMSK4:
-//7 - Compare D enabled, OCIE4D
-//6 - Compare A enabled, OCIE4A
-//5 - Compare B enabled, OCIE4B
-//2 - TOIE4, overflow
-//
-//TIFR4 - same; contains interrupt flags
-    TCCR4B = 0;
-    TCCR4A = 0;
-    TCCR4C = 00001001B;
-    TCCR4D = 0;
-    TCCR4E = 0;
-    TCCR4B = (1<<CS43) | (1<<PSR4);
-//        prescaler = 128.0;
-    tcnt2 = (uint8_t) ((F_CPU >> 7) / tick_frequncy) - 1;
-    OCR4C = tcnt2;
-    OCR4D = tcnt2 / 2;
-
-    // Start
+    disable_sleep |= 0x2;
     TIFR4 = (1<<TOV4);
     TCNT4 = 0;
     TIMSK4 = (1<<TOIE4);
+#endif  
+}
 
-    digitalWrite(PIN_B, 1);
+
 #endif
 
-    return;
-}
+} // namespace
+
+
 
 void MsTimer2m::stop() {
 #if defined (__AVR_ATmega328P__) || defined(__AVR_ATmega2560__)
@@ -167,26 +121,20 @@ ISR(TIMER4_OVF_vect) {
 #else
 ISR(TIMER2_OVF_vect) {
 #endif
-    count++;
-    LED_show(255, 0, 0, 250);
-    if (count >= duration) {
-        LED_show(0, 0, 0, 0);
-        void MsTimer2m::stop();
+    MsTimer2m::count++;
+    if (MsTimer2m::count >= MsTimer2m::duration) {
+        MsTimer2m::stop();
         MsTimer2m::nextNote();
     }
 }
 #endif // AVR
 
 void MsTimer2m::nextNote() {
-    LED_show(0, 0, 255, 250);
-    if (MsTimer2m::sndptr) {
-    LED_show(0, 0, 255, 500);
-        uint16_t freq = pgm_read_byte(MsTimer2m::sndptr + (MsTimer2m::sndpos++));
-        if (freq) {
-            MsTimer2m::duration = pgm_read_byte(MsTimer2m::sndptr + (MsTimer2m::sndpos++));
-            MsTimer2m::set(freq % 20000, freq > 20000);
-            return;
-        }
+    uint8_t freq = pgm_read_byte(MsTimer2m::sndptr++);
+    if (freq) {
+        MsTimer2m::duration = (uint16_t)pgm_read_byte(MsTimer2m::sndptr++);
+        MsTimer2m::note(freq - 1);
+        return;
     }
     noSound();
 }
@@ -196,19 +144,21 @@ void MsTimer2m::nextNote() {
 #endif // SOUND_USE_TIMER
 
 void sound(uint8_t signalNumber) {
-    if (signalNumber ==0) {
 #if defined(SOUND_ACTIVE)
-    digitalWrite(PIN_SOUND, 1);
-#elif defined(SOUND_PASSIVE)
-    LED_showOne(PIN_SOUND, 128, 2);
-#endif
-    } else if (signalNumber == 1) {
-#if defined(SOUND_USE_TIMER)
-        MsTimer2m::sndptr = &MsTimer2m::signal_2short;
-        MsTimer2m::sndpos = 0;
-        nextNote();
-#endif
+    if (signalNumber ==0) {
+        digitalWrite(PIN_SOUND, 1);
     }
+#elif defined(SOUND_PASSIVE)    
+    if (signalNumber ==0) {
+        LED_showOne(PIN_SOUND, 128, 2);
+        return;
+    } else if (signalNumber == 1) {
+        MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::signal_2short;
+    } else if (signalNumber == 2) {
+        MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::sineva;        
+    }
+    MsTimer2m::nextNote();
+#endif
 }
 
 void noSound() {
@@ -222,6 +172,7 @@ void noSound() {
 //    noNewTone(PIN_SOUND);
 #endif
 #ifndef SOUND_EXTERNAL
+     MsTimer2m::stop();
     digitalWrite(PIN_SOUND, 0);
 #endif
 }

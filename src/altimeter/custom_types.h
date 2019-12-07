@@ -45,9 +45,4 @@ typedef struct {
     uint32_t under_parachute : 5;
 } jump_profile_t;
 
-typedef struct {
-    uint16_t frequency : 11; // Note frequency, in hz, 2047 max
-    uint16_t duration : 5; // note duration, in 100ms ticks, 3.2s max
-} note_t;
-
 #endif

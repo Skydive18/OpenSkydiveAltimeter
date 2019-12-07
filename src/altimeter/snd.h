@@ -26,20 +26,6 @@ void sound(uint8_t signalNumber);
 #error MsTimer2m library only works on AVR architecture
 #endif
 
-#define SOUND_USE_TIMER
-
-namespace MsTimer2m {
-    extern volatile uint8_t tcnt2;
-    extern volatile uint16_t count;
-    extern volatile uint16_t duration;
-    volatile uint8_t sndpos;
-    volatile uint16_t* sndptr;
-    
-    void set(uint16_t tick_frequncy, bool silent);
-    void stop();
-    void nextNote();
-}
-
 #endif // defined(SOUND_PASSIVE) || defined(SOUND_ACTIVE)
 
 #endif

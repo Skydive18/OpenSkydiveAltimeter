@@ -194,11 +194,12 @@ void setup() {
     backLight = IIC_ReadByte(RTC_ADDRESS, ADDR_BACKLIGHT);
     heartbeat = ByteToHeartbeat(settings.auto_power_off);
 
+    sound(2);
     // Show greeting message
     ShowText(16, 30, MSG_HELLO);
     DISPLAY_LIGHT_ON;
     showVersion();
-    delay(4000);
+    delay(7000);
     DISPLAY_LIGHT_OFF;
 }
 
@@ -756,8 +757,7 @@ void userMenu() {
 #endif
 //            "AСигналы\n"
             MSG_SETTINGS
-            MSG_POWEROFF
-            "TTest\n"),
+            MSG_POWEROFF),
             bl_char);
         event = myMenu(bigbuf, event);
         switch (event) {
@@ -774,9 +774,6 @@ void userMenu() {
                     break;;
                 }
             }
-            case 'T':
-                sound(1);
-                break;
             case 'B':
                 // Backlight turn on/off
                 backLight++;

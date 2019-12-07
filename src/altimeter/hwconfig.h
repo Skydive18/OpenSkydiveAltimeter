@@ -137,9 +137,11 @@
 #define PLATFORM_3 '0'
 #endif
 
-#if defined (SOUND_ACTIVE)
+#if defined (SOUND_PASSIVE)
 #define PLATFORM_4 '1'
+#define SOUND_USE_TIMER
 #elif defined(SOUND_ACTIVE)
+#define SOUND_USE_TIMER
 #define PLATFORM_4 '2'
 #elif defined(SOUND_EXTERNAL)
 #define PLATFORM_4 '3'
