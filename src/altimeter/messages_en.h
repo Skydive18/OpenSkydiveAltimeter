@@ -15,14 +15,11 @@
 #define MSG_MENU "Menu\n"
 #define MSG_EXIT " Exit\n"
 #define MSG_SET_TO_ZERO "0Reset to zero\n"
-#define MSG_PROFILE "PProfile: %c\n"
+#define MSG_PROFILE "PProfile: %c%c\n"
 #define MSG_BACKLIGHT "BBacklight: %c\n"
 #define MSG_LOGBOOK "LLogbook\n"
 #define MSG_SETTINGS "SSettings\n"
 #define MSG_POWEROFF "XPower OFF\n"
-#define MSG_PROFILE_SKYDIVE 'S'
-#define MSG_PROFILE_WINGSUITE 'W'
-#define MSG_PROFILE_HOPNPOP 'H'
 
 #define MSG_CONFIRM_NO " No\n"
 #define MSG_CONFIRM_YES "YYes\n"
@@ -38,8 +35,11 @@
 #define MSG_SETTINGS_SET_TIME "TTime\n"
 #define MSG_SETTINGS_SET_DATE "DDate\n"
 #define MSG_SETTINGS_SET_ALARM "AAlarm %s\n"
+#define MSG_SETTINGS_SET_SIGNALS "SSignals\n"
+#define MSG_SETTINGS_SET_SIGNALS_LED "LLED: %c\n"
+#define MSG_SETTINGS_SET_SIGNALS_BUZZER "BBuzzer: %c\n"
 #define MSG_SETTINGS_SET_MODE "QAutomatics: %c\n"
-#define MSG_SETTINGS_SET_AUTO_POWER_OFF "OAuto off: %dч\n"
+#define MSG_SETTINGS_SET_AUTO_POWER_OFF "OAuto off: %dh\n"
 #define MSG_SETTINGS_SET_SCREEN_ROTATION "RRotate screen\n"
 #define MSG_SETTINGS_SET_SCREEN_CONTRAST "CContrast %d\n"
 #define MSG_SETTINGS_SET_AUTO_ZERO "0Auto set 0: %c\n"

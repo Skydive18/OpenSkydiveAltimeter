@@ -39,11 +39,36 @@
 
 #define EEPROM_JUMP_COUNTER 0
 #define EEPROM_SETTINGS 2
+#define EEPROM_JUMP_PROFILES 0x20
+#define EEPROM_AUDIBLE_SIGNALS 0x30
 
 typedef struct {
     uint16_t battGranulationD; // Factory settings: min battery voltage, in items
     float battGranulationF; // Factory settings: battery percentage per 1 digitalRead item
+    uint8_t contrast : 4;
+    uint8_t jump_profile_number : 4;
+    // Flags
+    uint8_t display_rotation : 1;
+    uint8_t zero_after_reset : 1;
+    uint8_t auto_power_off : 2;
+    uint8_t backlight : 2;
+    //
+    int ground_altitude;
+    int target_altitude;
 } settings_t;
+
+typedef struct {
+    uint16_t exit : 5;
+    uint16_t begin_freefall : 5;
+    uint16_t freefall : 6;
+    uint16_t pullout : 6;
+    uint16_t opening : 5;
+    uint16_t under_parachute : 5;
+} jump_profile_t;
+
+typedef struct {
+    uint16_t signals[8];
+} audible_signals_t;
 
 byte blinkR = 0;
 byte blinkG = 0;
@@ -88,6 +113,7 @@ void setup() {
 
     // Save settings to nvram
     settings_t settings;
+    EEPROM.get(EEPROM_SETTINGS, settings);
     settings.battGranulationD = batt_min_voltage;
     settings.battGranulationF = batt_percentage_multiplier;
 
@@ -114,8 +140,228 @@ void setup() {
         state = (++ state) & 1;
         delay(250);
     } while (digitalRead(PIN_BTN1) && digitalRead(PIN_BTN2) && digitalRead(PIN_BTN3));
-    
+
+    // Write battery calibration
     EEPROM.put(EEPROM_SETTINGS, settings);
+
+    // Write state machine profiles
+    jump_profile_t jump_profile;
+
+    // Profile S - Skydive
+    jump_profile.exit = 7;
+    jump_profile.begin_freefall = 10;
+    jump_profile.freefall = 40;
+    jump_profile.pullout = 40;
+    jump_profile.opening = 14;
+    jump_profile.under_parachute = 7;
+    EEPROM.put(EEPROM_JUMP_PROFILES, jump_profile);
+    
+    // Profile F - Freefly
+    jump_profile.exit = 7;
+    jump_profile.begin_freefall = 10;
+    jump_profile.freefall = 40;
+    jump_profile.pullout = 40;
+    jump_profile.opening = 14;
+    jump_profile.under_parachute = 7;
+    EEPROM.put(EEPROM_JUMP_PROFILES + sizeof(jump_profile_t), jump_profile);
+    
+    // Profile C - CRW, Hop&Pop
+    jump_profile.exit = 7;
+    jump_profile.begin_freefall = 10;
+    jump_profile.freefall = 40;
+    jump_profile.pullout = 40;
+    jump_profile.opening = 14;
+    jump_profile.under_parachute = 7;
+    EEPROM.put(EEPROM_JUMP_PROFILES + (2 * sizeof(jump_profile_t)), jump_profile);
+    
+    // Profile W - Wingsuit
+    jump_profile.exit = 7;
+    jump_profile.begin_freefall = 10;
+    jump_profile.freefall = 40;
+    jump_profile.pullout = 40;
+    jump_profile.opening = 14;
+    jump_profile.under_parachute = 7;
+    EEPROM.put(EEPROM_JUMP_PROFILES + (3 * sizeof(jump_profile_t)), jump_profile);
+
+    // Write audible signals
+    audible_signals_t audible_signals;
+
+    // S1
+    audible_signals.signals[0] = 1500;
+    audible_signals.signals[1] = 1500;
+    audible_signals.signals[2] = 1200;
+    audible_signals.signals[3] = 1000;
+    audible_signals.signals[4] =  410;
+    audible_signals.signals[5] =  310;
+    audible_signals.signals[6] =  210;
+    audible_signals.signals[7] =  110;
+    EEPROM.put(EEPROM_AUDIBLE_SIGNALS + (0 * sizeof(audible_signals_t)), audible_signals);
+    
+    // S2
+    audible_signals.signals[0] = 1500;
+    audible_signals.signals[1] = 1500;
+    audible_signals.signals[2] = 1200;
+    audible_signals.signals[3] = 1000;
+    audible_signals.signals[4] =  410;
+    audible_signals.signals[5] =  310;
+    audible_signals.signals[6] =  210;
+    audible_signals.signals[7] =  110;
+    EEPROM.put(EEPROM_AUDIBLE_SIGNALS + (1 * sizeof(audible_signals_t)), audible_signals);
+
+    // S3
+    audible_signals.signals[0] = 1500;
+    audible_signals.signals[1] = 1500;
+    audible_signals.signals[2] = 1200;
+    audible_signals.signals[3] = 1000;
+    audible_signals.signals[4] =  410;
+    audible_signals.signals[5] =  310;
+    audible_signals.signals[6] =  210;
+    audible_signals.signals[7] =  110;
+    EEPROM.put(EEPROM_AUDIBLE_SIGNALS + (2 * sizeof(audible_signals_t)), audible_signals);
+
+    // S4
+    audible_signals.signals[0] = 1500;
+    audible_signals.signals[1] = 1500;
+    audible_signals.signals[2] = 1200;
+    audible_signals.signals[3] = 1000;
+    audible_signals.signals[4] =  410;
+    audible_signals.signals[5] =  310;
+    audible_signals.signals[6] =  210;
+    audible_signals.signals[7] =  110;
+    EEPROM.put(EEPROM_AUDIBLE_SIGNALS + (3 * sizeof(audible_signals_t)), audible_signals);
+
+    // F1
+    audible_signals.signals[0] = 1500;
+    audible_signals.signals[1] = 1500;
+    audible_signals.signals[2] = 1200;
+    audible_signals.signals[3] = 1000;
+    audible_signals.signals[4] =  410;
+    audible_signals.signals[5] =  310;
+    audible_signals.signals[6] =  210;
+    audible_signals.signals[7] =  110;
+    EEPROM.put(EEPROM_AUDIBLE_SIGNALS + (4 * sizeof(audible_signals_t)), audible_signals);
+    
+    // F2
+    audible_signals.signals[0] = 1500;
+    audible_signals.signals[1] = 1500;
+    audible_signals.signals[2] = 1200;
+    audible_signals.signals[3] = 1000;
+    audible_signals.signals[4] =  410;
+    audible_signals.signals[5] =  310;
+    audible_signals.signals[6] =  210;
+    audible_signals.signals[7] =  110;
+    EEPROM.put(EEPROM_AUDIBLE_SIGNALS + (5 * sizeof(audible_signals_t)), audible_signals);
+
+    // F3
+    audible_signals.signals[0] = 1500;
+    audible_signals.signals[1] = 1500;
+    audible_signals.signals[2] = 1200;
+    audible_signals.signals[3] = 1000;
+    audible_signals.signals[4] =  410;
+    audible_signals.signals[5] =  310;
+    audible_signals.signals[6] =  210;
+    audible_signals.signals[7] =  110;
+    EEPROM.put(EEPROM_AUDIBLE_SIGNALS + (6 * sizeof(audible_signals_t)), audible_signals);
+
+    // F4
+    audible_signals.signals[0] = 1500;
+    audible_signals.signals[1] = 1500;
+    audible_signals.signals[2] = 1200;
+    audible_signals.signals[3] = 1000;
+    audible_signals.signals[4] =  410;
+    audible_signals.signals[5] =  310;
+    audible_signals.signals[6] =  210;
+    audible_signals.signals[7] =  110;
+    EEPROM.put(EEPROM_AUDIBLE_SIGNALS + (7 * sizeof(audible_signals_t)), audible_signals);
+
+    // C1
+    audible_signals.signals[0] = 1500;
+    audible_signals.signals[1] = 1500;
+    audible_signals.signals[2] = 1200;
+    audible_signals.signals[3] = 1000;
+    audible_signals.signals[4] =  410;
+    audible_signals.signals[5] =  310;
+    audible_signals.signals[6] =  210;
+    audible_signals.signals[7] =  110;
+    EEPROM.put(EEPROM_AUDIBLE_SIGNALS + (8 * sizeof(audible_signals_t)), audible_signals);
+    
+    // C2
+    audible_signals.signals[0] = 1500;
+    audible_signals.signals[1] = 1500;
+    audible_signals.signals[2] = 1200;
+    audible_signals.signals[3] = 1000;
+    audible_signals.signals[4] =  410;
+    audible_signals.signals[5] =  310;
+    audible_signals.signals[6] =  210;
+    audible_signals.signals[7] =  110;
+    EEPROM.put(EEPROM_AUDIBLE_SIGNALS + (9 * sizeof(audible_signals_t)), audible_signals);
+
+    // C3
+    audible_signals.signals[0] = 1500;
+    audible_signals.signals[1] = 1500;
+    audible_signals.signals[2] = 1200;
+    audible_signals.signals[3] = 1000;
+    audible_signals.signals[4] =  410;
+    audible_signals.signals[5] =  310;
+    audible_signals.signals[6] =  210;
+    audible_signals.signals[7] =  110;
+    EEPROM.put(EEPROM_AUDIBLE_SIGNALS + (10 * sizeof(audible_signals_t)), audible_signals);
+
+    // C4
+    audible_signals.signals[0] = 1500;
+    audible_signals.signals[1] = 1500;
+    audible_signals.signals[2] = 1200;
+    audible_signals.signals[3] = 1000;
+    audible_signals.signals[4] =  410;
+    audible_signals.signals[5] =  310;
+    audible_signals.signals[6] =  210;
+    audible_signals.signals[7] =  110;
+    EEPROM.put(EEPROM_AUDIBLE_SIGNALS + (11 * sizeof(audible_signals_t)), audible_signals);
+
+    // W1
+    audible_signals.signals[0] = 1500;
+    audible_signals.signals[1] = 1500;
+    audible_signals.signals[2] = 1200;
+    audible_signals.signals[3] = 1000;
+    audible_signals.signals[4] =  410;
+    audible_signals.signals[5] =  310;
+    audible_signals.signals[6] =  210;
+    audible_signals.signals[7] =  110;
+    EEPROM.put(EEPROM_AUDIBLE_SIGNALS + (12 * sizeof(audible_signals_t)), audible_signals);
+    
+    // W2
+    audible_signals.signals[0] = 1500;
+    audible_signals.signals[1] = 1500;
+    audible_signals.signals[2] = 1200;
+    audible_signals.signals[3] = 1000;
+    audible_signals.signals[4] =  410;
+    audible_signals.signals[5] =  310;
+    audible_signals.signals[6] =  210;
+    audible_signals.signals[7] =  110;
+    EEPROM.put(EEPROM_AUDIBLE_SIGNALS + (13 * sizeof(audible_signals_t)), audible_signals);
+
+    // W3
+    audible_signals.signals[0] = 1500;
+    audible_signals.signals[1] = 1500;
+    audible_signals.signals[2] = 1200;
+    audible_signals.signals[3] = 1000;
+    audible_signals.signals[4] =  410;
+    audible_signals.signals[5] =  310;
+    audible_signals.signals[6] =  210;
+    audible_signals.signals[7] =  110;
+    EEPROM.put(EEPROM_AUDIBLE_SIGNALS + (14 * sizeof(audible_signals_t)), audible_signals);
+
+    // W4
+    audible_signals.signals[0] = 1500;
+    audible_signals.signals[1] = 1500;
+    audible_signals.signals[2] = 1200;
+    audible_signals.signals[3] = 1000;
+    audible_signals.signals[4] =  410;
+    audible_signals.signals[5] =  310;
+    audible_signals.signals[6] =  210;
+    audible_signals.signals[7] =  110;
+    EEPROM.put(EEPROM_AUDIBLE_SIGNALS + (15 * sizeof(audible_signals_t)), audible_signals);
+
     digitalWrite(PIN_LIGHT, 1);
 }
 

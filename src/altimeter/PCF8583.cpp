@@ -78,22 +78,13 @@ void PCF8583::enableSeedInterrupt() {
     init();
 }
 
+#ifdef ALARM_ENABLE
 void PCF8583::enableAlarmInterrupt() {
     // Daily alarm set -> alarm int, no timer alarm, daily, no timer int, no timer
     alarm_register = alarm_enable & 1 ? 0x90 : 0x0;
     writeAlarmControlRegister();
     status_register |= 4;
     init();
-}
-
-void PCF8583::disableInterrupt() {
-    init();
-    alarm_register = 0x01;
-    writeAlarmControlRegister();
-}
-
-void PCF8583::writeAlarmControlRegister() {
-    IIC_WriteByte(RTC_ADDRESS, 0x08, alarm_register);
 }
 
 void PCF8583::readAlarm() {
@@ -117,6 +108,18 @@ void PCF8583::setAlarm() {
     Wire.write(bin_to_bcd(alarm_hour));
     Wire.write(alarm_enable); // Set 00 at day 
     Wire.endTransmission();
+}
+
+#endif // ALARM_ENABLE
+
+void PCF8583::disableInterrupt() {
+    init();
+    alarm_register = 0x01;
+    writeAlarmControlRegister();
+}
+
+void PCF8583::writeAlarmControlRegister() {
+    IIC_WriteByte(RTC_ADDRESS, 0x08, alarm_register);
 }
 
 uint8_t PCF8583::bcd_to_bin(uint8_t bcd){

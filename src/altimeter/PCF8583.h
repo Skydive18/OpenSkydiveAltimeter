@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <Wire.h>
+#include "hwconfig.h"
 #include "custom_types.h"
 
 // Addressing in RAM, altimeter runtime parameters
@@ -19,12 +20,16 @@ class PCF8583 {
     uint8_t month;
     uint16_t year;
 
+#ifdef ALARM_ENABLE
     uint8_t alarm_minute;
     uint8_t alarm_hour;
     uint8_t alarm_enable;
+    void enableAlarmInterrupt();
+    void readAlarm();
+    void setAlarm();
+#endif
 
     void enableSeedInterrupt();
-    void enableAlarmInterrupt();
     void disableInterrupt();
     
     PCF8583();
@@ -34,9 +39,6 @@ class PCF8583 {
     timestamp_t getTimestamp();
     void setDate();
     void setTime();
-    void readAlarm();
-
-    void setAlarm();
     uint8_t bcd_to_bin(uint8_t bcd);
     uint8_t bin_to_bcd(uint8_t in);
 

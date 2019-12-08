@@ -15,14 +15,11 @@
 #define MSG_MENU "Меню\n"
 #define MSG_EXIT " Выход\n"
 #define MSG_SET_TO_ZERO "0Сброс на ноль\n"
-#define MSG_PROFILE "PПрофиль: %c\n"
+#define MSG_PROFILE "PПрофиль: %c%c\n"
 #define MSG_BACKLIGHT "BПодсветка: %c\n"
 #define MSG_LOGBOOK "LЖурнал прыжков\n"
 #define MSG_SETTINGS "SНастройки\n"
 #define MSG_POWEROFF "XВыключение\n"
-#define MSG_PROFILE_SKYDIVE 'S'
-#define MSG_PROFILE_WINGSUITE 'W'
-#define MSG_PROFILE_HOPNPOP 'H'
 
 #define MSG_CONFIRM_NO " Нет\n"
 #define MSG_CONFIRM_YES "YДа\n"
@@ -38,6 +35,9 @@
 #define MSG_SETTINGS_SET_TIME "TВремя\n"
 #define MSG_SETTINGS_SET_DATE "DДата\n"
 #define MSG_SETTINGS_SET_ALARM "AБудильник %s\n"
+#define MSG_SETTINGS_SET_SIGNALS "SСигналы\n"
+#define MSG_SETTINGS_SET_SIGNALS_LED "LСветодиод: %c\n"
+#define MSG_SETTINGS_SET_SIGNALS_BUZZER "BПищалка: %c\n"
 #define MSG_SETTINGS_SET_MODE "QАвтоматика: %c\n"
 #define MSG_SETTINGS_SET_AUTO_POWER_OFF "OАвтовыкл: %dч\n"
 #define MSG_SETTINGS_SET_SCREEN_ROTATION "RПоворот экрана\n"

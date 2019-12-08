@@ -5,7 +5,7 @@
 #define LOGBOOK_ENABLE           /* Enables logbook */
 #define SNAPSHOT_ENABLE          /* Enables jump trace recording. Requires LOGBOOK_ENABLE */
 #define ALARM_ENABLE             /* Enables alarm clock. Requires sound system to be configured. */
-//#define AUDIBLE_SIGNALS_ENABLE   /* TODO!! Enables audible altitude signals. Requires sound system to be configured. */
+#define AUDIBLE_SIGNALS_ENABLE   /* TODO!! Enables audible altitude signals. Requires sound system to be configured. */
 //#define TETRIS_ENABLE            /* TODO!! Enable 'tetris' game */
 //#define SNAKE_ENABLE             /* TODO!! Enable 'snake' game */
 
@@ -71,19 +71,21 @@
 // Max SNAPSHOT_SIZE seconds will be stored.
 // Please note, SNAPSHOT_SIZE also acts as a bugbuf[] size and thus must not be less than approx. 400 bytes
 #define SNAPSHOT_JOURNAL_LOCATION EEPROM
-#define SNAPSHOT_JOURNAL_START 544
+#define SNAPSHOT_JOURNAL_START 0x25c
 #define SNAPSHOT_JOURNAL_SIZE 1
-#define SNAPSHOT_SIZE 480
+#define SNAPSHOT_SIZE 420
 
 // Logbook configuration.
 // For location, possible values EEPROM and FLASH. Each logbook record is sizeof(jump_t) bytes (=12).
 #define LOGBOOK_LOCATION EEPROM
-#define LOGBOOK_START 0x40
-#define LOGBOOK_SIZE 40
+#define LOGBOOK_START 0x100
+#define LOGBOOK_SIZE 28
 
 // EEPROM addressing
 #define EEPROM_JUMP_COUNTER 0x0
 #define EEPROM_SETTINGS 0x2
+#define EEPROM_JUMP_PROFILES 0x20
+#define EEPROM_AUDIBLE_SIGNALS 0x30
 
 // Configure RGB LED. Define one of the following
 #define LED_COMMON_CATHODE

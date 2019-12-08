@@ -49,6 +49,9 @@
 
 settings_t settings;
 jump_profile_t jump_profile;
+#ifdef AUDIBLE_SIGNALS_ENABLE
+audible_signals_t audible_signals;
+#endif    
 
 MPL3115A2 myPressure;
 PCF8583 rtc;
@@ -105,7 +108,9 @@ void wake() {
     INTACK = true;
 }
 bool SetDate(timestamp_t &date);
+#ifdef ALARM_ENABLE
 bool checkAlarm();
+#endif
 void PowerOff(bool verbose = true);
 
 #if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
@@ -122,28 +127,10 @@ ISR (PCINT1_vect) { // handle pin change interrupt for A0 to A5 here
 #endif
 
 void loadJumpProfile() {
-    if (settings.jump_profile_number == 1) { // Hop&Pop
-        jump_profile.exit = 7;
-        jump_profile.begin_freefall = 10;
-        jump_profile.freefall = 40;
-        jump_profile.pullout = 40;
-        jump_profile.opening = 14;
-        jump_profile.under_parachute = 7;
-    } else if (settings.jump_profile_number == 2) { // Wingsuit
-        jump_profile.exit = 7;
-        jump_profile.begin_freefall = 10;
-        jump_profile.freefall = 40;
-        jump_profile.pullout = 40;
-        jump_profile.opening = 14;
-        jump_profile.under_parachute = 7;
-    } else { // Skydive
-        jump_profile.exit = 7;
-        jump_profile.begin_freefall = 10;
-        jump_profile.freefall = 40;
-        jump_profile.pullout = 40;
-        jump_profile.opening = 14;
-        jump_profile.under_parachute = 7;
-    }
+    EEPROM.get(EEPROM_JUMP_PROFILES + ((settings.jump_profile_number >> 2) * sizeof(jump_profile_t)), jump_profile);
+#ifdef AUDIBLE_SIGNALS_ENABLE
+    EEPROM.get(EEPROM_AUDIBLE_SIGNALS + ((settings.jump_profile_number) * sizeof(audible_signals_t)), audible_signals);
+#endif    
 }
 
 void setup() {
@@ -162,7 +149,9 @@ void setup() {
     delay(20); // Wait hardware to start
 
     rtc.readTime();
+#ifdef ALARM_ENABLE
     rtc.readAlarm();
+#endif
 
     // Read presets
     altitude_to_show = 0;
@@ -208,10 +197,12 @@ void setup() {
     u8g2.setContrast((uint8_t)(settings.contrast << 4) + 15);
 #endif
     u8g2.enableUTF8Print();    // enable UTF8 support for the Arduino print() function
-    u8g2.setDisplayRotation((settings.display_rotation & 1) ? U8G2_R0 : U8G2_R2);
+    u8g2.setDisplayRotation((settings.display_rotation) ? U8G2_R0 : U8G2_R2);
 
+#ifdef ALARM_ENABLE
     if (checkAlarm())
         PowerOff(false);
+#endif
 
     //Configure the sensor
     myPressure.begin(); // Get sensor online
@@ -227,6 +218,7 @@ void setup() {
     DISPLAY_LIGHT_OFF;
 }
 
+#ifdef ALARM_ENABLE
 bool checkAlarm() {
     if (rtc.alarm_enable && rtc.hour == rtc.alarm_hour && rtc.minute == rtc.alarm_minute) {
         rtc.alarm_enable = false;
@@ -254,6 +246,7 @@ bool checkAlarm() {
 
     return false;
 }
+#endif
 
 #ifdef SNAPSHOT_ENABLE
 void saveToJumpSnapshot() {
@@ -333,7 +326,7 @@ void processAltitude() {
         // Change mode to ON_EARTH if vspeed has been populated (approx. 16s after enter to this mode)
         if (vspeedPtr > 32) {
             // set to zero if we close to it
-            if (settings.zero_after_reset & 1) {
+            if (settings.zero_after_reset) {
                 altitude_to_show = 0;
                 myPressure.zero();
             }
@@ -488,18 +481,20 @@ void ShowLEDs() {
     
     switch (powerMode) {
         case MODE_IN_AIRPLANE:
-            if (current_altitude >= 300) {
-                if (airplane_300m <= 6 && current_altitude < 900) {
-                    LED_show(0, ((++airplane_300m) & 1) ? 140 : 0, 0); // green blinks 3 times at 300m but not above 900m
-                } else {
-                    if (current_altitude > 900) {
-                        LED_show(0, (interval_number & 15) ? 0 : 80, 0); // green blinks once per 8s above 900m
+            if (settings.use_led_signals) {
+                if (current_altitude >= 300) {
+                    if (airplane_300m <= 6 && current_altitude < 900) {
+                        LED_show(0, ((++airplane_300m) & 1) ? 140 : 0, 0); // green blinks 3 times at 300m but not above 900m
                     } else {
-                        LED_show((interval_number & 15) ? 0 : 255, (interval_number & 15) ? 0 : 80, 0); // yellow blinks once per 8s between 300m and 900m
+                        if (current_altitude > 900) {
+                            LED_show(0, (interval_number & 15) ? 0 : 80, 0); // green blinks once per 8s above 900m
+                        } else {
+                            LED_show((interval_number & 15) ? 0 : 255, (interval_number & 15) ? 0 : 80, 0); // yellow blinks once per 8s between 300m and 900m
+                        }
                     }
+                } else {
+                    LED_show((interval_number & 15) ? 0 : 120, 0, 0); // red blinks once per 8s below 300m
                 }
-            } else {
-                LED_show((interval_number & 15) ? 0 : 120, 0, 0); // red blinks once per 8s below 300m
             }
             return;
         case MODE_EXIT:
@@ -507,14 +502,16 @@ void ShowLEDs() {
         case MODE_FREEFALL:
         case MODE_PULLOUT:
         case MODE_OPENING:
-            if (current_altitude < 1000) {
-                LED_show(255, 0, 0); // red ligth below 1000m
-            } else if (current_altitude < 1200) {
-                LED_show(255, 80, 0); // yellow ligth between 1200 and 1000m
-            } else if (current_altitude < 1550) {
-                LED_show(0, 255, 0); // green ligth between 1550 and 1200m
-            } else {
-                LED_show(0, 0, 255); // blue ligth above 1550m
+            if (settings.use_led_signals) {
+                if (current_altitude < 1000) {
+                    LED_show(255, 0, 0); // red ligth below 1000m
+                } else if (current_altitude < 1200) {
+                    LED_show(255, 80, 0); // yellow ligth between 1200 and 1000m
+                } else if (current_altitude < 1550) {
+                    LED_show(0, 255, 0); // green ligth between 1550 and 1200m
+                } else {
+                    LED_show(0, 0, 255); // blue ligth above 1550m
+                }
             }
             return;
 
@@ -561,9 +558,10 @@ void ShowText(const uint8_t x, const uint8_t y, const char* text) {
 void PowerOff(bool verbose = true) {
     if (verbose)
         ShowText(6, 24, MSG_BYE);
-
-    rtc.enableAlarmInterrupt();
     noSound();
+#ifdef ALARM_ENABLE
+    rtc.enableAlarmInterrupt();
+#endif
 
     // turn off i2c
     pinMode(SCL, INPUT);
@@ -596,9 +594,13 @@ void PowerOff(bool verbose = true) {
         attachInterrupt(digitalPinToInterrupt(PIN_BTN2), wake, LOW);
 #endif
         // Also wake by alarm. TODO.
+#ifdef ALARM_ENABLE
         attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
+#endif
         off_forever;
+#ifdef ALARM_ENABLE
         detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
+#endif
 #if defined(__AVR_ATmega32U4__)
         detachInterrupt(digitalPinToInterrupt(PIN_BTN2));
 #endif
@@ -616,8 +618,11 @@ uint8_t checkWakeCondition () {
     else if (BTN3_PRESSED)
         pin = PIN_BTN3;
     else
+#ifdef ALARM_ENABLE
         return !digitalRead(PIN_INTERRUPT); // alarm => interrupt => wake
-
+#else
+        return 0;
+#endif
     LED_show(0, 0, 80, 400);
     for (uint8_t i = 1; i < 193; ++i) {
         if (digitalRead(pin))
@@ -645,7 +650,11 @@ uint8_t checkWakeCondition () {
         }
         return 1;
     }
-    return !digitalRead(PIN_INTERRUPT); // alarm => interrupt => wake;
+#ifdef ALARM_ENABLE
+    return !digitalRead(PIN_INTERRUPT); // alarm => interrupt => wake
+#else
+    return 0;
+#endif
 }
 #endif
 
@@ -662,7 +671,7 @@ void showVersion() {
 // event == 'z' => show menu and exit immediately.
 char myMenu(char *menudef, char event = ' ') {
     uint16_t ptr = 0;
-    char ptrs[12];
+    char ptrs[20];
     uint8_t menupos = 0;
     uint8_t number_of_menu_lines = 255;
     while(menudef[ptr]) {
@@ -728,6 +737,11 @@ char myMenu(char *menudef, char event = ' ') {
     }
 }
 
+const char *profileChars = "SFCW";
+char getProfileChar() {
+    return profileChars[settings.jump_profile_number >> 2];
+}
+
 void current_jump_to_bigbuf(uint16_t jump_to_show) {
     uint16_t freefall_time = current_jump.deploy_time >> 1;
     int average_freefall_speed_ms = ((current_jump.exit_altitude - current_jump.deploy_altitude) << 1) / freefall_time;
@@ -742,14 +756,9 @@ void current_jump_to_bigbuf(uint16_t jump_to_show) {
     int16_t deploy_altitude = current_jump.deploy_altitude << 1;
     int16_t canopy_altitude = (current_jump.deploy_altitude - current_jump.canopy_altitude) << 1;
     uint16_t max_freefall_speed_ms = current_jump.max_freefall_speed_ms;
-    char profile_char = MSG_PROFILE_SKYDIVE;
-    if (settings.jump_profile_number == 1)
-        profile_char = MSG_PROFILE_HOPNPOP;
-    if (settings.jump_profile_number == 2)
-        profile_char = MSG_PROFILE_WINGSUITE;
 
     sprintf_P(bigbuf, MSG_JUMP_CONTENT,
-        jump_to_show, total_jumps,  profile_char,
+        jump_to_show, total_jumps, getProfileChar(),
         day, month, year, hour, minute,
         exit_altitude, deploy_altitude,
         canopy_altitude, freefall_time,
@@ -757,6 +766,67 @@ void current_jump_to_bigbuf(uint16_t jump_to_show) {
         max_freefall_speed_ms, max_freefall_speed_kmh
         );
 }
+
+#ifdef AUDIBLE_SIGNALS_ENABLE
+char setAudibleSignals() {
+    char event;
+    uint8_t pos = 0;
+
+    for (;;) {
+        if (pos == 255)
+            pos = 9;
+        if (pos == 10)
+            pos = 0;
+        sprintf_P(bigbuf, PSTR("%c%c\n1%c%4u 5%c%4u\n2%c%4u 6%c%4u\n3%c%4u 7%c%4u\n4%c%4u 8%c%4u\n%cОтмена %cOK\n"),
+            getProfileChar(), '1' + (settings.jump_profile_number & 3),
+            pos == 0 ? '}' : ':', audible_signals.signals[0],
+            pos == 4 ? '}' : ':', audible_signals.signals[4],
+            pos == 1 ? '}' : ':', audible_signals.signals[1],
+            pos == 5 ? '}' : ':', audible_signals.signals[5],
+            pos == 2 ? '}' : ':', audible_signals.signals[2],
+            pos == 6 ? '}' : ':', audible_signals.signals[6],
+            pos == 3 ? '}' : ':', audible_signals.signals[3],
+            pos == 7 ? '}' : ':', audible_signals.signals[7],
+            pos == 8 ? '}' : ' ',
+            pos == 9 ? '}' : ' '
+        );
+        event = myMenu(bigbuf, '*');
+        if (event == 'z')
+            return 'z';
+        if (event == PIN_BTN1) {
+            if (pos > 7)
+                pos--;
+            else if (pos < 4) {
+                if (audible_signals.signals[pos] >= 10)
+                    audible_signals.signals[pos] -= 10;
+            } else {
+                if (audible_signals.signals[pos] >= 5)
+                    audible_signals.signals[pos] -= 5;
+            }
+        }
+        else if (event == PIN_BTN3) {
+            if (pos > 7)
+                pos++;
+            else if (pos < 4) {
+                if (audible_signals.signals[pos] <= 4990)
+                    audible_signals.signals[pos] += 10;
+                else
+                    audible_signals.signals[pos] += 5000;
+            } else {
+                if (audible_signals.signals[pos] <= 4995)
+                    audible_signals.signals[pos] += 5;
+                else
+                    audible_signals.signals[pos] += 5000;
+            }
+        }
+        else if (event == PIN_BTN2) {
+            if (pos < 8)
+                pos++;
+            else return (pos == 8) ? ' ' : PIN_BTN2;
+        }
+    };
+}
+#endif
 
 void userMenu() {
     DISPLAY_LIGHT_ON; // it will be turned off, if needed, in ShowLEDs(..)
@@ -770,11 +840,6 @@ void userMenu() {
             bl_char = '-';
         if (settings.backlight == 2)
             bl_char = '*';
-        char profile_char = MSG_PROFILE_SKYDIVE;
-        if (settings.jump_profile_number == 1)
-            profile_char = MSG_PROFILE_HOPNPOP;
-        if (settings.jump_profile_number == 2)
-            profile_char = MSG_PROFILE_WINGSUITE;
         sprintf_P(bigbuf, PSTR(
             MSG_MENU
             MSG_EXIT
@@ -784,15 +849,23 @@ void userMenu() {
 #ifdef LOGBOOK_ENABLE
             MSG_LOGBOOK
 #endif
-//            "AСигналы\n"
             MSG_SETTINGS
             MSG_POWEROFF),
-            profile_char,
+            getProfileChar(),
+#ifdef AUDIBLE_SIGNALS_ENABLE
+            '1' + (settings.jump_profile_number & 3),
+#else
+            ' ',
+#endif
             bl_char);
         event = myMenu(bigbuf, event);
         switch (event) {
             case 'P':
-                settings.jump_profile_number = (settings.jump_profile_number + 1) % 3;
+#ifdef AUDIBLE_SIGNALS_ENABLE
+                settings.jump_profile_number++;
+#else
+                settings.jump_profile_number++;
+#endif
                 loadJumpProfile();
                 break;
             case '0': {
@@ -894,16 +967,25 @@ void userMenu() {
                 char eventSettings = ' ';
                 do {
                     char power_mode_char = powerMode == MODE_DUMB ? '-' : '~';
-                    char zero_after_reset = settings.zero_after_reset & 1 ? '~' : '-';
+                    char zero_after_reset = settings.zero_after_reset ? '~' : '-';
                     textbuf[0] = '\0';
+#ifdef ALARM_ENABLE
                     if (rtc.alarm_enable & 1)
                         sprintf_P(textbuf, PSTR("%02d:%02d"), rtc.alarm_hour, rtc.alarm_minute);
+#endif
                     sprintf_P(bigbuf, PSTR(
                         MSG_SETTINGS_TITLE
                         MSG_EXIT
                         MSG_SETTINGS_SET_TIME
                         MSG_SETTINGS_SET_DATE
+#ifdef ALARM_ENABLE
                         MSG_SETTINGS_SET_ALARM
+#endif
+#ifdef AUDIBLE_SIGNALS_ENABLE
+                        MSG_SETTINGS_SET_SIGNALS
+                        MSG_SETTINGS_SET_SIGNALS_BUZZER
+#endif
+                        MSG_SETTINGS_SET_SIGNALS_LED
                         MSG_SETTINGS_SET_MODE
                         MSG_SETTINGS_SET_AUTO_POWER_OFF
                         MSG_SETTINGS_SET_SCREEN_ROTATION
@@ -913,17 +995,40 @@ void userMenu() {
                         MSG_SETTINGS_SET_AUTO_ZERO
                         MSG_SETTINGS_ABOUT
                         MSG_SETTINGS_PC_LINK),
+#ifdef ALARM_ENABLE
                         textbuf,
+#endif
+#ifdef AUDIBLE_SIGNALS_ENABLE
+                        settings.use_audible_signals ? '~' : '-',
+#endif
+                        settings.use_led_signals ? '~' : '-',
                         power_mode_char,
                         HeartbeatValue(settings.auto_power_off),
 #if defined(DISPLAY_HX1230)
-                        settings.contrast & 15,
+                        settings.contrast,
 #endif
                         zero_after_reset);
                     eventSettings = myMenu(bigbuf, eventSettings);
                     switch (eventSettings) {
                         case ' ':
                             break; // Exit menu
+#ifdef AUDIBLE_SIGNALS_ENABLE
+                        case 'S': {
+                            char signalEvent = setAudibleSignals();
+                            if (signalEvent == PIN_BTN2)
+                                EEPROM.put(EEPROM_AUDIBLE_SIGNALS + ((settings.jump_profile_number) * sizeof(audible_signals_t)), audible_signals);
+                            loadJumpProfile();
+                            if (signalEvent == 'z')
+                                return; // timeout
+                            break;
+                        }
+                        case 'B':
+                            settings.use_audible_signals++;
+                            break;
+#endif
+                        case 'L':
+                            settings.use_led_signals++;
+                            break;
                         case 'T': {
                             // Time
                             rtc.readTime();
@@ -950,6 +1055,7 @@ void userMenu() {
                             }
                             break;
                         }
+#ifdef ALARM_ENABLE
                         case 'A': {
                             // Alarm
                             rtc.readAlarm();
@@ -980,20 +1086,21 @@ void userMenu() {
                             rtc.setAlarm();
                             }
                             break;
+#endif
                         case 'Q':
                             // Auto power mode
                             powerMode = powerMode == MODE_DUMB ? MODE_ON_EARTH : MODE_DUMB;
                             break;
                         case 'O': {
                             // Auto poweroff
-                            settings.auto_power_off = (++settings.auto_power_off) & 3;
+                            settings.auto_power_off++;
                             heartbeat = ByteToHeartbeat(settings.auto_power_off);
                             break;
                         }
                         case 'R':
                             // Screen rotate
                             settings.display_rotation++;
-                            u8g2.setDisplayRotation((settings.display_rotation & 1) ? U8G2_R0 : U8G2_R2);
+                            u8g2.setDisplayRotation((settings.display_rotation) ? U8G2_R0 : U8G2_R2);
                             break;
 #if defined(DISPLAY_HX1230)
                         case 'C':
@@ -1296,8 +1403,10 @@ void loop() {
             rel_voltage = 0;
         if (rel_voltage > 100)
             rel_voltage = 100;
+#ifdef ALARM_ENABLE
         if (powerMode == MODE_ON_EARTH || powerMode == MODE_PREFILL || powerMode == MODE_DUMB)
             checkAlarm();
+#endif
     }
     
     processAltitude();
@@ -1318,7 +1427,11 @@ void loop() {
             sprintf_P(textbuf, PSTR("%02d.%02d.%04d %02d:%02d"), rtc.day, rtc.month, rtc.year, rtc.hour, rtc.minute);
             u8g2.drawUTF8(0, 6, textbuf);
             
+#ifdef ALARM_ENABLE
             sprintf_P(textbuf, PSTR("%3d%c"), rel_voltage, rtc.alarm_enable & 1 ? '@' : '$');
+#else
+            sprintf_P(textbuf, PSTR("%3d%%"), rel_voltage);
+#endif
             u8g2.drawUTF8(DISPLAY_WIDTH - 16, 6, textbuf);
     
             u8g2.drawHLine(0, 7, DISPLAY_WIDTH-1);

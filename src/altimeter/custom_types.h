@@ -24,23 +24,31 @@ typedef struct {
 typedef struct {
     uint16_t battGranulationD; // Factory settings: min battery voltage, in items
     float battGranulationF; // Factory settings: battery percentage per 1 digitalRead item
-    byte display_rotation;
-    byte zero_after_reset;
-    byte contrast;
-    byte auto_power_off;
-    byte backlight;
+    uint8_t contrast : 4;
+    uint8_t jump_profile_number : 4;
+    // Flags
+    uint8_t display_rotation : 1;
+    uint8_t zero_after_reset : 1;
+    uint8_t auto_power_off : 2;
+    uint8_t backlight : 2;
+    uint8_t use_led_signals : 1;
+    uint8_t use_audible_signals : 1;
+    //
     int ground_altitude;
-    byte jump_profile_number;
     int target_altitude;
 } settings_t;
 
 typedef struct {
-    uint32_t exit : 5;
-    uint32_t begin_freefall : 5;
-    uint32_t freefall : 6;
-    uint32_t pullout : 6;
-    uint32_t opening : 5;
-    uint32_t under_parachute : 5;
+    uint16_t exit : 5;
+    uint16_t begin_freefall : 5;
+    uint16_t freefall : 6;
+    uint16_t pullout : 6;
+    uint16_t opening : 5;
+    uint16_t under_parachute : 5;
 } jump_profile_t;
+
+typedef struct {
+    uint16_t signals[8];
+} audible_signals_t;
 
 #endif
