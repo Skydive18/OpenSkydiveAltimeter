@@ -11,14 +11,18 @@
         "Version 0.91\n" \
         "COM %ld/8N1\n")
 
-#define MSG_JUMP_CONTENT PSTR("%u/%u\n%02d.%02d.%04d %02d:%02d\nE:%4dm D:%4dm\nC:%4dm T:%4dc\nS:%dm/s %dkm/h\nM:%dm/s %dkm/h\n")
+#define MSG_JUMP_CONTENT PSTR("%u/%u %c\n%02d.%02d.%04d %02d:%02d\nE:%4dm D:%4dm\nC:%4dm T:%4dc\nS:%dm/s %dkm/h\nM:%dm/s %dkm/h\n")
 #define MSG_MENU "Menu\n"
 #define MSG_EXIT " Exit\n"
 #define MSG_SET_TO_ZERO "0Reset to zero\n"
+#define MSG_PROFILE "PProfile: %c\n"
 #define MSG_BACKLIGHT "BBacklight: %c\n"
 #define MSG_LOGBOOK "LLogbook\n"
 #define MSG_SETTINGS "SSettings\n"
 #define MSG_POWEROFF "XPower OFF\n"
+#define MSG_PROFILE_SKYDIVE 'S'
+#define MSG_PROFILE_WINGSUITE 'W'
+#define MSG_PROFILE_HOPNPOP 'H'
 
 #define MSG_CONFIRM_NO " No\n"
 #define MSG_CONFIRM_YES "YYes\n"

@@ -17,8 +17,10 @@ extern uint16_t total_jumps;
 
 #ifdef LOGBOOK_ENABLE
 extern jump_t current_jump;
+extern settings_t settings;
 
 void saveJump() {
+    current_jump.profile = settings.jump_profile_number;
     // Calculate jump start address
     uint16_t addr = LOGBOOK_START + (total_jumps % LOGBOOK_SIZE) * sizeof(jump_t);
 #if SNAPSHOT_JOURNAL_LOCATION == EEPROM

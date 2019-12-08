@@ -11,14 +11,18 @@
         "Версия 0.91\n" \
         "COM %ld/8N1\n")
 
-#define MSG_JUMP_CONTENT PSTR("%u/%u\n%02d.%02d.%04d %02d:%02d\nO:%4dм Р:%4dм\nП:%4dм В:%4dc\nС:%dм/с %dкм/ч\nМ:%dм/с %dкм/ч\n")
+#define MSG_JUMP_CONTENT PSTR("%u/%u %c\n%02d.%02d.%04d %02d:%02d\nO:%4dм Р:%4dм\nП:%4dм В:%4dc\nС:%dм/с %dкм/ч\nМ:%dм/с %dкм/ч\n")
 #define MSG_MENU "Меню\n"
 #define MSG_EXIT " Выход\n"
 #define MSG_SET_TO_ZERO "0Сброс на ноль\n"
+#define MSG_PROFILE "PПрофиль: %c\n"
 #define MSG_BACKLIGHT "BПодсветка: %c\n"
 #define MSG_LOGBOOK "LЖурнал прыжков\n"
 #define MSG_SETTINGS "SНастройки\n"
 #define MSG_POWEROFF "XВыключение\n"
+#define MSG_PROFILE_SKYDIVE 'S'
+#define MSG_PROFILE_WINGSUITE 'W'
+#define MSG_PROFILE_HOPNPOP 'H'
 
 #define MSG_CONFIRM_NO " Нет\n"
 #define MSG_CONFIRM_YES "YДа\n"

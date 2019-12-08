@@ -78,12 +78,12 @@
 // Logbook configuration.
 // For location, possible values EEPROM and FLASH. Each logbook record is sizeof(jump_t) bytes (=12).
 #define LOGBOOK_LOCATION EEPROM
-#define LOGBOOK_START 64
+#define LOGBOOK_START 0x40
 #define LOGBOOK_SIZE 40
 
 // EEPROM addressing
-#define EEPROM_JUMP_COUNTER 0
-#define EEPROM_SETTINGS 2
+#define EEPROM_JUMP_COUNTER 0x0
+#define EEPROM_SETTINGS 0x2
 
 // Configure RGB LED. Define one of the following
 #define LED_COMMON_CATHODE

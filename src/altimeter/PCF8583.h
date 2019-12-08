@@ -8,7 +8,6 @@
 // Addressing in RAM, altimeter runtime parameters
 #define ADDR_YEAR_BASE 0x10
 #define ADDR_ZERO_ALTITUDE 0x12
-#define ADDR_BACKLIGHT 0x14
 
 #define RTC_ADDRESS 0x50
 

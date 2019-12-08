@@ -40,15 +40,15 @@
 //
 // State machine points
 //
-#define EXIT_TH -7
-#define BEGIN_FREEFALL_TH -10
-#define FREEFALL_TH -40
-
-#define PULLOUT_TH -40
-#define OPENING_TH -14
-#define UNDER_PARACHUTE_TH -7
+#define EXIT_TH -jump_profile.exit
+#define BEGIN_FREEFALL_TH -jump_profile.begin_freefall
+#define FREEFALL_TH -jump_profile.freefall
+#define PULLOUT_TH -jump_profile.pullout
+#define OPENING_TH -jump_profile.opening
+#define UNDER_PARACHUTE_TH -jump_profile.under_parachute
 
 settings_t settings;
+jump_profile_t jump_profile;
 
 MPL3115A2 myPressure;
 PCF8583 rtc;
@@ -74,7 +74,6 @@ volatile bool INTACK;
 int current_altitude; // currently measured altitude, relative to ground_altitude
 int previous_altitude; // Previously measured altitude, relative to ground_altitude
 int altitude_to_show; // Last shown altitude (jitter corrected)
-uint8_t backLight = 0; // Display backlight flag, 0=off, 1=on, 2 = auto
 uint16_t batt; // battery voltage as it goes from sensor
 int8_t rel_voltage; // ballery relative voltage, in percent (0-100). 0 relates to 3.6v and 100 relates to fully charged batt
 
@@ -122,6 +121,31 @@ ISR (PCINT1_vect) { // handle pin change interrupt for A0 to A5 here
 
 #endif
 
+void loadJumpProfile() {
+    if (settings.jump_profile_number == 1) { // Hop&Pop
+        jump_profile.exit = 7;
+        jump_profile.begin_freefall = 10;
+        jump_profile.freefall = 40;
+        jump_profile.pullout = 40;
+        jump_profile.opening = 14;
+        jump_profile.under_parachute = 7;
+    } else if (settings.jump_profile_number == 2) { // Wingsuit
+        jump_profile.exit = 7;
+        jump_profile.begin_freefall = 10;
+        jump_profile.freefall = 40;
+        jump_profile.pullout = 40;
+        jump_profile.opening = 14;
+        jump_profile.under_parachute = 7;
+    } else { // Skydive
+        jump_profile.exit = 7;
+        jump_profile.begin_freefall = 10;
+        jump_profile.freefall = 40;
+        jump_profile.pullout = 40;
+        jump_profile.opening = 14;
+        jump_profile.under_parachute = 7;
+    }
+}
+
 void setup() {
     // Configure keyboard and enable pullup resistors
     pinMode(PIN_BTN1, INPUT_PULLUP);
@@ -150,6 +174,7 @@ void setup() {
     EEPROM.get(EEPROM_JUMP_COUNTER, total_jumps);
 #endif
     EEPROM.get(EEPROM_SETTINGS, settings);
+    loadJumpProfile();
 
     LED_show(0, 0, 0);
 
@@ -191,7 +216,6 @@ void setup() {
     //Configure the sensor
     myPressure.begin(); // Get sensor online
 
-    backLight = IIC_ReadByte(RTC_ADDRESS, ADDR_BACKLIGHT);
     heartbeat = ByteToHeartbeat(settings.auto_power_off);
 
     sound(SIGNAL_WELCOME);
@@ -434,7 +458,7 @@ void processAltitude() {
 
 uint8_t airplane_300m = 0;
 void ShowLEDs() {
-    if ((powerMode != MODE_ON_EARTH && powerMode != MODE_PREFILL && powerMode != MODE_DUMB && backLight == 2) || backLight == 1 || timeToTurnBacklightOn > 0)
+    if ((powerMode != MODE_ON_EARTH && powerMode != MODE_PREFILL && powerMode != MODE_DUMB && settings.backlight == 2) || settings.backlight == 1 || timeToTurnBacklightOn > 0)
         DISPLAY_LIGHT_ON;
     else
         DISPLAY_LIGHT_OFF;
@@ -634,7 +658,7 @@ void showVersion() {
 }
 
 // Returns ' ' on timeout; otherwise, current position
-// event = '\0' => show menu and wait for keypress, no navigation performed.
+// event = '*' => show menu and wait for keypress, no navigation performed.
 // event == 'z' => show menu and exit immediately.
 char myMenu(char *menudef, char event = ' ') {
     uint16_t ptr = 0;
@@ -683,7 +707,7 @@ char myMenu(char *menudef, char event = ' ') {
         if (event == 'z')
             return 'z';
         uint8_t key = getKeypress();
-        if (event == '\0')
+        if (event == '*')
             return (key == 255) ? 'z' : (char)key;
         if (key == PIN_BTN2)
             return ptrs[menupos - 1];
@@ -718,9 +742,14 @@ void current_jump_to_bigbuf(uint16_t jump_to_show) {
     int16_t deploy_altitude = current_jump.deploy_altitude << 1;
     int16_t canopy_altitude = (current_jump.deploy_altitude - current_jump.canopy_altitude) << 1;
     uint16_t max_freefall_speed_ms = current_jump.max_freefall_speed_ms;
+    char profile_char = MSG_PROFILE_SKYDIVE;
+    if (settings.jump_profile_number == 1)
+        profile_char = MSG_PROFILE_HOPNPOP;
+    if (settings.jump_profile_number == 2)
+        profile_char = MSG_PROFILE_WINGSUITE;
 
     sprintf_P(bigbuf, MSG_JUMP_CONTENT,
-        jump_to_show, total_jumps,
+        jump_to_show, total_jumps,  profile_char,
         day, month, year, hour, minute,
         exit_altitude, deploy_altitude,
         canopy_altitude, freefall_time,
@@ -737,14 +766,20 @@ void userMenu() {
     char event = ' ';
     do {
         char bl_char = '~';
-        if (backLight == 0)
+        if (settings.backlight == 0)
             bl_char = '-';
-        if (backLight == 2)
+        if (settings.backlight == 2)
             bl_char = '*';
+        char profile_char = MSG_PROFILE_SKYDIVE;
+        if (settings.jump_profile_number == 1)
+            profile_char = MSG_PROFILE_HOPNPOP;
+        if (settings.jump_profile_number == 2)
+            profile_char = MSG_PROFILE_WINGSUITE;
         sprintf_P(bigbuf, PSTR(
             MSG_MENU
             MSG_EXIT
             MSG_SET_TO_ZERO
+            MSG_PROFILE
             MSG_BACKLIGHT
 #ifdef LOGBOOK_ENABLE
             MSG_LOGBOOK
@@ -752,9 +787,14 @@ void userMenu() {
 //            "AСигналы\n"
             MSG_SETTINGS
             MSG_POWEROFF),
+            profile_char,
             bl_char);
         event = myMenu(bigbuf, event);
         switch (event) {
+            case 'P':
+                settings.jump_profile_number = (settings.jump_profile_number + 1) % 3;
+                loadJumpProfile();
+                break;
             case '0': {
                 // Set to zero
                 if (powerMode == MODE_ON_EARTH || powerMode == MODE_PREFILL || powerMode == MODE_DUMB) {
@@ -770,11 +810,9 @@ void userMenu() {
             }
             case 'B':
                 // Backlight turn on/off
-                backLight++;
-                if (backLight > 2)
-                    backLight = 0;
-                if (backLight != 1)
-                    IIC_WriteByte(RTC_ADDRESS, ADDR_BACKLIGHT, backLight);
+                settings.backlight++;
+                if (settings.backlight > 2)
+                    settings.backlight = 0;
                 break;
 #ifdef LOGBOOK_ENABLE
             case 'L': {
@@ -807,7 +845,7 @@ void userMenu() {
                                 // Read jump from logbook
                                 loadJump(jump_to_show - 1);
                                 current_jump_to_bigbuf(jump_to_show);
-                                logbook_view_event = (uint8_t)myMenu(bigbuf, '\0');
+                                logbook_view_event = (uint8_t)myMenu(bigbuf, '*');
                                 if (logbook_view_event == PIN_BTN1)
                                     jump_to_show--;
                                 if (logbook_view_event == PIN_BTN2)
@@ -1006,6 +1044,7 @@ void userMenu() {
             default:
                 return;
         }
+        EEPROM.put(EEPROM_SETTINGS, settings);
     } while (event != ' ' && event != 'z');
 }
 

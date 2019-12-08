@@ -16,16 +16,10 @@ typedef struct {
     uint32_t max_freefall_speed_ms : 8; // 
     //
     uint32_t canopy_altitude : 10; // *2, 0..2048, delta from deploy_altitude
-    uint32_t deploy_time : 10; // in 1s ticks after exit, 512 seconds max
-    uint32_t total_jump_time : 12; // in 500ms ticks, 1024s max
+    uint32_t deploy_time : 9; // in 1s ticks after exit, 512 seconds max
+    uint32_t total_jump_time : 11; // in 500ms ticks, 1024s max
+    uint32_t profile : 2; // Jump profile, 0..3
 } jump_t;
-
-typedef struct {
-    byte blue_th;
-    byte green_th;
-    byte yellow_th;
-    byte red_th;
-} led_profile_t;
 
 typedef struct {
     uint16_t battGranulationD; // Factory settings: min battery voltage, in items
@@ -34,13 +28,17 @@ typedef struct {
     byte zero_after_reset;
     byte contrast;
     byte auto_power_off;
+    byte backlight;
+    int ground_altitude;
+    byte jump_profile_number;
+    int target_altitude;
 } settings_t;
 
 typedef struct {
     uint32_t exit : 5;
     uint32_t begin_freefall : 5;
     uint32_t freefall : 6;
-    uint32_t pullout : 5;
+    uint32_t pullout : 6;
     uint32_t opening : 5;
     uint32_t under_parachute : 5;
 } jump_profile_t;
