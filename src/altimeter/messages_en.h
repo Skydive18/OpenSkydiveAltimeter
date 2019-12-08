@@ -8,7 +8,7 @@
 #define MSG_VERSION PSTR( \
         "Altimonster I\n" \
         "Platform %c%c%c%c\n" \
-        "Version 0.90\n" \
+        "Version 0.91\n" \
         "COM %ld/8N1\n")
 
 #define MSG_JUMP_CONTENT PSTR("%u/%u\n%02d.%02d.%04d %02d:%02d\nE:%4dm D:%4dm\nC:%4dm T:%4dc\nS:%dm/s %dkm/h\nM:%dm/s %dkm/h\n")

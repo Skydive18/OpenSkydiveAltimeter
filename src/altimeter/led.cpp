@@ -4,7 +4,7 @@
 #include "power.h"
 #include "wiring_private.h"
 
-void LED_showOne(byte pin, byte val, byte disableSleepMask) {
+void LED_showOne(byte pin, byte val) {
     // We need to make sure the PWM output is enabled for those pins
     // that support it, as we turn it off when digitally reading or
     // writing with them.  Also, make sure the pin is in output mode
@@ -24,7 +24,7 @@ void LED_showOne(byte pin, byte val, byte disableSleepMask) {
     }
     else
     {
-        disable_sleep |= disableSleepMask;
+        disable_sleep |= 1;
         
         switch(digitalPinToTimer(pin))
         {
@@ -194,14 +194,14 @@ void LED_showOne(byte pin, byte val, byte disableSleepMask) {
 
 void LED_show(byte red, byte green, byte blue, uint8_t delayMs = 0) {
     disable_sleep &= 0xfe;
-    LED_showOne(PIN_R, red, 1);
-    LED_showOne(PIN_G, green, 1);
-    LED_showOne(PIN_B, blue, 1);
+    LED_showOne(PIN_R, red);
+    LED_showOne(PIN_G, green);
+    LED_showOne(PIN_B, blue);
     if (delayMs > 0) {
         delay(delayMs);
-        LED_showOne(PIN_R, 0, 1);
-        LED_showOne(PIN_G, 0, 1);
-        LED_showOne(PIN_B, 0, 1);
+        LED_showOne(PIN_R, 0);
+        LED_showOne(PIN_G, 0);
+        LED_showOne(PIN_B, 0);
         disable_sleep &= 0xfe;
     }
 }

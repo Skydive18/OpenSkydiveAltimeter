@@ -194,7 +194,7 @@ void setup() {
     backLight = IIC_ReadByte(RTC_ADDRESS, ADDR_BACKLIGHT);
     heartbeat = ByteToHeartbeat(settings.auto_power_off);
 
-    sound(2);
+    sound(SIGNAL_WELCOME);
     // Show greeting message
     ShowText(16, 30, MSG_HELLO);
     DISPLAY_LIGHT_ON;
@@ -215,17 +215,11 @@ bool checkAlarm() {
             u8g2.drawUTF8((DISPLAY_WIDTH - 80) / 2, (DISPLAY_HEIGHT / 2) + 12, bigbuf);
         } while(u8g2.nextPage());
 
-        while (BTN2_PRESSED) delay(100);
+        while (BTN2_PRESSED);
         for (uint8_t i = 0; i < 90; ++i) {
+            sound(SIGNAL_2SHORT);
             DISPLAY_LIGHT_ON;
-            sound(0);
-            delay(100);
-            noSound();
-            delay(100);
-            sound(0);
-            delay(100);
-            noSound();
-            delay(200);
+            delay(500);
             DISPLAY_LIGHT_OFF;
             delay(500);
             if (BTN2_PRESSED)
@@ -511,7 +505,7 @@ void ShowLEDs() {
                     noSound();
                 } else {
                     LED_show(0, 80, 0); // green blinks to indicate that altimeter is ready
-                    sound(0);
+                    sound(SIGNAL_1MEDIUM);
                 }
             } else
                 break; // turn LED off
@@ -545,7 +539,7 @@ void PowerOff(bool verbose = true) {
         ShowText(6, 24, MSG_BYE);
 
     rtc.enableAlarmInterrupt();
-    termSound();
+    noSound();
 
     // turn off i2c
     pinMode(SCL, INPUT);

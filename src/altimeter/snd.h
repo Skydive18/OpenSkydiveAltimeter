@@ -3,12 +3,12 @@
 #include "hwconfig.h"
 
 void initSound();
-void termSound();
 void noSound();
 
 // Signals:
-// 0 Buzz until termination
-// 1 Alarm buzz: 100ms sound + 100ms delay, twice
+#define SIGNAL_WELCOME 2
+#define SIGNAL_2SHORT 1
+#define SIGNAL_1MEDIUM 3
 
 #if defined(SOUND_PASSIVE) || defined(SOUND_ACTIVE) || defined(SOUND_EXTERNAL)
 void sound(uint8_t signalNumber);
@@ -23,7 +23,7 @@ void sound(uint8_t signalNumber);
 #elif defined(__arm__) && defined(TEENSYDUINO)
 #include <Arduino.h>
 #else
-#error MsTimer2m library only works on AVR architecture
+#error Timer-based sound subsystem sypported on AVR architecture only.
 #endif
 
 #endif // defined(SOUND_PASSIVE) || defined(SOUND_ACTIVE)
