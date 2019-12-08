@@ -852,7 +852,7 @@ void userMenu() {
                                     break;
                                 if (logbook_view_event == PIN_BTN3)
                                     jump_to_show++;
-                                if (logbook_view_event == ' ')
+                                if (logbook_view_event == 'z')
                                     return;;
                             };
                             break;
