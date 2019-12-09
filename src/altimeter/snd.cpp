@@ -97,7 +97,16 @@ volatile uint8_t buzz;
 // Signal templates. Contain durations for beeps and pauses, sequentially, in 50ms ticks. Terminated with 0.
 const uint8_t signal_2short[] PROGMEM = {2, 2, 2, 0 };
 const uint8_t signal_1medium[] PROGMEM = {10, 0 };
-
+#ifdef AUDIBLE_SIGNALS_ENABLE
+const uint8_t signal_alt0[] PROGMEM = {3, 2, 3, 2, 3, 2, 3, 0 };
+const uint8_t signal_alt1[] PROGMEM = {4, 2, 4, 2, 4, 0 };
+const uint8_t signal_alt2[] PROGMEM = {4, 3, 4, 0 };
+const uint8_t signal_alt3[] PROGMEM = {6, 1, 6, 1, 6, 1, 6, 1, 6, 0 };
+const uint8_t signal_alt4[] PROGMEM = {1, 1, 1, 6, 1, 1, 1, 6, 1, 1, 1, 6, 1, 1, 1, 0 };
+const uint8_t signal_alt5[] PROGMEM = {1, 1, 1, 6, 1, 1, 1, 6, 1, 1, 1, 0 };
+const uint8_t signal_alt6[] PROGMEM = {1, 1, 1, 6, 1, 1, 1, 0 };
+const uint8_t signal_alt7[] PROGMEM = {40, 0 };
+#endif
 void note() {
 #if defined(__AVR_ATmega32U4__)
     TCCR4C = 0; // disable timer output
@@ -172,6 +181,24 @@ void sound(uint8_t signalNumber) {
         MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::signal_2short;
     } else if (signalNumber == SIGNAL_1MEDIUM) {
         MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::signal_1medium;
+#if defined(SOUND_ACTIVE)
+    } else if (signalNumber == 128) {
+        MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::signal_alt0;
+    } else if (signalNumber == 129) {
+        MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::signal_alt1;
+    } else if (signalNumber == 130) {
+        MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::signal_alt2;
+    } else if (signalNumber == 131) {
+        MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::signal_alt3;
+    } else if (signalNumber == 132) {
+        MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::signal_alt4;
+    } else if (signalNumber == 133) {
+        MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::signal_alt5;
+    } else if (signalNumber == 134) {
+        MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::signal_alt6;
+    } else if (signalNumber == 135) {
+        MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::signal_alt7;
+#endif
 #if defined(SOUND_PASSIVE)
     } else if (signalNumber == SIGNAL_WELCOME) {
         MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::sineva; 

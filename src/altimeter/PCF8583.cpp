@@ -6,12 +6,12 @@
 PCF8583::PCF8583() {
     status_register = 0;
     alarm_register = 0;
-    last_stored_year = IIC_ReadInt(RTC_ADDRESS, ADDR_LAST_STORED_YEAR);
 }
 
 // initialization 
 void PCF8583::init() {
     IIC_WriteByte(RTC_ADDRESS, 0, status_register);
+    last_stored_year = IIC_ReadInt(RTC_ADDRESS, ADDR_LAST_STORED_YEAR);
 }
 
 void PCF8583::readTime() {
@@ -28,7 +28,7 @@ void PCF8583::readTime() {
     incoming = Wire.read();
     month  = bcd_to_bin(incoming & 0x1f);
     year += IIC_ReadInt(RTC_ADDRESS, ADDR_YEAR_BASE);
-    if (year < last_stored_year) { // 4-year counter overlap
+    if (year < last_stored_year && (last_stored_year - year) <= 4) { // 4-year counter overlap
         year += 4;
         setDate();
     }

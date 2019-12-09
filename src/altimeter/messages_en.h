@@ -36,6 +36,7 @@
 #define MSG_SETTINGS_SET_DATE "DDate\n"
 #define MSG_SETTINGS_SET_ALARM "AAlarm %s\n"
 #define MSG_SETTINGS_SET_SIGNALS "SSignals\n"
+#define MSG_SETTINGS_SET_SIGNALS_TEST "tTest signals\n"
 #define MSG_SETTINGS_SET_SIGNALS_LED "LLED: %c\n"
 #define MSG_SETTINGS_SET_SIGNALS_BUZZER "BBuzzer: %c\n"
 #define MSG_SETTINGS_SET_MODE "QAutomatics: %c\n"

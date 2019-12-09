@@ -999,6 +999,7 @@ void userMenu() {
 #endif
 #ifdef AUDIBLE_SIGNALS_ENABLE
                         MSG_SETTINGS_SET_SIGNALS
+                        MSG_SETTINGS_SET_SIGNALS_TEST
                         MSG_SETTINGS_SET_SIGNALS_BUZZER
 #endif
                         MSG_SETTINGS_SET_SIGNALS_LED
@@ -1041,6 +1042,21 @@ void userMenu() {
                         case 'B':
                             settings.use_audible_signals++;
                             break;
+                        case 't': {
+                            u8g2.setFont(font_altitude);
+                            for (uint8_t i = 128; i <= 135; i++) {
+                                u8g2.firstPage();
+                                do {
+                                    sprintf_P(textbuf, PSTR("%d"), i - 127);
+                                    u8g2.drawUTF8(DISPLAY_WIDTH >> 1, DISPLAY_HEIGHT - 10, textbuf);
+                                    
+                                } while ( u8g2.nextPage() );
+                                sound(i);
+                                delay(8000);
+                            }
+                            u8g2.setFont(font_menu);
+                            break;
+                        }
 #endif
                         case 'L':
                             settings.use_led_signals++;
