@@ -29,7 +29,9 @@ class PCF8583 {
     void setAlarm();
 #endif
 
+#if defined(__AVR_ATmega32U4__)
     void enableSeedInterrupt();
+#endif
     void disableInterrupt();
     
     PCF8583();

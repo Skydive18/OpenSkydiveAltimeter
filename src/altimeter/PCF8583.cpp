@@ -69,7 +69,9 @@ void PCF8583::setTime() {
     init(); // re set the control/status register to 0x04
 }
 
+#if defined (__AVR_ATmega32U4__)
 void PCF8583::enableSeedInterrupt() {
+    // Generate normal interrupt using timer match
     // Write timer alarm register, 0x0f
     IIC_WriteByte(RTC_ADDRESS, 0x0f, 0x50);
     alarm_register = (alarm_register & 0x30) | 0xc9; // alarm interrupt enable, alarm timer enable, timer is 1/100s
@@ -77,6 +79,7 @@ void PCF8583::enableSeedInterrupt() {
     status_register |= 4;
     init();
 }
+#endif
 
 #ifdef ALARM_ENABLE
 void PCF8583::enableAlarmInterrupt() {

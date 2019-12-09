@@ -105,7 +105,9 @@ void ShowText(const uint8_t x, const uint8_t y, const char* text);
 char myMenu(char *menudef, char event = ' ');
 void showVersion();
 void wake() {
+#if defined (__AVR_ATmega32U4__)
     INTACK = true;
+#endif
 }
 bool SetDate(timestamp_t &date);
 #ifdef ALARM_ENABLE
@@ -121,7 +123,11 @@ void pciSetup(byte pin) {
     PCICR  |= bit (digitalPinToPCICRbit(pin)); // enable interrupt for the group
 }
 
-ISR (PCINT1_vect) { // handle pin change interrupt for A0 to A5 here
+ISR (PCINT1_vect) { // handle pin change interrupt for A0 to A5 here (328p); the only PCINT for 32u4
+}
+
+ISR (PCINT2_vect) { // handle pin change interrupt for D0 to D5 here (328p)
+    INTACK = true;
 }
 
 #endif
@@ -146,8 +152,9 @@ void setup() {
     pinMode(PIN_HWPWR, OUTPUT);
     digitalWrite(PIN_HWPWR, 1);
     Wire.begin();
-    delay(20); // Wait hardware to start
+    delay(50); // Wait hardware to start
 
+    rtc.init(); // reset alarm flags, start generate seed sequence
     rtc.readTime();
 #ifdef ALARM_ENABLE
     rtc.readAlarm();
@@ -216,6 +223,10 @@ void setup() {
     showVersion();
     delay(7000);
     DISPLAY_LIGHT_OFF;
+#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
+    // Wake by pin-change interrupt from RTC that generates 1Hz 50% duty cycle
+    pciSetup(PIN_INTERRUPT);
+#endif    
 }
 
 #ifdef ALARM_ENABLE
@@ -256,11 +267,16 @@ void saveToJumpSnapshot() {
     if (current_jump.total_jump_time >= (SNAPSHOT_SIZE * 2) || (current_jump.total_jump_time & 1) /* write once per second */ )
         return;
     int speed_now = current_altitude - accumulated_altitude;
-    // TODO. Limit acceleration (in fact, this is exactly what we store) with values depending on current speed.
-    // Anyway, while freefall, acceleration more than 1g is not possible.
+    // Limit acceleration (in fact, this is exactly what we store) with 1.1g down, 2,5g up.
+    // Anyway, while freefall, acceleration more than 1g down is not possible.
+    int8_t accel = (speed_now - accumulated_speed);
+    if (accel < -11)
+        accel = -11;
+    if (accel > 25)
+        accel = 25;
     bigbuf[current_jump.total_jump_time >> 1] = (char)(speed_now - accumulated_speed);
-    accumulated_altitude = current_altitude;
-    accumulated_speed = speed_now;
+    accumulated_speed += accel;
+    accumulated_altitude += accumulated_speed;
 }
 #endif
 
@@ -629,7 +645,7 @@ uint8_t checkWakeCondition () {
             return 0;
         if (! (i & 63))
             LED_show(0, 0, 80, 200);
-        off_15ms;
+        delay(15);
     }
     return 1;
 }
@@ -646,7 +662,7 @@ uint8_t checkWakeCondition () {
             return 0;
         if (! (i & 63))
             LED_show(0, 0, 80, 200);
-        off_15ms;
+        delay(15);
         }
         return 1;
     }
@@ -1455,9 +1471,10 @@ void loop() {
         } while ( u8g2.nextPage() );
     }
 
+#if defined (__AVR_ATmega32U4__)
     rtc.enableSeedInterrupt();
-
     attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
+#endif
     INTACK = false;
     if (disable_sleep) {
         // When PWM led control or sound delay is active, we cannot go into power down mode -
@@ -1470,8 +1487,10 @@ void loop() {
     } else {
         off_forever;
     }
+#if defined (__AVR_ATmega32U4__)
     detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
     rtc.disableInterrupt();
+#endif
 
     interval_number++;
     if (powerMode == MODE_ON_EARTH || powerMode == MODE_DUMB) {
