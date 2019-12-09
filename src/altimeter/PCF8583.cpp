@@ -6,6 +6,7 @@
 PCF8583::PCF8583() {
     status_register = 0;
     alarm_register = 0;
+    last_stored_year = IIC_ReadInt(RTC_ADDRESS, ADDR_LAST_STORED_YEAR);
 }
 
 // initialization 
@@ -27,8 +28,10 @@ void PCF8583::readTime() {
     incoming = Wire.read();
     month  = bcd_to_bin(incoming & 0x1f);
     year += IIC_ReadInt(RTC_ADDRESS, ADDR_YEAR_BASE);
-
-    init();
+    if (year < last_stored_year) { // 4-year counter overlap
+        year += 4;
+        setDate();
+    }
 }
 
 timestamp_t PCF8583::getTimestamp() {
@@ -50,6 +53,8 @@ void PCF8583::setDate() {
     Wire.write((bin_to_bcd(month) & 0x1f));
     Wire.endTransmission();
     IIC_WriteInt(RTC_ADDRESS, ADDR_YEAR_BASE, year & 0xfffc);
+    last_stored_year = year;
+    IIC_WriteInt(RTC_ADDRESS, ADDR_LAST_STORED_YEAR, year);
 
     init(); // re set the control/status register to 0x04
 }

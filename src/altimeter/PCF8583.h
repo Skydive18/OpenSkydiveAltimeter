@@ -8,6 +8,7 @@
 
 // Addressing in RAM, altimeter runtime parameters
 #define ADDR_YEAR_BASE 0x10
+#define ADDR_LAST_STORED_YEAR 0x14
 #define ADDR_ZERO_ALTITUDE 0x12
 
 #define RTC_ADDRESS 0x50
@@ -19,6 +20,7 @@ class PCF8583 {
     uint8_t day;
     uint8_t month;
     uint16_t year;
+    uint16_t last_stored_year;
 
 #ifdef ALARM_ENABLE
     uint8_t alarm_minute;
