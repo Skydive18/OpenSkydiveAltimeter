@@ -33,7 +33,6 @@ TXLED1
 * Устанавливаем библиотеки
 Low-Power by Rocket Scream Electronics https://github.com/rocketscream/Low-Power
 U8G2 https://github.com/olikraus/u8g2
-MsTimer2
 
 
 * Оптимизируем U8G2
