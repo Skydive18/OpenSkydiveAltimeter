@@ -291,7 +291,7 @@ void processAltitude() {
     }
     
     current_speed = (current_altitude - previous_altitude) << 1; // ok there; sign bit will be kept because <int> is big enough
-    previous_altitude = current_altitude;
+
     vspeed[vspeedPtr & 31] = (int8_t)current_speed;
     // Calculate averages
     uint8_t startPtr = ((uint8_t)(vspeedPtr)) & 31;
@@ -495,12 +495,31 @@ void ShowLEDs() {
             return;
     }
     
+#ifdef AUDIBLE_SIGNALS_ENABLE
+    if (powerMode != MODE_ON_EARTH && settings.use_audible_signals) {
+        for (int i = 7; i >=0; i--) {
+            if (current_altitude <= audible_signals.signals[i] && previous_altitude > audible_signals.signals[i]) {
+                sound(128 + i);
+                break;
+            }
+        }
+    }
+#endif            
+
     switch (powerMode) {
         case MODE_IN_AIRPLANE:
             if (settings.use_led_signals) {
                 if (current_altitude >= 300) {
                     if (airplane_300m <= 6 && current_altitude < 900) {
-                        LED_show(0, ((++airplane_300m) & 1) ? 140 : 0, 0); // green blinks 3 times at 300m but not above 900m
+                        if (++airplane_300m & 1) {
+                            LED_show(0, 140, 0); // green blinks 3 times at 300m but not above 900m
+#ifdef AUDIBLE_SIGNALS_ENABLE
+                            if (settings.use_audible_signals)
+                                sound(SIGNAL_1MEDIUM);
+#endif
+                        } else {
+                            LED_show(0, 0, 0); // green blinks 3 times at 300m but not above 900m
+                        }
                     } else {
                         if (current_altitude > 900) {
                             LED_show(0, (interval_number & 15) ? 0 : 80, 0); // green blinks once per 8s above 900m
@@ -551,7 +570,7 @@ void ShowLEDs() {
 
     airplane_300m = 0;
     LED_show(0, 0, 0);
-    noSound();
+//    noSound();
 }
 
 void ShowText(const uint8_t x, const uint8_t y, const char* text) {
@@ -754,8 +773,8 @@ char myMenu(char *menudef, char event = ' ') {
 }
 
 const char *profileChars = "SFCW";
-char getProfileChar() {
-    return profileChars[settings.jump_profile_number >> 2];
+char getProfileChar(uint8_t profileid) {
+    return profileChars[profileid & 3];
 }
 
 void current_jump_to_bigbuf(uint16_t jump_to_show) {
@@ -774,7 +793,7 @@ void current_jump_to_bigbuf(uint16_t jump_to_show) {
     uint16_t max_freefall_speed_ms = current_jump.max_freefall_speed_ms;
 
     sprintf_P(bigbuf, MSG_JUMP_CONTENT,
-        jump_to_show, total_jumps, getProfileChar(),
+        jump_to_show, total_jumps, getProfileChar(current_jump.profile),
         day, month, year, hour, minute,
         exit_altitude, deploy_altitude,
         canopy_altitude, freefall_time,
@@ -794,7 +813,7 @@ char setAudibleSignals() {
         if (pos == 10)
             pos = 0;
         sprintf_P(bigbuf, PSTR("%c%c\n1%c%4u 5%c%4u\n2%c%4u 6%c%4u\n3%c%4u 7%c%4u\n4%c%4u 8%c%4u\n%cОтмена %cOK\n"),
-            getProfileChar(), '1' + (settings.jump_profile_number & 3),
+            getProfileChar(settings.jump_profile_number >> 2), '1' + (settings.jump_profile_number & 3),
             pos == 0 ? '}' : ':', audible_signals.signals[0],
             pos == 4 ? '}' : ':', audible_signals.signals[4],
             pos == 1 ? '}' : ':', audible_signals.signals[1],
@@ -867,7 +886,7 @@ void userMenu() {
 #endif
             MSG_SETTINGS
             MSG_POWEROFF),
-            getProfileChar(),
+            getProfileChar(settings.jump_profile_number >> 2),
 #ifdef AUDIBLE_SIGNALS_ENABLE
             '1' + (settings.jump_profile_number & 3),
 #else
@@ -912,7 +931,9 @@ void userMenu() {
                         MSG_LOGBOOK_TITLE
                         MSG_EXIT
                         MSG_LOGBOOK_VIEW
-//                        MSG_LOGBOOK_REPLAY_JUMP
+#ifdef DEBUG_PRINT
+                        MSG_LOGBOOK_REPLAY_JUMP
+#endif
                         MSG_LOGBOOK_CLEAR));
                     logbook_event = myMenu(bigbuf, logbook_event);
                     switch (logbook_event) {
@@ -946,11 +967,13 @@ void userMenu() {
                             };
                             break;
                         }
-//                        case 'R':
-//                            // replay latest jump
-//                            myPressure.debugPrint();
-//                            return;
+#ifdef DEBUG_PRINT
+                        case 'R':
+                            // replay latest jump
+                            myPressure.debugPrint();
+                            return;
 //                            break; // not implemented
+#endif
                             
                         case 'C': {
                             // Erase logbook
@@ -1407,7 +1430,7 @@ void loop() {
         if (timeToTurnBacklightOn > 0)
             timeToTurnBacklightOn--;
         if (timeWhileBtnMenuPressed == 8 || timeWhileBtnMenuPressed == 9) {
-            if (BTN3_PRESSED) {
+            if (BTN3_PRESSED || BTN1_PRESSED) {
                 // Forcibly Save snapshot for debug purposes
 #ifdef SNAPSHOT_ENABLE
                 saveSnapshot();
@@ -1448,6 +1471,8 @@ void loop() {
     refresh_display += !(interval_number & 31);
     
     ShowLEDs();
+
+    previous_altitude = current_altitude;
 
     // Refresh display once per 8s in ON_EARTH, each heartbeat pulse otherwise
     if (refresh_display) {

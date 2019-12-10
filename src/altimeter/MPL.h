@@ -13,6 +13,9 @@
 
 #include <Wire.h>
 
+// Define to enable debug data for testing state machine, signals and logbook.
+//#define DEBUG_PRINT
+
 #define MPL3115A2_ADDRESS 0x60 // Unshifted 7-bit I2C address for sensor
 
 #define STATUS     0x00
@@ -72,16 +75,19 @@ public:
     void begin(); // Gets sensor on the I2C bus.
     int readAltitude(); // Returns altitude in meters above sealevel. Ex: 1638
     void zero(); // reset altitude to zero
-//    void debugPrint();
+#ifdef DEBUG_PRINT
+    void debugPrint();
+#endif
 private:
     //Private Functions
     int ground_altitude;
     void toggleOneShot();
-/*
+
+#ifdef DEBUG_PRINT
     bool isDebug;
     int readPtr;
     int debugAltitude;
-*/    
+#endif
 };
 
 #endif // End include guard

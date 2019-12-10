@@ -39,7 +39,7 @@ const uint8_t freq[]  PROGMEM = {105, 111, 118, 125, 132, 140, 149, 157, 167, 17
 
 // Signal templates. Contain note numbers (1-12) + (octave*12) and durations in 50ms ticks. 255 for pause, 0 terminates.
 const uint8_t signal_2short[] PROGMEM = {29, 2, 255, 2, 29, 2, 0 };
-const uint8_t signal_1medium[] PROGMEM = {29, 10, 0 };
+const uint8_t signal_1medium[] PROGMEM = {29, 6, 0 };
 const uint8_t sineva[] PROGMEM = {
 40,8,   38,8,   40,8,   38,16,  36,4,   35,4,   33,16,  255,8,  38,4,   36,4,   38,8,   36,4,   35,20,
 255,24, 35,4,   38,4,   36,12,  35,4,   33,12,  31,4,   30,16,  35,8,   33,8,   35,12,  28,30,  0
@@ -96,7 +96,7 @@ void nextNote() {
 volatile uint8_t buzz;
 // Signal templates. Contain durations for beeps and pauses, sequentially, in 50ms ticks. Terminated with 0.
 const uint8_t signal_2short[] PROGMEM = {2, 2, 2, 0 };
-const uint8_t signal_1medium[] PROGMEM = {10, 0 };
+const uint8_t signal_1medium[] PROGMEM = {6, 0 };
 #ifdef AUDIBLE_SIGNALS_ENABLE
 const uint8_t signal_alt0[] PROGMEM = {3, 2, 3, 2, 3, 2, 3, 0 };
 const uint8_t signal_alt1[] PROGMEM = {4, 2, 4, 2, 4, 0 };

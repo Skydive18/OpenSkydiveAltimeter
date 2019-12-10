@@ -8,10 +8,10 @@
 #include "common.h"
 #include "PCF8583.h"
 
-/*
+#ifdef DEBUG_PRINT
 namespace {
     // Debug data
-    int data1[] = {
+    const int data1[] PROGMEM = {
         3078,  3192,  3041,  3124,  3114,  3067,  3031,  2988,  2939,  2899,
         2848,  2794,  2749,  2689,  2678,  2595,  2551,  2482,  2419,  2368,
         2307,  2247,  2203,  2140,  2112,  2036,  1979,  1920,  1865,  1806,
@@ -26,14 +26,27 @@ namespace {
         695 ,  693 ,  688 ,  684 ,  682 ,  678 ,  674 ,  669 ,  667 ,  660,
         658 ,  654 ,  649 ,  646 ,  641 ,  638 ,  634 ,  629 ,  625 ,  617,
         613 ,  609 ,  607 ,  603 ,  600 ,  595 ,  591 ,  587 ,  583 ,  578,
-        571 ,  566, 0
+        571 ,  566 ,  560,   555,   550,   545,   540,   535,   530,   525,
+        520,   515,   510,   505,   500,   495,   490,   485,   480,   475,
+        470,   465,   460,   455,   450,   445,   440,   435,   430,   425,
+        420,   415,   410,   405,   400,   395,   390,   385,   380,   375,
+        370,   365,   360,   355,   350,   345,   340,   335,   330,   325,
+        320,   315,   310,   305,   300,   295,   290,   285,   280,   275,
+        270,   265,   260,   255,   250,   245,   240,   235,   230,   225,
+        220,   215,   210,   205,   200,   195,   190,   185,   180,   175,
+        170,   165,   160,   155,   150,   145,   140,   135,   130,   125,
+        120,   115,   110,   105,   100,    95,    90,    85,    80,    75,
+         70,    65,    60,    55,    50,    45,    40,    35,    30,    25,
+         20,    15,    10,     5,     0
     };
 }
-*/
+#endif
 
 MPL3115A2::MPL3115A2() {
     //Set initial values for private vars
-//    isDebug = false;
+#ifdef DEBUG_PRINT
+    isDebug = false;
+#endif
 }
 
 //Begin
@@ -51,40 +64,40 @@ void MPL3115A2::zero() {
     IIC_WriteInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE, ground_altitude);
 }
 
-/*
+#ifdef DEBUG_PRINT
 void MPL3115A2::debugPrint() {
-    debugAltitude = groundAltitude = readAltitude();
+    debugAltitude = readAltitude();
     isDebug = true;
     readPtr = -16;
 }
-*/
+#endif
 
 //Returns the number of meters above sea level
 //Returns -999 if no new data is available
 int MPL3115A2::readAltitude() {
-/*
+#ifdef DEBUG_PRINT
     if (isDebug) {
         if (readPtr < 0) {
-            if (debugAltitude < (data1[0] + groundAltitude)) {
-                debugAltitude += 15;
+            if (debugAltitude < (pgm_read_word(&data1[0]))) {
+                debugAltitude += debugAltitude < 1400 ? 7 : 15;
             } else {
                 readPtr++;
             }
         } else {
-            if (!data1[readPtr >> 1]) {
+            if (!pgm_read_word(&data1[readPtr >> 1])) {
                 isDebug = false;
             }
             else if (readPtr & 1) {
-                debugAltitude = ((data1[readPtr >> 1] + data1[(readPtr >> 1) + 1]) / 2) + groundAltitude;
+                debugAltitude = ((pgm_read_word(&data1[readPtr >> 1]) + pgm_read_word(&data1[(readPtr >> 1) + 1])) / 2);
             }
             else {
-                debugAltitude = data1[readPtr >> 1] + groundAltitude;
+                debugAltitude = pgm_read_word(&data1[readPtr >> 1]);
             }
             readPtr++;
         }
         return debugAltitude;
     }
-*/    
+#endif
     toggleOneShot(); //Toggle the OST bit causing the sensor to immediately take another reading
 
     //Wait for PDR bit, indicates we have new pressure data

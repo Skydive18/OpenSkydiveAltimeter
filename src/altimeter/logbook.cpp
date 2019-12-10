@@ -20,7 +20,7 @@ extern jump_t current_jump;
 extern settings_t settings;
 
 void saveJump() {
-    current_jump.profile = settings.jump_profile_number;
+    current_jump.profile = settings.jump_profile_number >> 2;
     // Calculate jump start address
     uint16_t addr = LOGBOOK_START + (total_jumps % LOGBOOK_SIZE) * sizeof(jump_t);
 #if SNAPSHOT_JOURNAL_LOCATION == EEPROM
@@ -32,7 +32,7 @@ void saveJump() {
 
 void loadJump(uint16_t jump_number) {
     // Calculate jump start address
-    uint16_t addr = LOGBOOK_START + (total_jumps % LOGBOOK_SIZE) * sizeof(jump_t);
+    uint16_t addr = LOGBOOK_START + (jump_number % LOGBOOK_SIZE) * sizeof(jump_t);
 #if SNAPSHOT_JOURNAL_LOCATION == EEPROM
     EEPROM.get(addr, current_jump);
 #elif SNAPSHOT_JOURNAL_LOCATION == FLASH
