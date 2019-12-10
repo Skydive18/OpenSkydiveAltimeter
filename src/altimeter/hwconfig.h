@@ -66,26 +66,63 @@
 // So flash chip should be put to a different i2c address by soldering its address lines accordingly.
 #define FLASH_ADDRESS (uint8_t)0x51
 
-// Jump snapshot journal configuration.
-// For location, possible values EEPROM (= Controller's EEPROM) and FLASH (External flash chip).
-// Max SNAPSHOT_SIZE seconds will be stored.
-// Please note, SNAPSHOT_SIZE also acts as a bugbuf[] size and thus must not be less than approx. 400 bytes
-#define SNAPSHOT_JOURNAL_LOCATION EEPROM
-#define SNAPSHOT_JOURNAL_START 0x25c
-#define SNAPSHOT_JOURNAL_SIZE 1
-#define SNAPSHOT_SIZE 420
-
-// Logbook configuration.
-// For location, possible values EEPROM and FLASH. Each logbook record is sizeof(jump_t) bytes (=12).
-#define LOGBOOK_LOCATION EEPROM
-#define LOGBOOK_START 0x100
-#define LOGBOOK_SIZE 28
-
 // EEPROM addressing
 #define EEPROM_JUMP_COUNTER 0x0
 #define EEPROM_SETTINGS 0x2
 #define EEPROM_JUMP_PROFILES 0x20
 #define EEPROM_AUDIBLE_SIGNALS 0x30
+#define EEPROM_FREE_AREA 0x130
+
+// Logbook and Jump snapshot journal configuration.
+// For location, possible values EEPROM (= Controller's EEPROM) and FLASH (External flash chip).
+// Max SNAPSHOT_SIZE seconds will be stored.
+// Please note, SNAPSHOT_SIZE also acts as a bugbuf[] size and thus must not be less than approx. 400 bytes
+// One logbook record length is sizeof(jump_t) bytes (=12).
+
+// Predefined offered configurations.
+
+// 1. No external flash. 25 jumps, 1 snapshot
+#define SNAPSHOT_JOURNAL_LOCATION EEPROM
+#define SNAPSHOT_JOURNAL_START 0x25c
+#define SNAPSHOT_JOURNAL_SIZE 1
+#define SNAPSHOT_SIZE 420
+#define LOGBOOK_LOCATION EEPROM
+#define LOGBOOK_START EEPROM_FREE_AREA
+#define LOGBOOK_SIZE 25
+
+/*
+// 2. Flash 4kb. 120 jumps, 6 snapshots, all in flash
+#define SNAPSHOT_JOURNAL_LOCATION FLASH
+#define SNAPSHOT_JOURNAL_START 1440
+#define SNAPSHOT_JOURNAL_SIZE 6
+#define SNAPSHOT_SIZE 420
+#define LOGBOOK_LOCATION FLASH
+#define LOGBOOK_START 0
+#define LOGBOOK_SIZE 120
+*/
+
+/*
+// 3. Flash 4kb. 60 jumps in eeprom, 9 snapshots in flash
+#define SNAPSHOT_JOURNAL_LOCATION FLASH
+#define SNAPSHOT_JOURNAL_START 0
+#define SNAPSHOT_JOURNAL_SIZE 9
+#define SNAPSHOT_SIZE 420
+#define LOGBOOK_LOCATION EEPROM
+#define LOGBOOK_START EEPROM_FREE_AREA
+#define LOGBOOK_SIZE 60
+*/
+
+/*
+// 3. Flash 64kb. 1000 jumps in eeprom, 120 snapshots in eeprom
+#define SNAPSHOT_JOURNAL_LOCATION FLASH
+#define SNAPSHOT_JOURNAL_START 12000
+#define SNAPSHOT_JOURNAL_SIZE 120
+#define SNAPSHOT_SIZE 420
+#define LOGBOOK_LOCATION FLASH
+#define LOGBOOK_START 0
+#define LOGBOOK_SIZE 1000
+*/
+
 
 // Configure RGB LED. Define one of the following
 #define LED_COMMON_CATHODE
