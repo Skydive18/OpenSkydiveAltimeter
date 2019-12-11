@@ -3,38 +3,55 @@
 
 #include <Arduino.h>
 #include <Wire.h>
+#include "hwconfig.h"
+#include "custom_types.h"
+
+// Addressing in RAM, altimeter runtime parameters
+#define ADDR_YEAR_BASE 0x10
+#define ADDR_LAST_STORED_YEAR 0x14
+#define ADDR_ZERO_ALTITUDE 0x12
+
+#define RTC_ADDRESS 0x50
 
 class PCF8583 {
-    short dow;
   public:
-    short ssecond;
-    short second;
-    short minute;
-    short hour;
-    short day;
-    short month;
-    int year;
-    int year_base;
+    uint8_t minute;
+    uint8_t hour;
+    uint8_t day;
+    uint8_t month;
+    uint16_t year;
+    uint16_t last_stored_year;
 
-    short alarm_second;
-    short alarm_minute;
-    short alarm_hour;
-    short alarm_day;
+#ifdef ALARM_ENABLE
+    uint8_t alarm_minute;
+    uint8_t alarm_hour;
+    uint8_t alarm_enable;
+    void enableAlarmInterrupt();
+    void readAlarm();
+    void setAlarm();
+#endif
 
-    PCF8583();
-    void init ();
+#if defined(__AVR_ATmega32U4__)
+    void enableSeedInterrupt();
+#endif
+    void disableInterrupt();
     
-    void get_time();
-    void set_time();
-    void get_alarm();
-    short get_day_of_week() const {
-      return dow;
-    }    
+    PCF8583();
+    void init();
+    
+    void readTime();
+    timestamp_t getTimestamp();
+    void setDate();
+    void setTime();
+    uint8_t bcd_to_bin(uint8_t bcd);
+    uint8_t bin_to_bcd(uint8_t in);
 
-    void set_daily_alarm();
-    short bcd_to_short(byte bcd);
-    byte int_to_bcd(short in);
+private:
+    byte status_register;
+    byte alarm_register;
+    void writeAlarmControlRegister();
+    // seed-generator related
 };
 
 
-#endif  //PCF8583_H
+#endif  // __in_PCF8583_h
