@@ -1048,11 +1048,12 @@ void userMenu() {
 #endif
                         settings.use_led_signals ? '~' : '-',
                         power_mode_char,
+                        zero_after_reset,
                         HeartbeatValue(settings.auto_power_off),
 #if defined(DISPLAY_HX1230)
                         settings.contrast,
 #endif
-                        zero_after_reset);
+                        0 /* Dummy value */);
                     eventSettings = myMenu(bigbuf, eventSettings);
                     switch (eventSettings) {
                         case ' ':
