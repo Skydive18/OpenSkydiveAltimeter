@@ -66,7 +66,7 @@ void MPL3115A2::zero() {
 
 #ifdef DEBUG_PRINT
 void MPL3115A2::debugPrint() {
-    debugAltitude = readAltitude();
+    debugAltitude = 0;
     isDebug = true;
     readPtr = -16;
 }

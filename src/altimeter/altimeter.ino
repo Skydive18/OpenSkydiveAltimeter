@@ -496,7 +496,7 @@ void ShowLEDs() {
     }
     
 #ifdef AUDIBLE_SIGNALS_ENABLE
-    if (powerMode != MODE_ON_EARTH && settings.use_audible_signals) {
+    if (powerMode != MODE_ON_EARTH && settings.use_audible_signals && current_altitude > 0 && previous_altitude > 0) {
         for (int i = 7; i >=0; i--) {
             if (current_altitude <= audible_signals.signals[i] && previous_altitude > audible_signals.signals[i]) {
                 sound(128 + i);
