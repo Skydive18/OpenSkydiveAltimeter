@@ -32,10 +32,13 @@ FlashRom::FlashRom() {
 
 void FlashRom::writeByte(uint16_t address, uint8_t data) {
     Wire.beginTransmission(FLASH_ADDRESS);
-    Wire.write(address >> 8);
-    Wire.write(address & 0xFF);
-    Wire.write(data);
-    Wire.endTransmission();
+    if (Wire.endTransmission() == 0) {
+        Wire.beginTransmission(FLASH_ADDRESS);
+        Wire.write(address >> 8);
+        Wire.write(address & 0xFF);
+        Wire.write(data);
+        Wire.endTransmission();
+    }
 }
 
 void FlashRom::writeBytes(uint16_t address, uint16_t length, uint8_t* p_data) {
@@ -73,11 +76,15 @@ void FlashRom::writeBytes(uint16_t address, uint16_t length, uint8_t* p_data) {
 
 uint8_t FlashRom::readByte(uint16_t address) {
     Wire.beginTransmission(FLASH_ADDRESS);
-    Wire.write(address >> 8);
-    Wire.write(address & 0xFF);
-    Wire.endTransmission(false);
-    Wire.requestFrom(FLASH_ADDRESS, (uint8_t)1);
-    return Wire.read();
+    if (Wire.endTransmission() == 0) {
+        Wire.beginTransmission(FLASH_ADDRESS);
+        Wire.write(address >> 8);
+        Wire.write(address & 0xFF);
+        Wire.endTransmission(false);
+        Wire.requestFrom(FLASH_ADDRESS, (uint8_t)1);
+        return Wire.read();
+    }
+    return 0xff;
 }
 
 void FlashRom::readBytes(uint16_t address, uint16_t length, uint8_t* p_data) {
@@ -108,24 +115,31 @@ void FlashRom::writePage(uint16_t address, uint8_t length, uint8_t* p_data) {
 
 void FlashRom::writeBuffer(uint16_t address, uint8_t length, uint8_t* p_data) {
     Wire.beginTransmission(FLASH_ADDRESS);
-    Wire.write(address >> 8);
-    Wire.write(address & 0xFF);
-    for (uint8_t i = 0; i < length; i++) {
-        Wire.write(p_data[i]);
+    if (Wire.endTransmission() == 0) {
+        Wire.beginTransmission(FLASH_ADDRESS);
+        Wire.write(address >> 8);
+        Wire.write(address & 0xFF);
+        for (uint8_t i = 0; i < length; i++) {
+            Wire.write(p_data[i]);
+        }
+        Wire.endTransmission();
+        
+        // Write cycle time (tWR). See EEPROM memory datasheet for more details.
+        delay(10);
+        return;
     }
-    Wire.endTransmission();
-    
-    // Write cycle time (tWR). See EEPROM memory datasheet for more details.
-    delay(10);
 }
 
 void FlashRom::readBuffer(uint16_t address, uint8_t length, uint8_t* p_data) {
     Wire.beginTransmission(FLASH_ADDRESS);
-    Wire.write(address >> 8);
-    Wire.write(address & 0xFF);
-    Wire.endTransmission(false);
-    Wire.requestFrom(FLASH_ADDRESS, length);
-    for (uint8_t i = 0; i < length; i++) {
-        p_data[i] = Wire.read();
+    if (Wire.endTransmission() == 0) {
+        Wire.beginTransmission(FLASH_ADDRESS);
+        Wire.write(address >> 8);
+        Wire.write(address & 0xFF);
+        Wire.endTransmission(false);
+        Wire.requestFrom(FLASH_ADDRESS, length);
+        for (uint8_t i = 0; i < length; i++) {
+            p_data[i] = Wire.read();
+        }
     }
 }
