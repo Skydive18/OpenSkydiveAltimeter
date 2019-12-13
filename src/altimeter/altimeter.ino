@@ -18,6 +18,10 @@
 #include "PCF8583.h"
 #include "snd.h"
 #include "logbook.h"
+#ifdef FLASH_PRESENT
+#include "flash.h"
+extern FlashRom flashRom;
+#endif
 
 #include "messages_ru.h"
 
@@ -220,6 +224,7 @@ void setup() {
     // Show greeting message
     ShowText(16, 30, MSG_HELLO);
     DISPLAY_LIGHT_ON;
+
     showVersion();
     delay(7000);
     DISPLAY_LIGHT_OFF;
@@ -360,7 +365,7 @@ void processAltitude() {
     // Also, **DO NOT** remove `else`'s.
 
     if (powerMode == MODE_ON_EARTH) {
-        if ( (current_altitude > 250) || (current_altitude > 30 && average_speed_8 > 1) )
+        if ( /*(current_altitude > 250) ||*/ (current_altitude > 30 && average_speed_8 > 1) )
             powerMode = MODE_IN_AIRPLANE;
         else if (average_speed_8 < -25) {
             powerMode = MODE_FREEFALL;
@@ -1027,12 +1032,12 @@ void userMenu() {
 #endif
                         MSG_SETTINGS_SET_SIGNALS_LED
                         MSG_SETTINGS_SET_MODE
+                        MSG_SETTINGS_SET_AUTO_ZERO
                         MSG_SETTINGS_SET_AUTO_POWER_OFF
                         MSG_SETTINGS_SET_SCREEN_ROTATION
 #if defined(DISPLAY_HX1230)
                         MSG_SETTINGS_SET_SCREEN_CONTRAST
 #endif
-                        MSG_SETTINGS_SET_AUTO_ZERO
                         MSG_SETTINGS_ABOUT
                         MSG_SETTINGS_PC_LINK),
 #ifdef ALARM_ENABLE
@@ -1043,11 +1048,12 @@ void userMenu() {
 #endif
                         settings.use_led_signals ? '~' : '-',
                         power_mode_char,
+                        zero_after_reset,
                         HeartbeatValue(settings.auto_power_off),
 #if defined(DISPLAY_HX1230)
                         settings.contrast,
 #endif
-                        zero_after_reset);
+                        0 /* Dummy value */);
                     eventSettings = myMenu(bigbuf, eventSettings);
                     switch (eventSettings) {
                         case ' ':
@@ -1178,16 +1184,63 @@ void userMenu() {
 #if defined(__AVR_ATmega32U4__)
                             while (!Serial);
 #endif
-                            uint16_t addr;
-                            Serial.print(F("\n:DATA"));
-                            for (uint16_t i = 1263; i >= 0; i--) {
-                                addr = 1263 - i;
-                                uint8_t b = addr < 1024 ? EEPROM.read(addr) : IIC_ReadByte(RTC_ADDRESS, addr - 1008);
-                                sprintf_P(textbuf, PSTR(" %02x"), b);
+                            sprintf_P(bigbuf, PSTR("\nPEGASUS_BEGIN\nPLATFORM %c%c%c%c"), PLATFORM_1, PLATFORM_2, PLATFORM_3, PLATFORM_4);
+                            Serial.print(bigbuf);
+                            // Dump settings
+                            sprintf_P(bigbuf, PSTR("\nLOGBOOK %c %04x %u\nSNAPSHOT %c %04x %u %u\nROM_BEGIN"),
+#if defined(LOGBOOK_ENABLE)
+    #if LOGBOOK_LOCATION == LOCATION_FLASH
+                                'F', LOGBOOK_START, LOGBOOK_SIZE,
+    #else
+                                'E', LOGBOOK_START, LOGBOOK_SIZE,
+    #endif
+#else
+                                'N', 0, 0,
+#endif
+#if defined(SNAPSHOT_ENABLE)
+    #if SNAPSHOT_JOURNAL_LOCATION == LOCATION_FLASH
+                                'F', SNAPSHOT_JOURNAL_START, SNAPSHOT_JOURNAL_SIZE, SNAPSHOT_SIZE
+    #else
+                                'E', SNAPSHOT_JOURNAL_START, SNAPSHOT_JOURNAL_SIZE, SNAPSHOT_SIZE
+    #endif
+#else
+                                'N', 0, 0, 0
+#endif
+                            );
+                            Serial.print(bigbuf);
+                            
+                            uint16_t i;
+                            for (i = 0; i < 1024; i++) {
+                                if (! (i & 15)) {
+                                    sprintf_P(textbuf, PSTR("\n%04x:"), i);
+                                    Serial.print(textbuf);
+                                }
+                                sprintf_P(textbuf, PSTR(" %02x"), EEPROM.read(i));
                                 Serial.print(textbuf);
                             }
-                            Serial.print(F("\n:END"));
+                            Serial.print(F("\nROM_END"));
+#if defined(FLASH_PRESENT)
+                            sprintf_P(bigbuf, PSTR("\nFLASH_BEGIN %u %u"), FLASH__PAGE_SIZE, FLASH__PAGES);
+                            Serial.print(bigbuf);
+                            for (uint16_t page = 0; page < FLASH__PAGES; page++) {
+                                flashRom.readBytes(page * FLASH__PAGE_SIZE, FLASH__PAGE_SIZE, (uint8_t*)bigbuf);
+                                for (i = 0; i < FLASH__PAGE_SIZE; i++) {
+                                    if (! (i & 15)) {
+                                        sprintf_P(textbuf, PSTR("\n%04x:"), i + (page *FLASH__PAGE_SIZE));
+                                        Serial.print(textbuf);
+                                    }
+                                    sprintf_P(textbuf, PSTR(" %02x"), (uint8_t)(bigbuf[i]));
+                                    Serial.print(textbuf);
+                                }
+                            }
+                            Serial.print(F("\nFLASH_END"));
+#endif
+                            Serial.print(F("\nPEGASUS_END"));
                             Serial.end();
+#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
+                            pinMode(0, INPUT);
+                            pinMode(1, INPUT);
+#endif
                             break;
                         }
                         default:
@@ -1430,6 +1483,7 @@ void loop() {
         if (timeToTurnBacklightOn > 0)
             timeToTurnBacklightOn--;
         if (timeWhileBtnMenuPressed == 8 || timeWhileBtnMenuPressed == 9) {
+#ifdef FORCE_SAVE_JUMP_FEATURE_ENABLE
             if (BTN3_PRESSED || BTN1_PRESSED) {
                 // Forcibly Save snapshot for debug purposes
 #ifdef SNAPSHOT_ENABLE
@@ -1443,6 +1497,7 @@ void loop() {
                 EEPROM.put(EEPROM_JUMP_COUNTER, total_jumps);
 #endif
             }
+#endif            
             userMenu();
             refresh_display = true; // force display refresh
             previous_altitude = CLEAR_PREVIOUS_ALTITUDE;

@@ -14,7 +14,7 @@
 #include <Wire.h>
 
 // Define to enable debug data for testing state machine, signals and logbook.
-#define DEBUG_PRINT
+//#define DEBUG_PRINT
 
 #define MPL3115A2_ADDRESS 0x60 // Unshifted 7-bit I2C address for sensor
 

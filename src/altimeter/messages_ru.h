@@ -6,9 +6,9 @@
 #define MSG_HELLO PSTR("Ni Hao!")
 #define MSG_BYE PSTR("Sayonara")
 #define MSG_VERSION PSTR( \
-        "Альтимонстр I\n" \
+        "Pegasus I\n" \
         "Платформа %c%c%c%c\n" \
-        "Версия 0.91\n" \
+        "Версия 1.0\n" \
         "COM %ld/8N1\n")
 
 #define MSG_JUMP_CONTENT PSTR("%u/%u %c\n%02d.%02d.%04d %02d:%02d\nO:%4dм Р:%4dм\nП:%4dм В:%4dc\nС:%dм/с %dкм/ч\nМ:%dм/с %dкм/ч\n")
@@ -26,7 +26,7 @@
 
 #define MSG_LOGBOOK_TITLE "Журнал прыжков\n"
 #define MSG_LOGBOOK_VIEW "VПросмотр\n"
-#define MSG_LOGBOOK_REPLAY_JUMP "RПовтор прыжка\n"
+#define MSG_LOGBOOK_REPLAY_JUMP "RТест всего\n"
 #define MSG_LOGBOOK_CLEAR "CОчистить журнал\n"
 
 #define MSG_LOGBOOK_CLEAR_CONFIRM_TITLE "Очистить журнал?\n"

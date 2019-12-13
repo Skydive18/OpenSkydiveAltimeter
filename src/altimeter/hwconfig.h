@@ -5,14 +5,15 @@
 #define LOGBOOK_ENABLE           /* Enables logbook */
 #define SNAPSHOT_ENABLE          /* Enables jump trace recording. Requires LOGBOOK_ENABLE */
 #define ALARM_ENABLE             /* Enables alarm clock. Requires sound system to be configured. */
-#define AUDIBLE_SIGNALS_ENABLE   /* TODO!! Enables audible altitude signals. Requires sound system to be configured. */
+#define AUDIBLE_SIGNALS_ENABLE   /* Enables audible altitude signals. Requires sound system to be configured. */
 //#define TETRIS_ENABLE            /* TODO!! Enable 'tetris' game */
 //#define SNAKE_ENABLE             /* TODO!! Enable 'snake' game */
+//#define FORCE_SAVE_JUMP_FEATURE_ENABLE
 
 // RTC epoch year, for PFC8583
 #define EPOCH 2016
 
-#define SERIAL_SPEED 57600
+#define SERIAL_SPEED 115200
 
 // Pin wiring
 
@@ -74,53 +75,60 @@
 #define EEPROM_FREE_AREA 0x130
 
 // Logbook and Jump snapshot journal configuration.
-// For location, possible values EEPROM (= Controller's EEPROM) and FLASH (External flash chip).
+// For location, possible values LOCATION_EEPROM (= Controller's EEPROM) and LOCATION_FLASH (External flash chip).
 // Max SNAPSHOT_SIZE seconds will be stored.
 // Please note, SNAPSHOT_SIZE also acts as a bugbuf[] size and thus must not be less than approx. 400 bytes
 // One logbook record length is sizeof(jump_t) bytes (=12).
 
+#define LOCATION_EEPROM 1
+#define LOCATION_FLASH 2
+
 // Predefined offered configurations.
 
+/*
 // 1. No external flash. 25 jumps, 1 snapshot
-#define SNAPSHOT_JOURNAL_LOCATION EEPROM
+#define SNAPSHOT_JOURNAL_LOCATION LOCATION_EEPROM
 #define SNAPSHOT_JOURNAL_START 0x25c
 #define SNAPSHOT_JOURNAL_SIZE 1
 #define SNAPSHOT_SIZE 420
-#define LOGBOOK_LOCATION EEPROM
+#define LOGBOOK_LOCATION LOCATION_EEPROM
 #define LOGBOOK_START EEPROM_FREE_AREA
 #define LOGBOOK_SIZE 25
+*/
 
-/*
+
 // 2. Flash 4kb. 120 jumps, 6 snapshots, all in flash
-#define SNAPSHOT_JOURNAL_LOCATION FLASH
+#define SNAPSHOT_JOURNAL_LOCATION LOCATION_FLASH
 #define SNAPSHOT_JOURNAL_START 1440
 #define SNAPSHOT_JOURNAL_SIZE 6
 #define SNAPSHOT_SIZE 420
-#define LOGBOOK_LOCATION FLASH
+#define LOGBOOK_LOCATION LOCATION_FLASH
 #define LOGBOOK_START 0
 #define LOGBOOK_SIZE 120
-*/
+#define FLASH_PRESENT
 
 /*
 // 3. Flash 4kb. 60 jumps in eeprom, 9 snapshots in flash
-#define SNAPSHOT_JOURNAL_LOCATION FLASH
+#define SNAPSHOT_JOURNAL_LOCATION LOCATION_FLASH
 #define SNAPSHOT_JOURNAL_START 0
 #define SNAPSHOT_JOURNAL_SIZE 9
 #define SNAPSHOT_SIZE 420
-#define LOGBOOK_LOCATION EEPROM
+#define LOGBOOK_LOCATION LOCATION_EEPROM
 #define LOGBOOK_START EEPROM_FREE_AREA
 #define LOGBOOK_SIZE 60
+#define FLASH_PRESENT
 */
 
 /*
 // 3. Flash 64kb. 1000 jumps in eeprom, 120 snapshots in eeprom
-#define SNAPSHOT_JOURNAL_LOCATION FLASH
+#define SNAPSHOT_JOURNAL_LOCATION LOCATION_FLASH
 #define SNAPSHOT_JOURNAL_START 12000
 #define SNAPSHOT_JOURNAL_SIZE 120
 #define SNAPSHOT_SIZE 420
-#define LOGBOOK_LOCATION FLASH
+#define LOGBOOK_LOCATION LOCATION_FLASH
 #define LOGBOOK_START 0
 #define LOGBOOK_SIZE 1000
+#define FLASH_PRESENT
 */
 
 
