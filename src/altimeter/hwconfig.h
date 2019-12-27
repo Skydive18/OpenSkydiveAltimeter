@@ -1,19 +1,34 @@
 #ifndef __in_hwconfig_h
 #define __in_hwconfig_h
 
-// Features
+// ******************
+// Hardware constants
+
+// RTC type constants
+#define RTC_PCF8583 1
+#define RTC_PCF8563 2
+
+// Pressure sensor type constants
+#define SENSOR_MPL3115A2 1
+#define SENSOR_BMP180 2
+#define SENSOR_BMP280 3
+#define SENSOR_BME388 4
+
+// Data location constants
+#define LOCATION_EEPROM 1
+#define LOCATION_FLASH 2
+
+// Serial port speed
+#define SERIAL_SPEED 115200
+
+// Software Features
 #define LOGBOOK_ENABLE           /* Enables logbook */
 #define SNAPSHOT_ENABLE          /* Enables jump trace recording. Requires LOGBOOK_ENABLE */
 #define ALARM_ENABLE             /* Enables alarm clock. Requires sound system to be configured. */
 #define AUDIBLE_SIGNALS_ENABLE   /* Enables audible altitude signals. Requires sound system to be configured. */
 //#define TETRIS_ENABLE            /* TODO!! Enable 'tetris' game */
 //#define SNAKE_ENABLE             /* TODO!! Enable 'snake' game */
-//#define FORCE_SAVE_JUMP_FEATURE_ENABLE
-
-// RTC epoch year, for PFC8583
-#define EPOCH 2016
-
-#define SERIAL_SPEED 115200
+//#define FORCE_SAVE_JUMP_FEATURE_ENABLE /* Enable BTN1+BTN2 or BTN3+BTN2 to force save jump */
 
 // Pin wiring
 
@@ -79,9 +94,6 @@
 // Max SNAPSHOT_SIZE seconds will be stored.
 // Please note, SNAPSHOT_SIZE also acts as a bugbuf[] size and thus must not be less than approx. 400 bytes
 // One logbook record length is sizeof(jump_t) bytes (=12).
-
-#define LOCATION_EEPROM 1
-#define LOCATION_FLASH 2
 
 // Predefined offered configurations.
 

@@ -12,9 +12,11 @@
 #define ADDR_ZERO_ALTITUDE 0x12
 
 #define RTC_ADDRESS 0x50
+// RTC epoch year
+#define EPOCH 2016
 
 class PCF8583 {
-  public:
+public:
     uint8_t minute;
     uint8_t hour;
     uint8_t day;
