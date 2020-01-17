@@ -7,15 +7,15 @@
 #include "led.h"
 #include "keyboard.h"
 #include "display.h"
-#ifdef DISPLAY_NOKIA
+#if DISPLAY==DISPLAY_NOKIA5110
 #include "fonts_nokia.h"
 #endif
-#ifdef DISPLAY_HX1230
+#if DISPLAY==DISPLAY_NOKIA1201
 #include "fonts_hx1230.h"
 #endif
 #include "custom_types.h"
 #include "common.h"
-#include "PCF8583.h"
+#include "RTC.h"
 #include "snd.h"
 #include "logbook.h"
 #ifdef FLASH_PRESENT
@@ -58,7 +58,7 @@ audible_signals_t audible_signals;
 #endif    
 
 MPL3115A2 myPressure;
-PCF8583 rtc;
+Rtc rtc;
 void(* resetFunc) (void) = 0;
 
 #define CLEAR_PREVIOUS_ALTITUDE -30000
@@ -204,7 +204,7 @@ void setup() {
 */
 
     u8g2.begin();
-#ifdef DISPLAY_HX1230    
+#if DISPLAY==DISPLAY_NOKIA1201
     u8g2.setContrast((uint8_t)(settings.contrast << 4) + 15);
 #endif
     u8g2.enableUTF8Print();    // enable UTF8 support for the Arduino print() function
@@ -228,7 +228,7 @@ void setup() {
     showVersion();
     delay(7000);
     DISPLAY_LIGHT_OFF;
-#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
+#if defined(__AVR_ATmega328P__)
     // Wake by pin-change interrupt from RTC that generates 1Hz 50% duty cycle
     pciSetup(PIN_INTERRUPT);
 #endif    
@@ -1035,7 +1035,7 @@ void userMenu() {
                         MSG_SETTINGS_SET_AUTO_ZERO
                         MSG_SETTINGS_SET_AUTO_POWER_OFF
                         MSG_SETTINGS_SET_SCREEN_ROTATION
-#if defined(DISPLAY_HX1230)
+#if DISPLAY==DISPLAY_NOKIA1201
                         MSG_SETTINGS_SET_SCREEN_CONTRAST
 #endif
                         MSG_SETTINGS_ABOUT
@@ -1050,7 +1050,7 @@ void userMenu() {
                         power_mode_char,
                         zero_after_reset,
                         HeartbeatValue(settings.auto_power_off),
-#if defined(DISPLAY_HX1230)
+#if DISPLAY==DISPLAY_NOKIA1201
                         settings.contrast,
 #endif
                         0 /* Dummy value */);
@@ -1163,7 +1163,7 @@ void userMenu() {
                             settings.display_rotation++;
                             u8g2.setDisplayRotation((settings.display_rotation) ? U8G2_R0 : U8G2_R2);
                             break;
-#if defined(DISPLAY_HX1230)
+#if DISPLAY==DISPLAY_NOKIA1201
                         case 'C':
                             // Contrast
                             settings.contrast++;

@@ -6,7 +6,7 @@
 
 //no U8G2_WITH_FONT_ROTATION no U8G2_WITH_INTERSECTION no U8G2_WITH_CLIP_WINDOW_SUPPORT
 //If the I2C interface is not required, then uncomment #define U8X8_HAVE_HW_I2C in U8x8lib.h
-#ifdef DISPLAY_NOKIA
+#if DISPLAY==DISPLAY_NOKIA5110
 #define DC_PIN PIN_DC
 #define DISPLAY_WIDTH 84
 #define DISPLAY_HEIGHT 48
@@ -15,8 +15,7 @@
 #define DISPLAY_LIGHT_ON digitalWrite(PIN_LIGHT,0)
 U8G2_PCD8544_84X48_2_4W_HW_SPI u8g2(U8G2_R2, SS, DC_PIN, U8X8_PIN_NONE);
 
-#else
-#ifdef DISPLAY_HX1230
+#elif DISPLAY==DISPLAY_NOKIA1201
 
 #define DISPLAY_WIDTH 96
 #define DISPLAY_HEIGHT 68
@@ -55,6 +54,5 @@ class U8G2_HX1230_96X68_X_HW_SPI : public U8G2 {
 // 3-wire over-hardware SPI
 U8G2_HX1230_96X68_X_HW_SPI u8g2(U8G2_R0, SS, PIN_DC);
 
-#endif
 #endif
 #endif

@@ -8,18 +8,28 @@
 #define RTC_PCF8583 1
 #define RTC_PCF8563 2
 
+// Display type constants
+#define DISPLAY_NOKIA5110 1
+#define DISPLAY_NOKIA1201 2
+#define DISPLAY_TM9665ACC 3
+
 // Pressure sensor type constants
 #define SENSOR_MPL3115A2 1
 #define SENSOR_BMP180 2
 #define SENSOR_BMP280 3
 #define SENSOR_BME388 4
 
+// Sound system constants
+#define SOUND_PASSIVE 1
+#define SOUND_ACTIVE 2
+#define SOUND_VOLUME_CONTROL_ADDR 0x2f
+
 // Data location constants
 #define LOCATION_EEPROM 1
 #define LOCATION_FLASH 2
 
 // Serial port speed
-#define SERIAL_SPEED 115200
+#define SERIAL_SPEED 57600
 
 // Software Features
 #define LOGBOOK_ENABLE           /* Enables logbook */
@@ -68,6 +78,20 @@
 #error CPU unsupported.
 #endif // Platform
 
+// Configure RTC chip
+#define RTC RTC_PCF8583
+
+// Configure RGB LED. Define one of the following
+#define LED_COMMON_CATHODE
+//#define LED_COMMON_ANODE
+
+// Configure display. Use one of the following
+#define DISPLAY DISPLAY_NOKIA1201
+
+// Configure sound subsystem.
+#define SOUND SOUND_ACTIVE
+
+
 // Flash chip.
 // Configure flash page size, depending on a flash chip used.
 // FLASH page size is  32bytes for  24c32 ( 4K) and  24c64 ( 8K)
@@ -78,9 +102,16 @@
 #define FLASH__PAGES 128 /* 24c32 */
 //#define FLASH__PAGES 256 /* 24c64, 24c128 */
 //#define FLASH__PAGES 512 /* 24c256, 24c512 */
-// I2C addfess for flash chip. Note, the default 24cxx address is 0x50 = the same as RTC chip uses.
+// I2C addfess for flash chip. Note, the default 24cxx address is 0x50 = the same as PCF8583 uses.
+// Also note, the address of PCF8563 is 0x51.
 // So flash chip should be put to a different i2c address by soldering its address lines accordingly.
+#if RTC==RTC_PCF8583
 #define FLASH_ADDRESS (uint8_t)0x51
+#elif RTC==RTC_PCF8563
+#define FLASH_ADDRESS (uint8_t)0x53
+#else
+#error RTC chip should be defined before flash configuration!
+#endif
 
 // EEPROM addressing
 #define EEPROM_JUMP_COUNTER 0x0
@@ -143,35 +174,18 @@
 #define FLASH_PRESENT
 */
 
-
-// Configure RGB LED. Define one of the following
-#define LED_COMMON_CATHODE
-//#define LED_COMMON_ANODE
-
-// Configure display. Use one of the following
-//#define DISPLAY_NOKIA
-#define DISPLAY_HX1230
-
-// Configure sound subsystem.
-// Passive speaker/buzzer, connected to PIN_SOUND. Any frequency available.
-//#define SOUND_PASSIVE
-
-// Active buzzer with internal generator connected to PIN_SOUND. Only fixed tone available.
-#define SOUND_ACTIVE
-
-// External sound generator chip, i2c-based
-//#define SOUND_EXTERNAL
-
 // Checks
 
 #if defined(SNAPSHOT_ENABLE) && !defined(LOGBOOK_ENABLE)
 #error Jump snapshot feature requires Logbook feature to be enabled.
 #endif
 
-#if defined(DISPLAY_NOKIA)
+#if DISPLAY==DISPLAY_NOKIA5110
 #define PLATFORM_2 'N'
-#elif defined(DISPLAY_HX1230)
+#elif DISPLAY==DISPLAY_NOKIA1201
 #define PLATFORM_2 'H'
+#elif DISPLAY==DISPLAY_TM9665ACC
+#define PLATFORM_2 'T'
 #else
 #error Display not configured.
 #endif
@@ -196,14 +210,12 @@
 #define PLATFORM_3 '0'
 #endif
 
-#if defined (SOUND_PASSIVE)
+#if SOUND==SOUND_PASSIVE
 #define PLATFORM_4 '1'
 #define SOUND_USE_TIMER
-#elif defined(SOUND_ACTIVE)
+#elif SOUND==SOUND_ACTIVE
 #define SOUND_USE_TIMER
 #define PLATFORM_4 '2'
-#elif defined(SOUND_EXTERNAL)
-#define PLATFORM_4 '3'
 #else
 #define PLATFORM_4 '0'
 #endif

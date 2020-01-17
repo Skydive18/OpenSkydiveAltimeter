@@ -10,13 +10,9 @@ void noSound();
 #define SIGNAL_2SHORT 1
 #define SIGNAL_1MEDIUM 3
 
-#if defined(SOUND_PASSIVE) || defined(SOUND_ACTIVE) || defined(SOUND_EXTERNAL)
+#if defined(SOUND)
 void sound(uint8_t signalNumber);
-#else
-#define sound(a)
-#endif
 
-#if defined(SOUND_PASSIVE) || defined(SOUND_ACTIVE)
 // Use timer
 #ifdef __AVR__
 #include <avr/interrupt.h>
@@ -26,6 +22,10 @@ void sound(uint8_t signalNumber);
 #error Timer-based sound subsystem sypported on AVR architecture only.
 #endif
 
-#endif // defined(SOUND_PASSIVE) || defined(SOUND_ACTIVE)
+#else
+
+#define sound(a)
+
+#endif
 
 #endif

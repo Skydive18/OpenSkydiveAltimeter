@@ -6,7 +6,7 @@
 
 #include "MPL.h"
 #include "common.h"
-#include "PCF8583.h"
+#include "RTC.h"
 
 #ifdef DEBUG_PRINT
 namespace {

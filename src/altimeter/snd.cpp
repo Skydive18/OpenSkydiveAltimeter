@@ -12,15 +12,9 @@ void noSound();
 #include "power.h"
 #endif
 
-#if defined(SOUND_EXTERNAL)
-#include <Wire.h>
-#endif
-
 void initSound() {
-#ifndef SOUND_EXTERNAL
     pinMode(PIN_SOUND, OUTPUT);
     digitalWrite(PIN_SOUND, 0);
-#endif
 }
 
 #ifdef SOUND_USE_TIMER
@@ -32,7 +26,7 @@ namespace MsTimer2m {
     void stop();
     void nextNote();
 
-#if defined(SOUND_PASSIVE)
+#if SOUND==SOUND_PASSIVE
 //                               C    C#   D    D#   E    F    F#   G    G#   A    A#   B
 const uint8_t scale[] PROGMEM = {239, 226, 213, 201, 190, 179, 169, 160, 151, 142, 134, 127};
 const uint8_t freq[]  PROGMEM = {105, 111, 118, 125, 132, 140, 149, 157, 167, 174, 188, 194 };
@@ -92,7 +86,7 @@ void nextNote() {
     noSound();
 }
 
-#elif defined(SOUND_ACTIVE)
+#elif SOUND==SOUND_ACTIVE
 volatile uint8_t buzz;
 // Signal templates. Contain durations for beeps and pauses, sequentially, in 50ms ticks. Terminated with 0.
 const uint8_t signal_2short[] PROGMEM = {2, 2, 2, 0 };
@@ -174,14 +168,14 @@ ISR(TIMER2_COMPB_vect) {
 
 void sound(uint8_t signalNumber) {
     noSound(); // Stop current generation, if any.
-#if defined(SOUND_ACTIVE)
+#if SOUND==SOUND_ACTIVE
     MsTimer2m::buzz = 0; // sequence will start from buzzing, not from pause
 #endif
     if (signalNumber == SIGNAL_2SHORT) {
         MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::signal_2short;
     } else if (signalNumber == SIGNAL_1MEDIUM) {
         MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::signal_1medium;
-#if defined(SOUND_ACTIVE)
+#if SOUNd==SOUND_ACTIVE
     } else if (signalNumber == 128) {
         MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::signal_alt0;
     } else if (signalNumber == 129) {
@@ -199,7 +193,7 @@ void sound(uint8_t signalNumber) {
     } else if (signalNumber == 135) {
         MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::signal_alt7;
 #endif
-#if defined(SOUND_PASSIVE)
+#if SOUND==SOUND_PASSIVE
     } else if (signalNumber == SIGNAL_WELCOME) {
         MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::sineva; 
 #endif
