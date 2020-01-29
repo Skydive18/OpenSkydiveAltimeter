@@ -4,17 +4,31 @@
 #include "common.h"
 
 Rtc::Rtc() {
+#if RTC==RTC_PCF8583
     status_register = 0;
     alarm_register = 0;
+#elif RTC==RTC_PCF8563
+    status_register_1 = 0;
+    status_register_2 = 0;
+#endif
 }
 
 // initialization 
 void Rtc::init() {
+#if RTC==RTC_PCF8583
     IIC_WriteByte(RTC_ADDRESS, 0, status_register);
     last_stored_year = IIC_ReadInt(RTC_ADDRESS, ADDR_LAST_STORED_YEAR);
+#elif RTC==RTC_PCF8563
+    Wire.beginTransmission(RTC_ADDRESS);
+    Wire.write(0x00);
+    Wire.write(status_register_1);
+    Wire.write(status_register_2);
+    Wire.endTransmission();
+#endif
 }
 
 void Rtc::readTime() {
+#if RTC==RTC_PCF8583
     Wire.beginTransmission(RTC_ADDRESS);
     Wire.write(0x03);
     Wire.endTransmission(false);
@@ -32,6 +46,19 @@ void Rtc::readTime() {
         year += 4;
         setDate();
     }
+#elif RTC==RTC_PCF8563
+    Wire.beginTransmission(RTC_ADDRESS);
+    Wire.write(0x03);
+    Wire.endTransmission(false);
+    Wire.requestFrom(RTC_ADDRESS, 6);
+  
+    minute = bcd_to_bin(Wire.read() & 0x7F);
+    hour = bcd_to_bin(Wire.read() & 0x3F);
+    day = bcd_to_bin(Wire.read() & 0x3F);
+    Wire.read(); // skip weekday
+    month = bcd_to_bin(Wire.read() & 0x1F);
+    year = bcd_to_2bin(Wire.read()) + EPOCH;
+#endif
 }
 
 timestamp_t Rtc::getTimestamp() {
@@ -46,6 +73,7 @@ timestamp_t Rtc::getTimestamp() {
 }
 
 void Rtc::setDate() {
+#if RTC==RTC_PCF8583
     IIC_WriteByte(RTC_ADDRESS, 0, 0xc0);
     Wire.beginTransmission(RTC_ADDRESS);
     Wire.write(0x05);
@@ -56,33 +84,35 @@ void Rtc::setDate() {
     last_stored_year = year;
     IIC_WriteInt(RTC_ADDRESS, ADDR_LAST_STORED_YEAR, year);
 
-    init(); // re set the control/status register to 0x04
+#elif RTC==RTC_PCF8563
+    IIC_WriteByte(RTC_ADDRESS, 0, 0x20);
+    Wire.beginTransmission(RTC_ADDRESS);
+    Wire.write(0x05);                       // Start address
+    Wire.write(bin_to_bcd(day));             // Day (1-31)
+    Wire.write(0);     // Weekday (0-6 = Sunday-Saturday)
+    Wire.write(bin_to_bcd(month));   // Month (1-12, century bit (bit 7) = 1)
+    Wire.write(bin_to_bcd(year - EPOCH));   // Year (00-99)
+    Wire.endTransmission();
+#endif
+
+    init(); // re set the control/status register
 }
 
 void Rtc::setTime() {
+#if RTC==RTC_PCF8583
     IIC_WriteByte(RTC_ADDRESS, 0, 0xc0);
-
+#elif RTC==RTC_PCF8563
+    IIC_WriteByte(RTC_ADDRESS, 0, 0x20);
+#endif
     Wire.beginTransmission(RTC_ADDRESS);
     Wire.write(0x02);
     Wire.write(0);
     Wire.write(bin_to_bcd(minute));
     Wire.write(bin_to_bcd(hour));
     Wire.endTransmission();
-
-    init(); // re set the control/status register to 0x04
+    Wire.beginTransmission(RTC_ADDRESS);
+    init(); // re set the control/status register
 }
-
-#if defined (__AVR_ATmega32U4__)
-void Rtc::enableSeedInterrupt() {
-    // Generate normal interrupt using timer match
-    // Write timer alarm register, 0x0f
-    IIC_WriteByte(RTC_ADDRESS, 0x0f, 0x50);
-    alarm_register = (alarm_register & 0x30) | 0xc9; // alarm interrupt enable, alarm timer enable, timer is 1/100s
-    writeAlarmControlRegister();
-    status_register |= 4;
-    init();
-}
-#endif
 
 #ifdef ALARM_ENABLE
 void Rtc::enableAlarmInterrupt() {

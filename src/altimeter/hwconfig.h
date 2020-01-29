@@ -31,14 +31,19 @@
 // Serial port speed
 #define SERIAL_SPEED 57600
 
+// Language constants
+#define LANGUAGE_ENGLISH 0
+#define LANGUAGE_RUSSIAN 1
+
 // Software Features
 #define LOGBOOK_ENABLE           /* Enables logbook */
 #define SNAPSHOT_ENABLE          /* Enables jump trace recording. Requires LOGBOOK_ENABLE */
 #define ALARM_ENABLE             /* Enables alarm clock. Requires sound system to be configured. */
-#define AUDIBLE_SIGNALS_ENABLE   /* Enables audible altitude signals. Requires sound system to be configured. */
+//#define AUDIBLE_SIGNALS_ENABLE   /* Enables audible altitude signals. Requires sound system to be configured. */
 //#define TETRIS_ENABLE            /* TODO!! Enable 'tetris' game */
 //#define SNAKE_ENABLE             /* TODO!! Enable 'snake' game */
 //#define FORCE_SAVE_JUMP_FEATURE_ENABLE /* Enable BTN1+BTN2 or BTN3+BTN2 to force save jump */
+#define LANGUAGE LANGUAGE_ENGLISH
 
 // Pin wiring
 
@@ -56,9 +61,10 @@
 #define PIN_BAT_SENSE A0
 #define PIN_SOUND 6
 #define PIN_INTERRUPT 7
+#define PIN_INTERRUPT_HEARTBEAT 8
 #define PIN_DC 30
 
-#elif defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
+#elif defined(__AVR_ATmega328P__)
 // Pins for Arduino Pro Mini (Atmega-328[P] - based)
 #define PLATFORM_1 'B'
 #define PIN_HWPWR 4
@@ -72,6 +78,7 @@
 #define PIN_BAT_SENSE A0
 #define PIN_SOUND 3
 #define PIN_INTERRUPT 2
+#define PIN_INTERRUPT_HEARTBEAT 2
 #define PIN_DC 8
 
 #else
@@ -86,11 +93,10 @@
 //#define LED_COMMON_ANODE
 
 // Configure display. Use one of the following
-#define DISPLAY DISPLAY_NOKIA1201
+#define DISPLAY DISPLAY_NOKIA5110
 
 // Configure sound subsystem.
-#define SOUND SOUND_ACTIVE
-
+#define SOUND SOUND_PASSIVE
 
 // Flash chip.
 // Configure flash page size, depending on a flash chip used.
@@ -128,7 +134,7 @@
 
 // Predefined offered configurations.
 
-/*
+
 // 1. No external flash. 25 jumps, 1 snapshot
 #define SNAPSHOT_JOURNAL_LOCATION LOCATION_EEPROM
 #define SNAPSHOT_JOURNAL_START 0x25c
@@ -137,9 +143,8 @@
 #define LOGBOOK_LOCATION LOCATION_EEPROM
 #define LOGBOOK_START EEPROM_FREE_AREA
 #define LOGBOOK_SIZE 25
-*/
 
-
+/*
 // 2. Flash 4kb. 120 jumps, 6 snapshots, all in flash
 #define SNAPSHOT_JOURNAL_LOCATION LOCATION_FLASH
 #define SNAPSHOT_JOURNAL_START 1440
@@ -149,6 +154,7 @@
 #define LOGBOOK_START 0
 #define LOGBOOK_SIZE 120
 #define FLASH_PRESENT
+*/
 
 /*
 // 3. Flash 4kb. 60 jumps in eeprom, 9 snapshots in flash

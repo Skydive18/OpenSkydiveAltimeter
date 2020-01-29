@@ -11,12 +11,20 @@
 #define ADDR_LAST_STORED_YEAR 0x14
 #define ADDR_ZERO_ALTITUDE 0x12
 
+// RTC epoch year
+#define EPOCH 2020
+
 #if RTC==RTC_PCF8583
 #define RTC_ADDRESS 0x50
-// RTC epoch year
-#define EPOCH 2016
+
 #elif RTC==RTC_PCF8563
 #define RTC_ADDRESS 0x51
+#define PCF8563_ALARM_REG_OFF  0x80
+#define PCF8563_ALARM_AIE      0x02
+#define PCF8563_ALARM_AF       0x08 // 0x08 : not 0x04!!!!
+/* optional val for no alarm setting */
+#define PCF8563_NO_ALARM       0x99
+
 #endif
 
 class Rtc {
@@ -36,9 +44,6 @@ public:
     void setAlarm();
 #endif
 
-#if defined(__AVR_ATmega32U4__)
-    void enableSeedInterrupt();
-#endif
     void disableInterrupt();
     
     Rtc();
@@ -57,6 +62,9 @@ private:
     byte alarm_register;
     void writeAlarmControlRegister();
     uint16_t last_stored_year;
+#elif RTC==RTC_PCF8563
+    uint8_t status_register_1;
+    uint8_t status_register_2;
 #endif
 };
 

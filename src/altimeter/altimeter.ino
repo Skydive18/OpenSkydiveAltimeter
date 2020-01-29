@@ -18,12 +18,19 @@
 #include "RTC.h"
 #include "snd.h"
 #include "logbook.h"
+
 #ifdef FLASH_PRESENT
 #include "flash.h"
 extern FlashRom flashRom;
 #endif
 
+#if LANGUAGE==LANGUAGE_RUSSIAN
 #include "messages_ru.h"
+#elif LANGUAGE==LANGUAGE_ENGLISH
+#include "messages_en.h"
+#else
+#error Unknown language, only English and Russian supported.
+#endif
 
 // Altimeter modes (powerMode)
 #define MODE_ON_EARTH 0
@@ -119,8 +126,6 @@ bool checkAlarm();
 #endif
 void PowerOff(bool verbose = true);
 
-#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
-
 void pciSetup(byte pin) {
     *digitalPinToPCMSK(pin) |= bit (digitalPinToPCMSKbit(pin));  // enable pin
     PCIFR  |= bit (digitalPinToPCICRbit(pin)); // clear any outstanding interrupt
@@ -128,12 +133,15 @@ void pciSetup(byte pin) {
 }
 
 ISR (PCINT1_vect) { // handle pin change interrupt for A0 to A5 here (328p); the only PCINT for 32u4
+#if defined (__AVR_ATmega32U4__)
+    INTACK = true;
+#endif
 }
 
+#if defined(__AVR_ATmega328P__)
 ISR (PCINT2_vect) { // handle pin change interrupt for D0 to D5 here (328p)
     INTACK = true;
 }
-
 #endif
 
 void loadJumpProfile() {
@@ -228,10 +236,9 @@ void setup() {
     showVersion();
     delay(7000);
     DISPLAY_LIGHT_OFF;
-#if defined(__AVR_ATmega328P__)
+
     // Wake by pin-change interrupt from RTC that generates 1Hz 50% duty cycle
-    pciSetup(PIN_INTERRUPT);
-#endif    
+    pciSetup(PIN_INTERRUPT_HEARTBEAT);
 }
 
 #ifdef ALARM_ENABLE
@@ -620,7 +627,7 @@ void PowerOff(bool verbose = true) {
     digitalWrite(PIN_HWPWR, 0);
     
     do {
-#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
+#if defined(__AVR_ATmega328P__)
         // Wake by pin-change interrupt on any key
         pciSetup(PIN_BTN1);
         pciSetup(PIN_BTN2);
@@ -648,7 +655,7 @@ void PowerOff(bool verbose = true) {
     resetFunc();
 }
 
-#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
+#if defined(__AVR_ATmega328P__)
 uint8_t checkWakeCondition () {
     uint8_t pin;
     if (BTN1_PRESSED)
@@ -1237,7 +1244,7 @@ void userMenu() {
 #endif
                             Serial.print(F("\nPEGASUS_END"));
                             Serial.end();
-#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
+#if defined(__AVR_ATmega328P__)
                             pinMode(0, INPUT);
                             pinMode(1, INPUT);
 #endif
@@ -1269,8 +1276,8 @@ bool SetDate(uint8_t &day, uint8_t &month, uint16_t &year) {
         pos = (pos + 5) % 5;
         if (year > 2100)
             year = 2100;
-        if (year < 2019)
-            year = 2019;
+        if (year < EPOCH)
+            year = EPOCH;
         if (month > 12)
             month = 12;
         if (month == 0)
@@ -1567,10 +1574,6 @@ void loop() {
         } while ( u8g2.nextPage() );
     }
 
-#if defined (__AVR_ATmega32U4__)
-    rtc.enableSeedInterrupt();
-    attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
-#endif
     INTACK = false;
     if (disable_sleep) {
         // When PWM led control or sound delay is active, we cannot go into power down mode -
@@ -1581,12 +1584,8 @@ void loop() {
                 break;
         }
     } else {
-        off_forever;
+        off_2s;
     }
-#if defined (__AVR_ATmega32U4__)
-    detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
-    rtc.disableInterrupt();
-#endif
 
     interval_number++;
     if (powerMode == MODE_ON_EARTH || powerMode == MODE_DUMB) {
