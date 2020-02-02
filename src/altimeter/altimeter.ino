@@ -610,6 +610,8 @@ void PowerOff(bool verbose = true) {
     rtc.enableAlarmInterrupt();
 #endif
 
+    rtc.disableHeartbeat();
+
     // turn off i2c
     pinMode(SCL, INPUT);
     pinMode(SDA, INPUT);
@@ -625,17 +627,18 @@ void PowerOff(bool verbose = true) {
 
     // After we turned off all peripherial connections, turn peripherial power OFF too.
     digitalWrite(PIN_HWPWR, 0);
+
+#if defined(__AVR_ATmega328P__)
+    // Wake by pin-change interrupt on any key
+    pciSetup(PIN_BTN1);
+    pciSetup(PIN_BTN2);
+    pciSetup(PIN_BTN3);
+    Serial.end();
+    pinMode(0, INPUT);
+    pinMode(1, INPUT);
+#endif
     
     do {
-#if defined(__AVR_ATmega328P__)
-        // Wake by pin-change interrupt on any key
-        pciSetup(PIN_BTN1);
-        pciSetup(PIN_BTN2);
-        pciSetup(PIN_BTN3);
-        Serial.end();
-        pinMode(0, INPUT);
-        pinMode(1, INPUT);
-#endif
 #if defined(__AVR_ATmega32U4__)
         // Wake by BTN2 (Middle button)
         attachInterrupt(digitalPinToInterrupt(PIN_BTN2), wake, LOW);

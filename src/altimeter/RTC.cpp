@@ -24,6 +24,7 @@ void Rtc::init() {
     Wire.write(status_register_1);
     Wire.write(status_register_2);
     Wire.endTransmission();
+    IIC_WriteByte(RTC_ADDRESS, 0xd, 0x83); // set clkout to 1hz 50% duty cycle
 #endif
 }
 
@@ -57,7 +58,7 @@ void Rtc::readTime() {
     day = bcd_to_bin(Wire.read() & 0x3F);
     Wire.read(); // skip weekday
     month = bcd_to_bin(Wire.read() & 0x1F);
-    year = bcd_to_2bin(Wire.read()) + EPOCH;
+    year = bcd_to_bin(Wire.read()) + EPOCH;
 #endif
 }
 
@@ -116,14 +117,17 @@ void Rtc::setTime() {
 
 #ifdef ALARM_ENABLE
 void Rtc::enableAlarmInterrupt() {
+#if RTC==RTC_PCF8583
     // Daily alarm set -> alarm int, no timer alarm, daily, no timer int, no timer
     alarm_register = alarm_enable & 1 ? 0x90 : 0x0;
     writeAlarmControlRegister();
     status_register |= 4;
     init();
+#endif
 }
 
 void Rtc::readAlarm() {
+#if RTC==RTC_PCF8583
     Wire.beginTransmission(RTC_ADDRESS);
     Wire.write(0x0b); // Set the register pointer to (0x0B) 
     Wire.endTransmission(false);
@@ -132,10 +136,14 @@ void Rtc::readAlarm() {
     alarm_minute = bcd_to_bin(Wire.read());
     alarm_hour   = bcd_to_bin(Wire.read());
     alarm_enable = Wire.read();
+#elif RTC==RTC_PCF8583
+    alarm_enable = false;
+#endif
 }
 
 //Set a daily alarm
 void Rtc::setAlarm() {
+#if RTC==RTC_PCF8583
     Wire.beginTransmission(RTC_ADDRESS);
     Wire.write(0x09); // Set the register pointer to (0x0a)
     Wire.write(0); // alarm msecs
@@ -144,19 +152,31 @@ void Rtc::setAlarm() {
     Wire.write(bin_to_bcd(alarm_hour));
     Wire.write(alarm_enable); // Set 00 at day 
     Wire.endTransmission();
+#endif
 }
 
 #endif // ALARM_ENABLE
 
 void Rtc::disableInterrupt() {
     init();
+#if RTC==RTC_PCF8583
     alarm_register = 0x01;
     writeAlarmControlRegister();
+#endif
 }
 
+void Rtc::disableHeartbeat() {
+#if RTC==RTC_PCF8583
+#elif RTC==RTC_PCF8563
+    IIC_WriteByte(RTC_ADDRESS, 0xd, 0x0);
+#endif    
+}
+
+#if RTC==RTC_PCF8583
 void Rtc::writeAlarmControlRegister() {
     IIC_WriteByte(RTC_ADDRESS, 0x08, alarm_register);
 }
+#endif
 
 uint8_t Rtc::bcd_to_bin(uint8_t bcd){
     return ((bcd >> 4) * 10) + (bcd & 0x0f);
@@ -164,4 +184,27 @@ uint8_t Rtc::bcd_to_bin(uint8_t bcd){
 
 uint8_t Rtc::bin_to_bcd(uint8_t in){
     return ((in / 10) << 4) + (in % 10);
+}
+
+int16_t Rtc::loadZeroAltitude() {
+#if RTC==RTC_PCF8583
+    return IIC_ReadInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE);
+#elif RTC==RTC_PCF8563
+    int16_t rc = (IIC_ReadByte(RTC_ADDRESS, 0x0b) & 1);
+    rc = rc << 7;
+    rc |= (IIC_ReadByte(RTC_ADDRESS, 0x0c) & 0x7f);
+    rc = rc << 8;
+    rc |= IIC_ReadByte(RTC_ADDRESS, 0x0f);
+    return rc;
+#endif
+}
+
+void Rtc::saveZeroAltitude(int16_t zeroAltitude) {
+#if RTC==RTC_PCF8583
+    IIC_WriteInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE, zeroAltitude);
+#elif RTC==RTC_PCF8563
+    IIC_WriteByte(RTC_ADDRESS, 0x0f, zeroAltitude & 0xff); // timer register
+    IIC_WriteByte(RTC_ADDRESS, 0x0c, ((zeroAltitude >> 8) & 0x7f) | 0x80); // alarm_weekday register
+    IIC_WriteByte(RTC_ADDRESS, 0x0b, ((zeroAltitude >> 15) & 0x1) | 0x80); // alarm_day register
+#endif
 }

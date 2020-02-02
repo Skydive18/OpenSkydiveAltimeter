@@ -1,5 +1,6 @@
 // Battery calibration sketch
 #include "EEPROM.h"
+#include "Wire.h"
 
 #if defined(__AVR_ATmega32U4__)
 // Pins for Arduino Pro Micro (Atmega-32u4)
@@ -133,6 +134,26 @@ void setup() {
     Serial.println(batt_voltage_range);
     Serial.print("Multiplier: ");
     Serial.println(batt_percentage_multiplier);
+
+  Serial.println("Scanning I2C Bus...");
+  int i2cCount = 0;
+  for (uint8_t i = 8; i < 128; i++)
+  {
+    Wire.beginTransmission (i);
+    if (Wire.endTransmission () == 0)
+      {
+      Serial.print ("Found address: ");
+      Serial.print (i, DEC);
+      Serial.print (" (0x");
+      Serial.print (i, HEX);
+      Serial.println (")");
+      i2cCount++;
+      delay (1);  // maybe unneeded?
+      } // end of good response
+  } // end of for loop
+  Serial.print ("Scanning I2C Bus Done. Found ");
+  Serial.print (i2cCount, DEC);
+  Serial.println (" device(s).");
 
     byte state = 0;
     do {
