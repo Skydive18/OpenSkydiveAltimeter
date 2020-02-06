@@ -190,9 +190,9 @@ int16_t Rtc::loadZeroAltitude() {
 #if RTC==RTC_PCF8583
     return IIC_ReadInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE);
 #elif RTC==RTC_PCF8563
-    int16_t rc = (IIC_ReadByte(RTC_ADDRESS, 0x0b) & 1);
-    rc = rc << 7;
-    rc |= (IIC_ReadByte(RTC_ADDRESS, 0x0c) & 0x7f);
+    int16_t rc = (IIC_ReadByte(RTC_ADDRESS, 0x0b) & 0xf);
+    rc = rc << 4;
+    rc |= (IIC_ReadByte(RTC_ADDRESS, 0x0c) & 0xf);
     rc = rc << 8;
     rc |= IIC_ReadByte(RTC_ADDRESS, 0x0f);
     return rc;
@@ -204,7 +204,7 @@ void Rtc::saveZeroAltitude(int16_t zeroAltitude) {
     IIC_WriteInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE, zeroAltitude);
 #elif RTC==RTC_PCF8563
     IIC_WriteByte(RTC_ADDRESS, 0x0f, zeroAltitude & 0xff); // timer register
-    IIC_WriteByte(RTC_ADDRESS, 0x0c, ((zeroAltitude >> 8) & 0x7f) | 0x80); // alarm_weekday register
-    IIC_WriteByte(RTC_ADDRESS, 0x0b, ((zeroAltitude >> 15) & 0x1) | 0x80); // alarm_day register
+    IIC_WriteByte(RTC_ADDRESS, 0x0c, ((zeroAltitude >> 8) & 0xf) | 0x80); // alarm_weekday register
+    IIC_WriteByte(RTC_ADDRESS, 0x0b, ((zeroAltitude >> 12) & 0xf) | 0x80); // alarm_day register
 #endif
 }

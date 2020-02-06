@@ -96,7 +96,7 @@
 #define DISPLAY DISPLAY_NOKIA1201
 
 // Configure sound subsystem.
-#define SOUND SOUND_PASSIVE
+#define SOUND SOUND_ACTIVE
 
 // Flash chip.
 // Configure flash page size, depending on a flash chip used.
