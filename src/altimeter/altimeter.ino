@@ -166,7 +166,8 @@ void setup() {
     Wire.begin();
     delay(50); // Wait hardware to start
 
-    rtc.init(); // reset alarm flags, start generate seed sequence
+    rtc.init();
+    rtc.enableHeartbeat();  // reset alarm flags, start generate seed sequence
     rtc.readTime();
 #ifdef ALARM_ENABLE
     rtc.readAlarm();
@@ -187,29 +188,6 @@ void setup() {
     LED_show(0, 0, 0);
 
     initSound();
-
-/*
-  Serial.begin(SERIAL_SPEED);
-  //while (!Serial) delay(100); // wait for USB connect, 32u4 only.  Serial.println("Scanning I2C Bus...");
-  int i2cCount = 0;
-  for (uint8_t i = 8; i < 128; i++)
-  {
-    Wire.beginTransmission (i);
-    if (Wire.endTransmission () == 0)
-      {
-      Serial.print ("Found address: ");
-      Serial.print (i, DEC);
-      Serial.print (" (0x");
-      Serial.print (i, HEX);
-      Serial.println (")");
-      i2cCount++;
-      delay (1);  // maybe unneeded?
-      } // end of good response
-  } // end of for loop
-  Serial.print ("Scanning I2C Bus Done. Found ");
-  Serial.print (i2cCount, DEC);
-  Serial.println (" device(s).");
-*/
 
     u8g2.begin();
 #if DISPLAY==DISPLAY_NOKIA1201
@@ -605,12 +583,13 @@ void ShowText(const uint8_t x, const uint8_t y, const char* text) {
 void PowerOff(bool verbose = true) {
     if (verbose)
         ShowText(6, 24, MSG_BYE);
+
     noSound();
+    rtc.disableHeartbeat(); // Do it before enabling alarm, because it will tirn alarm off on pcf8583
 #ifdef ALARM_ENABLE
     rtc.enableAlarmInterrupt();
 #endif
 
-    rtc.disableHeartbeat();
 
     // turn off i2c
     pinMode(SCL, INPUT);

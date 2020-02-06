@@ -43,7 +43,7 @@ public:
     void setAlarm();
 #endif
 
-    void disableInterrupt();
+    void enableHeartbeat(); // will also disable alarm interrupt
     void disableHeartbeat();
     
     Rtc();
