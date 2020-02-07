@@ -3,7 +3,7 @@
 
 // Messages, english
 
-#define MSG_HELLO PSTR("  Ossu")
+#define MSG_HELLO PSTR("  Ossu!")
 #define MSG_BYE PSTR("Sayonara")
 #define MSG_VERSION PSTR( \
         "Pegasus I\n" \

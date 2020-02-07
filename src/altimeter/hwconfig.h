@@ -45,46 +45,6 @@
 //#define FORCE_SAVE_JUMP_FEATURE_ENABLE /* Enable BTN1+BTN2 or BTN3+BTN2 to force save jump */
 #define LANGUAGE LANGUAGE_RUSSIAN
 
-// Pin wiring
-
-#if defined(__AVR_ATmega32U4__)
-// Pins for Arduino Pro Micro (Atmega-32u4)
-#define PLATFORM_1 'A'
-#define PIN_HWPWR 1
-#define PIN_LIGHT 4
-#define PIN_R 5
-#define PIN_G 9
-#define PIN_B 10
-#define PIN_BTN1 A3
-#define PIN_BTN2 0
-#define PIN_BTN3 A1
-#define PIN_BAT_SENSE A0
-#define PIN_SOUND 6
-#define PIN_INTERRUPT 7
-#define PIN_INTERRUPT_HEARTBEAT 8
-#define PIN_DC 30
-
-#elif defined(__AVR_ATmega328P__)
-// Pins for Arduino Pro Mini (Atmega-328[P] - based)
-#define PLATFORM_1 'B'
-#define PIN_HWPWR 4
-#define PIN_LIGHT 7
-#define PIN_R 5
-#define PIN_G 6
-#define PIN_B 9
-#define PIN_BTN1 A3
-#define PIN_BTN2 A2
-#define PIN_BTN3 A1
-#define PIN_BAT_SENSE A0
-#define PIN_SOUND 3
-#define PIN_INTERRUPT 2
-#define PIN_INTERRUPT_HEARTBEAT 2
-#define PIN_DC 8
-
-#else
-#error CPU unsupported.
-#endif // Platform
-
 // Configure RTC chip
 #define RTC RTC_PCF8563
 
@@ -97,7 +57,6 @@
 
 // Configure sound subsystem.
 #define SOUND SOUND_PASSIVE
-
 // Flash chip.
 // Configure flash page size, depending on a flash chip used.
 // FLASH page size is  32bytes for  24c32 ( 4K) and  24c64 ( 8K)
@@ -180,6 +139,57 @@
 #define LOGBOOK_SIZE 1000
 #define FLASH_PRESENT
 
+// Pin wiring
+
+#if defined(__AVR_ATmega32U4__)
+// Pins for Arduino Pro Micro (Atmega-32u4)
+#if RTC==RTC_PCF8583
+#define PLATFORM_1 'A'
+#elif RTC==RTC_PCF8563
+#define PLATFORM_1 'C'
+#else
+#define PLATFORM_1 'Z'
+#endif
+#define PIN_HWPWR 1
+#define PIN_LIGHT 4
+#define PIN_R 5
+#define PIN_G 9
+#define PIN_B 10
+#define PIN_BTN1 A3
+#define PIN_BTN2 0
+#define PIN_BTN3 A1
+#define PIN_BAT_SENSE A0
+#define PIN_SOUND 6
+#define PIN_INTERRUPT 7
+#define PIN_INTERRUPT_HEARTBEAT 8
+#define PIN_DC 30
+
+#elif defined(__AVR_ATmega328P__)
+// Pins for Arduino Pro Mini (Atmega-328[P] - based)
+#if RTC==RTC_PCF8583
+#define PLATFORM_1 'B'
+#elif RTC==RTC_PCF8563
+#define PLATFORM_1 'D'
+#else
+#define PLATFORM_1 'Y'
+#endif
+#define PIN_HWPWR 4
+#define PIN_LIGHT 7
+#define PIN_R 5
+#define PIN_G 6
+#define PIN_B 9
+#define PIN_BTN1 A3
+#define PIN_BTN2 A2
+#define PIN_BTN3 A1
+#define PIN_BAT_SENSE A0
+#define PIN_SOUND 3
+#define PIN_INTERRUPT 2
+#define PIN_INTERRUPT_HEARTBEAT 2
+#define PIN_DC 8
+
+#else
+#error CPU unsupported.
+#endif // Platform
 
 // Checks
 
