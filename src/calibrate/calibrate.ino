@@ -76,7 +76,7 @@ byte blinkG = 0;
 byte blinkB = 0;
 
 void setup() {
-    Serial.begin(57600);
+    Serial.begin(9600);
     // Set up pins
     pinMode(PIN_G, OUTPUT);
     pinMode(PIN_HWPWR, OUTPUT);

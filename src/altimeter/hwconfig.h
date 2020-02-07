@@ -29,7 +29,7 @@
 #define LOCATION_FLASH 2
 
 // Serial port speed
-#define SERIAL_SPEED 57600
+#define SERIAL_SPEED 9600L
 
 // Language constants
 #define LANGUAGE_ENGLISH 0
@@ -96,7 +96,7 @@
 #define DISPLAY DISPLAY_NOKIA1201
 
 // Configure sound subsystem.
-#define SOUND SOUND_ACTIVE
+#define SOUND SOUND_PASSIVE
 
 // Flash chip.
 // Configure flash page size, depending on a flash chip used.

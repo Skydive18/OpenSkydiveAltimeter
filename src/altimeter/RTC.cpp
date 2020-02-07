@@ -110,7 +110,6 @@ void Rtc::setTime() {
     Wire.write(bin_to_bcd(minute));
     Wire.write(bin_to_bcd(hour));
     Wire.endTransmission();
-    Wire.beginTransmission(RTC_ADDRESS);
     init(); // re set the control/status register
 }
 
@@ -126,7 +125,7 @@ void Rtc::enableAlarmInterrupt() {
     }
 #elif RTC==RTC_PCF8563
     if (alarm_enable) {
-        status_register_2 = 0x2;
+        status_register_2 = 0x2; // Enable alarm interrupt, clear outstanding interrupt
         init();
     }
 #endif
@@ -150,7 +149,7 @@ void Rtc::readAlarm() {
     byte am = Wire.read();
     alarm_enable = (am & 0x80) ? 0 : 1;
     alarm_minute = bcd_to_bin(am & 0x7f);
-    alarm_hour = bcd_to_bin(Wire.read()& 0x7f);
+    alarm_hour = bcd_to_bin(Wire.read()& 0x3f);
 #endif
 }
 
@@ -171,6 +170,7 @@ void Rtc::setAlarm() {
     Wire.write(0x09);
     Wire.write(bin_to_bcd(alarm_minute) | mask);
     Wire.write(bin_to_bcd(alarm_hour) | mask);
+    Wire.endTransmission();
     saveZeroAltitude(loadZeroAltitude());
 #endif
 }
