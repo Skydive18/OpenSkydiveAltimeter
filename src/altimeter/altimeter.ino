@@ -8,10 +8,10 @@
 #include "keyboard.h"
 #include "display.h"
 #if DISPLAY==DISPLAY_NOKIA5110
-#include "fonts_nokia.h"
+#include "fonts/fonts_nokia.h"
 #endif
 #if DISPLAY==DISPLAY_NOKIA1201
-#include "fonts_hx1230.h"
+#include "fonts/fonts_hx1230.h"
 #endif
 #include "custom_types.h"
 #include "common.h"
@@ -25,9 +25,9 @@ extern FlashRom flashRom;
 #endif
 
 #if LANGUAGE==LANGUAGE_RUSSIAN
-#include "messages_ru.h"
+#include "i18n/messages_ru.h"
 #elif LANGUAGE==LANGUAGE_ENGLISH
-#include "messages_en.h"
+#include "i18n/messages_en.h"
 #else
 #error Unknown language, only English and Russian supported.
 #endif

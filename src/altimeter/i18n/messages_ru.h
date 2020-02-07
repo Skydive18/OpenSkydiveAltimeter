@@ -3,7 +3,7 @@
 
 // Messages, russian
 
-#define MSG_HELLO PSTR("Ni Hao!")
+#define MSG_HELLO PSTR("  Ossu")
 #define MSG_BYE PSTR("Sayonara")
 #define MSG_VERSION PSTR( \
         "Pegasus I\n" \
