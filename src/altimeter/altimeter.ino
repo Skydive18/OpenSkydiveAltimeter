@@ -1512,7 +1512,7 @@ void loop() {
     if (powerMode != previousPowerMode)
         interval_number = 0;
 
-    refresh_display += !(interval_number & 31);
+    refresh_display = refresh_display || !(interval_number & 31);
     
     ShowLEDs();
 
