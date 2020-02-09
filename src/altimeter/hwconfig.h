@@ -42,7 +42,7 @@
 #define AUDIBLE_SIGNALS_ENABLE   /* Enables audible altitude signals. Requires sound system to be configured. */
 //#define TETRIS_ENABLE            /* TODO!! Enable 'tetris' game */
 //#define SNAKE_ENABLE             /* TODO!! Enable 'snake' game */
-//#define FORCE_SAVE_JUMP_FEATURE_ENABLE /* Enable BTN1+BTN2 or BTN3+BTN2 to force save jump */
+#define FORCE_SAVE_JUMP_FEATURE_ENABLE /* Enable BTN1+BTN2 or BTN3+BTN2 to force save jump */
 #define LANGUAGE LANGUAGE_RUSSIAN
 
 // Configure RTC chip
@@ -56,7 +56,7 @@
 #define DISPLAY DISPLAY_NOKIA1201
 
 // Configure sound subsystem.
-#define SOUND SOUND_PASSIVE
+#define SOUND SOUND_ACTIVE
 // Flash chip.
 // Configure flash page size, depending on a flash chip used.
 // FLASH page size is  32bytes for  24c32 ( 4K) and  24c64 ( 8K)
