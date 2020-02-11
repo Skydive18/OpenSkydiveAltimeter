@@ -164,6 +164,7 @@ void setup() {
     pinMode(PIN_HWPWR, OUTPUT);
     digitalWrite(PIN_HWPWR, 1);
     Wire.begin();
+    Wire.setClock(WIRE_SPEED);
     delay(50); // Wait hardware to start
 
     rtc.init();

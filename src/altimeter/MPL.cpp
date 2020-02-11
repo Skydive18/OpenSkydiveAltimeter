@@ -3,7 +3,6 @@
  */
 
 #include <Wire.h>
-
 #include "MPL.h"
 #include "common.h"
 #include "RTC.h"
@@ -55,7 +54,6 @@ MPL3115A2::MPL3115A2() {
 /*******************************************************************************************/
 //Start I2C communication
 void MPL3115A2::begin(void) {
-    Wire.begin();
     IIC_WriteByte(MPL3115A2_ADDRESS, CTRL_REG1, (IIC_ReadByte(MPL3115A2_ADDRESS, CTRL_REG1) & B11000111) | B10101000);
     IIC_WriteByte(MPL3115A2_ADDRESS, PT_DATA_CFG, 0x07);
     ground_altitude = rtc.loadZeroAltitude();

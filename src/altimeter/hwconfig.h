@@ -197,6 +197,12 @@
 #error Jump snapshot feature requires Logbook feature to be enabled.
 #endif
 
+#if RTC==RTC_PCF8583
+#define WIRE_SPEED 100000
+#elif RTC==RTC_PCF8563
+#define WIRE_SPEED 400000
+#endif
+
 #if DISPLAY==DISPLAY_NOKIA5110
 #define PLATFORM_2 'N'
 #elif DISPLAY==DISPLAY_NOKIA1201
