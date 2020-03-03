@@ -28,36 +28,9 @@ U8G2_PCD8544_84X48_F_4W_HW_SPI u8g2(U8G2_R2, SS, DC_PIN, U8X8_PIN_NONE);
 #define DISPLAY_LIGHT_OFF digitalWrite(PIN_LIGHT,1)
 #define DISPLAY_LIGHT_ON digitalWrite(PIN_LIGHT,0)
 
-extern "C" uint8_t u8x8_byte_arduino_hw_spi_3w(u8x8_t *u8g2, uint8_t msg, uint8_t arg_int, void *arg_ptr);
-uint8_t *u8g2_m_12_9_4(uint8_t *page_cnt) {
-    static uint8_t buf[384];
-    *page_cnt = 4;
-    return buf;
-}
-
-void u8g2_Setup_hx1230_96x68_4(u8g2_t *u8g2, const u8g2_cb_t *rotation, u8x8_msg_cb byte_cb, u8x8_msg_cb gpio_and_delay_cb) {
-    uint8_t tile_buf_height;
-    uint8_t *buf;
-    u8g2_SetupDisplay(u8g2, u8x8_d_hx1230_96x68, u8x8_cad_001, byte_cb, gpio_and_delay_cb);
-    buf = u8g2_m_12_9_4(&tile_buf_height);
-    u8g2_SetupBuffer(u8g2, buf, tile_buf_height, u8g2_ll_hvline_vertical_top_lsb, rotation);
-}
-
-class U8G2_HX1230_96X68_X_HW_SPI : public U8G2 {
-    public:
-    U8G2_HX1230_96X68_X_HW_SPI(const u8g2_cb_t *rotation, uint8_t cs, uint8_t reset = U8X8_PIN_NONE) : U8G2() {
-//        u8g2_Setup_hx1230_96x68_1(&u8g2, rotation, u8x8_byte_arduino_hw_spi_3w, u8x8_gpio_and_delay_arduino);
-        u8g2_Setup_hx1230_96x68_2(&u8g2, rotation, u8x8_byte_arduino_hw_spi_3w, u8x8_gpio_and_delay_arduino);
-//        u8g2_Setup_hx1230_96x68_4(&u8g2, rotation, u8x8_byte_arduino_hw_spi_3w, u8x8_gpio_and_delay_arduino);
-//        u8g2_Setup_hx1230_96x68_F(&u8g2, rotation, u8x8_byte_arduino_hw_spi_3w, u8x8_gpio_and_delay_arduino);
-        u8x8_SetPin_4Wire_HW_SPI(getU8x8(), cs, U8X8_PIN_NONE, reset);
-    }
-};
-
 // 3-wire software SPI
 //U8G2_HX1230_96X68_2_3W_SW_SPI u8g2(U8G2_R0, SCK, MOSI, SS, PIN_DC);
 // 3-wire over-hardware SPI
-U8G2_HX1230_96X68_X_HW_SPI u8g2(U8G2_R0, SS, PIN_DC);
-
+U8G2_HX1230_96X68_2_3W_HW_SPI u8g2(U8G2_R0, SS, PIN_DC);
 #endif
 #endif

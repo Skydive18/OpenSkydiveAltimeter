@@ -230,7 +230,7 @@ bool checkAlarm() {
         u8g2.setFont(font_alarm);
         u8g2.firstPage();
         do {
-            u8g2.drawUTF8((DISPLAY_WIDTH - 80) / 2, (DISPLAY_HEIGHT / 2) + 12, bigbuf);
+            u8g2.drawUTF8((DISPLAY_WIDTH - 80) >> 1, (DISPLAY_HEIGHT >> 1) + 12, bigbuf);
         } while(u8g2.nextPage());
 
         while (BTN2_PRESSED);
@@ -333,14 +333,13 @@ void processAltitude() {
         // Change mode to ON_EARTH if vspeed has been populated (approx. 16s after enter to this mode)
         if (vspeedPtr > 32) {
             // set to zero if we close to it
-            if (settings.zero_after_reset) {
+            if (settings.zero_after_reset && current_altitude < 450) {
                 altitude_to_show = 0;
                 myPressure.zero();
             }
             powerMode = MODE_ON_EARTH;
-            return;
         }
-    }
+    } else
 
     //
     // ************************
@@ -353,13 +352,14 @@ void processAltitude() {
     if (powerMode == MODE_ON_EARTH) {
         if ( /*(current_altitude > 250) ||*/ (current_altitude > 30 && average_speed_8 > 1) )
             powerMode = MODE_IN_AIRPLANE;
-        else if (average_speed_8 < -25) {
+        else if (average_speed_8 <= FREEFALL_TH) {
             powerMode = MODE_FREEFALL;
 #ifdef LOGBOOK_ENABLE
             current_jump.total_jump_time = 2047; // do not store this jump in logbook
 #endif
         }
     } else
+    
     if (powerMode == MODE_IN_AIRPLANE) {
         if (current_speed <= EXIT_TH) {
             powerMode = MODE_EXIT;
@@ -377,6 +377,7 @@ void processAltitude() {
         else if (average_speed_32 < 1 && current_altitude < 25)
             powerMode = MODE_ON_EARTH;
     } else
+    
     if (powerMode == MODE_EXIT) {
 #ifdef SNAPSHOT_ENABLE
         saveToJumpSnapshot();
@@ -387,6 +388,7 @@ void processAltitude() {
         else if (current_speed > EXIT_TH)
             powerMode = MODE_IN_AIRPLANE;
     } else
+    
     if (powerMode == MODE_BEGIN_FREEFALL) {
 #ifdef SNAPSHOT_ENABLE
         saveToJumpSnapshot();
@@ -396,6 +398,7 @@ void processAltitude() {
         else if (current_speed > BEGIN_FREEFALL_TH)
             powerMode = MODE_EXIT;
     } else
+    
     if (powerMode == MODE_FREEFALL) {
 #ifdef SNAPSHOT_ENABLE
         saveToJumpSnapshot();
@@ -410,6 +413,7 @@ void processAltitude() {
             current_jump.max_freefall_speed_ms = freefall_speed;
 #endif
     } else
+    
     if (powerMode == MODE_PULLOUT) {
 #ifdef SNAPSHOT_ENABLE
         saveToJumpSnapshot();
@@ -426,7 +430,7 @@ void processAltitude() {
 #endif
         if (current_speed <= OPENING_TH)
             powerMode = MODE_PULLOUT;
-        else if (current_speed > UNDER_PARACHUTE_TH) {
+        else if (average_speed_8 > UNDER_PARACHUTE_TH) {
             powerMode = MODE_UNDER_PARACHUTE;
 #ifdef LOGBOOK_ENABLE
             current_jump.canopy_altitude = current_jump.deploy_altitude - (current_altitude >> 1);
@@ -458,7 +462,9 @@ void processAltitude() {
 
 uint8_t airplane_300m = 0;
 void ShowLEDs() {
-    if ((powerMode != MODE_ON_EARTH && powerMode != MODE_PREFILL && powerMode != MODE_DUMB && settings.backlight == 2) || settings.backlight == 1 || timeToTurnBacklightOn > 0)
+    if ((powerMode != MODE_ON_EARTH && powerMode != MODE_PREFILL && powerMode != MODE_DUMB && settings.backlight == 2)
+        || settings.backlight == 1
+        || (timeToTurnBacklightOn > 0 && timeWhileBtnMenuPressed < 32))
         DISPLAY_LIGHT_ON;
     else
         DISPLAY_LIGHT_OFF;
@@ -466,8 +472,6 @@ void ShowLEDs() {
     // Blink as we entering menu
     switch (timeWhileBtnMenuPressed) {
         case 0:
-        case 14:
-        case 15:
             break; // continue normal processing
         case 1:
         case 3:
@@ -481,7 +485,7 @@ void ShowLEDs() {
         case 12:
             LED_show(255, 0, 0);
             return;
-        default: // 2, 4, 6, 8, 9, 11, 13 => off all LEDs
+        default: // 2, 4, 6, 8, 9, 11, 13+ => off all LEDs
             LED_show(0, 0, 0);
             return;
     }
@@ -1467,14 +1471,13 @@ void loop() {
     if (BTN2_PRESSED) {
         timeToTurnBacklightOn = 16;
         // Try to enter menu
-        if (timeWhileBtnMenuPressed < 16)
+        if (timeWhileBtnMenuPressed < 32)
             timeWhileBtnMenuPressed++;
     } else {
         if (timeToTurnBacklightOn > 0)
             timeToTurnBacklightOn--;
-        if (timeWhileBtnMenuPressed == 8 || timeWhileBtnMenuPressed == 9) {
-#ifdef FORCE_SAVE_JUMP_FEATURE_ENABLE
-            if (BTN3_PRESSED || BTN1_PRESSED) {
+        if (timeWhileBtnMenuPressed > 6 || timeWhileBtnMenuPressed < 10) {
+            if (powerMode > MODE_ON_EARTH && powerMode < MODE_PREFILL) {
                 // Forcibly Save snapshot for debug purposes
 #ifdef SNAPSHOT_ENABLE
                 saveSnapshot();
@@ -1486,8 +1489,8 @@ void loop() {
                 total_jumps++;
                 EEPROM.put(EEPROM_JUMP_COUNTER, total_jumps);
 #endif
+                powerMode = MODE_ON_EARTH;
             }
-#endif            
             userMenu();
             refresh_display = true; // force display refresh
             previous_altitude = CLEAR_PREVIOUS_ALTITUDE;

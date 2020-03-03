@@ -42,7 +42,6 @@
 #define AUDIBLE_SIGNALS_ENABLE   /* Enables audible altitude signals. Requires sound system to be configured. */
 //#define TETRIS_ENABLE            /* TODO!! Enable 'tetris' game */
 //#define SNAKE_ENABLE             /* TODO!! Enable 'snake' game */
-#define FORCE_SAVE_JUMP_FEATURE_ENABLE /* Enable BTN1+BTN2 or BTN3+BTN2 to force save jump */
 #define LANGUAGE LANGUAGE_RUSSIAN
 
 // Configure RTC chip
