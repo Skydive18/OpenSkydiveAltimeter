@@ -129,6 +129,7 @@ bool SetDate(timestamp_t &date);
 bool checkAlarm();
 #endif
 void PowerOff(bool verbose = true);
+void memoryDump();
 
 void pciSetup(byte pin) {
     *digitalPinToPCMSK(pin) |= bit (digitalPinToPCMSKbit(pin));  // enable pin
@@ -216,14 +217,29 @@ void setup() {
     heartbeat = ByteToHeartbeat(settings.auto_power_off);
 
     if (myPressure.readAltitude() < 450) { // "Reset in airplane" - Disable greeting message if current altitude more than 450m
+        DISPLAY_LIGHT_ON;
+        Serial.begin(SERIAL_SPEED);
+        delay(2000);
+        if (Serial.available() && Serial.read() == '?') {
+            memoryDump();
+        }
         sound(SIGNAL_WELCOME);
         // Show greeting message
         ShowText(16, 30, MSG_HELLO);
         DISPLAY_LIGHT_ON;
 
+        if (Serial.available() && Serial.read() == '?') {
+            memoryDump();
+        }
+
         showVersion();
         delay(7000);
         DISPLAY_LIGHT_OFF;
+        Serial.end();
+#if defined(__AVR_ATmega328P__)
+        pinMode(0, INPUT);
+        pinMode(1, INPUT);
+#endif
     }
     // Wake by pin-change interrupt from RTC that generates 1Hz 50% duty cycle
     pciSetup(PIN_INTERRUPT_HEARTBEAT);
@@ -1187,58 +1203,7 @@ void userMenu() {
 #if defined(__AVR_ATmega32U4__)
                             while (!Serial);
 #endif
-                            sprintf_P(bigbuf, PSTR("\nPEGASUS_BEGIN\nPLATFORM %c%c%c%c\nVERSION 1.1"), PLATFORM_1, PLATFORM_2, PLATFORM_3, PLATFORM_4);
-                            Serial.print(bigbuf);
-                            // Dump settings
-                            sprintf_P(bigbuf, PSTR("\nLOGBOOK %c %04x %u\nSNAPSHOT %c %04x %u %u\nROM_BEGIN"),
-#if defined(LOGBOOK_ENABLE)
-    #if LOGBOOK_LOCATION == LOCATION_FLASH
-                                'F', LOGBOOK_START, LOGBOOK_SIZE,
-    #else
-                                'E', LOGBOOK_START, LOGBOOK_SIZE,
-    #endif
-#else
-                                'N', 0, 0,
-#endif
-#if defined(SNAPSHOT_ENABLE)
-    #if SNAPSHOT_JOURNAL_LOCATION == LOCATION_FLASH
-                                'F', SNAPSHOT_JOURNAL_START, SNAPSHOT_JOURNAL_SIZE, SNAPSHOT_SIZE
-    #else
-                                'E', SNAPSHOT_JOURNAL_START, SNAPSHOT_JOURNAL_SIZE, SNAPSHOT_SIZE
-    #endif
-#else
-                                'N', 0, 0, 0
-#endif
-                            );
-                            Serial.print(bigbuf);
-                            
-                            uint16_t i;
-                            for (i = 0; i < 1024; i++) {
-                                if (! (i & 15)) {
-                                    sprintf_P(textbuf, PSTR("\n%04x:"), i);
-                                    Serial.print(textbuf);
-                                }
-                                sprintf_P(textbuf, PSTR(" %02x"), EEPROM.read(i));
-                                Serial.print(textbuf);
-                            }
-                            Serial.print(F("\nROM_END"));
-#if defined(FLASH_PRESENT)
-                            sprintf_P(bigbuf, PSTR("\nFLASH_BEGIN %u %u"), FLASH__PAGE_SIZE, FLASH__PAGES);
-                            Serial.print(bigbuf);
-                            for (uint16_t page = 0; page < FLASH__PAGES; page++) {
-                                flashRom.readBytes(page * FLASH__PAGE_SIZE, FLASH__PAGE_SIZE, (uint8_t*)bigbuf);
-                                for (i = 0; i < FLASH__PAGE_SIZE; i++) {
-                                    if (! (i & 15)) {
-                                        sprintf_P(textbuf, PSTR("\n%04x:"), i + (page *FLASH__PAGE_SIZE));
-                                        Serial.print(textbuf);
-                                    }
-                                    sprintf_P(textbuf, PSTR(" %02x"), (uint8_t)(bigbuf[i]));
-                                    Serial.print(textbuf);
-                                }
-                            }
-                            Serial.print(F("\nFLASH_END"));
-#endif
-                            Serial.print(F("\nPEGASUS_END"));
+                            memoryDump();
                             Serial.end();
 #if defined(__AVR_ATmega328P__)
                             pinMode(0, INPUT);
@@ -1465,6 +1430,64 @@ bool SetTime(uint8_t &hour, uint8_t &minute, char* title) {
                 return false;
         }
     };
+}
+
+void memoryDump() {
+    sprintf_P(bigbuf, PSTR("\nPEGASUS_BEGIN\nPLATFORM %c%c%c%c\nVERSION 1.1"), PLATFORM_1, PLATFORM_2, PLATFORM_3, PLATFORM_4);
+    Serial.print(bigbuf);
+    // Dump settings
+    sprintf_P(bigbuf, PSTR("\nLOGBOOK %c %04x %u\nSNAPSHOT %c %04x %u %u\nROM_BEGIN"),
+
+#if defined(LOGBOOK_ENABLE)
+#if LOGBOOK_LOCATION == LOCATION_FLASH
+    'F', LOGBOOK_START, LOGBOOK_SIZE,
+#else
+    'E', LOGBOOK_START, LOGBOOK_SIZE,
+#endif
+#else
+    'N', 0, 0,
+#endif
+
+#if defined(SNAPSHOT_ENABLE)
+#if SNAPSHOT_JOURNAL_LOCATION == LOCATION_FLASH
+    'F', SNAPSHOT_JOURNAL_START, SNAPSHOT_JOURNAL_SIZE, SNAPSHOT_SIZE
+#else
+    'E', SNAPSHOT_JOURNAL_START, SNAPSHOT_JOURNAL_SIZE, SNAPSHOT_SIZE
+#endif
+#else
+    'N', 0, 0, 0
+#endif
+    );
+    Serial.print(bigbuf);
+
+    uint16_t i;
+    for (i = 0; i < 1024; i++) {
+        if (! (i & 15)) {
+            sprintf_P(textbuf, PSTR("\n%04x:"), i);
+            Serial.print(textbuf);
+        }
+        sprintf_P(textbuf, PSTR(" %02x"), EEPROM.read(i));
+        Serial.print(textbuf);
+    }
+    Serial.print(F("\nROM_END"));
+
+#if defined(FLASH_PRESENT)
+    sprintf_P(bigbuf, PSTR("\nFLASH_BEGIN %u %u"), FLASH__PAGE_SIZE, FLASH__PAGES);
+    Serial.print(bigbuf);
+    for (uint16_t page = 0; page < FLASH__PAGES; page++) {
+        flashRom.readBytes(page * FLASH__PAGE_SIZE, FLASH__PAGE_SIZE, (uint8_t*)bigbuf);
+        for (i = 0; i < FLASH__PAGE_SIZE; i++) {
+            if (! (i & 15)) {
+                sprintf_P(textbuf, PSTR("\n%04x:"), i + (page *FLASH__PAGE_SIZE));
+                Serial.print(textbuf);
+            }
+            sprintf_P(textbuf, PSTR(" %02x"), (uint8_t)(bigbuf[i]));
+            Serial.print(textbuf);
+        }
+    }
+    Serial.print(F("\nFLASH_END"));
+#endif
+    Serial.print(F("\nPEGASUS_END"));
 }
 
 void loop() {
