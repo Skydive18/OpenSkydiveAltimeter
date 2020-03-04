@@ -62,7 +62,11 @@ settings_t settings;
 jump_profile_t jump_profile;
 #ifdef AUDIBLE_SIGNALS_ENABLE
 audible_signals_t audible_signals;
-#endif    
+#endif
+
+#if defined(SOUND_VOLUME_CONTROL_ENABLE)
+uint8_t volumemap[4];
+#endif
 
 MPL3115A2 myPressure;
 Rtc rtc;
@@ -183,6 +187,10 @@ void setup() {
 #if defined(LOGBOOK_ENABLE) || defined(SNAPSHOT_ENABLE)
     EEPROM.get(EEPROM_JUMP_COUNTER, total_jumps);
 #endif
+#if defined(SOUND_VOLUME_CONTROL_ENABLE)
+    EEPROM.get(EEPROM_VOLUMEMAP, volumemap);
+#endif
+
     EEPROM.get(EEPROM_SETTINGS, settings);
     loadJumpProfile();
 
@@ -207,15 +215,16 @@ void setup() {
 
     heartbeat = ByteToHeartbeat(settings.auto_power_off);
 
-    sound(SIGNAL_WELCOME);
-    // Show greeting message
-    ShowText(16, 30, MSG_HELLO);
-    DISPLAY_LIGHT_ON;
+    if (myPressure.readAltitude() < 450) { // "Reset in airplane" - Disable greeting message if current altitude more than 450m
+        sound(SIGNAL_WELCOME);
+        // Show greeting message
+        ShowText(16, 30, MSG_HELLO);
+        DISPLAY_LIGHT_ON;
 
-    showVersion();
-    delay(7000);
-    DISPLAY_LIGHT_OFF;
-
+        showVersion();
+        delay(7000);
+        DISPLAY_LIGHT_OFF;
+    }
     // Wake by pin-change interrupt from RTC that generates 1Hz 50% duty cycle
     pciSetup(PIN_INTERRUPT_HEARTBEAT);
 }
@@ -1178,7 +1187,7 @@ void userMenu() {
 #if defined(__AVR_ATmega32U4__)
                             while (!Serial);
 #endif
-                            sprintf_P(bigbuf, PSTR("\nPEGASUS_BEGIN\nPLATFORM %c%c%c%c"), PLATFORM_1, PLATFORM_2, PLATFORM_3, PLATFORM_4);
+                            sprintf_P(bigbuf, PSTR("\nPEGASUS_BEGIN\nPLATFORM %c%c%c%c\nVERSION 1.1"), PLATFORM_1, PLATFORM_2, PLATFORM_3, PLATFORM_4);
                             Serial.print(bigbuf);
                             // Dump settings
                             sprintf_P(bigbuf, PSTR("\nLOGBOOK %c %04x %u\nSNAPSHOT %c %04x %u %u\nROM_BEGIN"),
@@ -1477,7 +1486,7 @@ void loop() {
         if (timeToTurnBacklightOn > 0)
             timeToTurnBacklightOn--;
         if (timeWhileBtnMenuPressed > 6 || timeWhileBtnMenuPressed < 10) {
-            if (powerMode > MODE_ON_EARTH && powerMode < MODE_PREFILL) {
+            if (powerMode > MODE_IN_AIRPLANE && powerMode < MODE_PREFILL) {
                 // Forcibly Save snapshot for debug purposes
 #ifdef SNAPSHOT_ENABLE
                 saveSnapshot();
@@ -1533,7 +1542,7 @@ void loop() {
             u8g2.drawUTF8(0, 6, textbuf);
             
 #ifdef ALARM_ENABLE
-            sprintf_P(textbuf, PSTR("%3d%c"), rel_voltage, rtc.alarm_enable & 1 ? '@' : '$');
+            sprintf_P(textbuf, PSTR("%3d%c"), rel_voltage, rtc.alarm_enable & 1 ? '@' : '%');
 #else
             sprintf_P(textbuf, PSTR("%3d%%"), rel_voltage);
 #endif
@@ -1562,7 +1571,7 @@ void loop() {
 
     INTACK = false;
     if (disable_sleep) {
-        // When PWM led control or sound delay is active, we cannot go into power down mode -
+        // When PWM led control or sound is active, we cannot go into power down mode -
         // it will stop timers and break PWM control.
         // TODO: Try to use Idle mode here keeping timers running, but stopping CPU clock.
         for (;;) {

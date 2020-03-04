@@ -8,7 +8,7 @@
 #define MSG_VERSION PSTR( \
         "Pegasus I\n" \
         "Platform %c%c%c%c\n" \
-        "Version 1.0\n" \
+        "Version 1.1\n" \
         "COM %ld/8N1\n")
 
 #define MSG_JUMP_CONTENT PSTR("%u/%u %c\n%02d.%02d.%04d %02d:%02d\nE:%4dm D:%4dm\nC:%4dm T:%4dc\nS:%dm/s %dkm/h\nM:%dm/s %dkm/h\n")
@@ -28,8 +28,10 @@
 #define MSG_LOGBOOK_VIEW "VView\n"
 #define MSG_LOGBOOK_REPLAY_JUMP "RGlobal test\n"
 #define MSG_LOGBOOK_CLEAR "CErase logbook\n"
+#define MSG_LOGBOOK_DELETE_LAST_JUML "DDelete last\n"
 
 #define MSG_LOGBOOK_CLEAR_CONFIRM_TITLE "Erase logbook?\n"
+#define MSG_LOGBOOK_DELETE_LAST_JUMP_CONFIRM_TITLE "Delete last?\n"
 
 #define MSG_SETTINGS_TITLE "Settings\n"
 #define MSG_SETTINGS_SET_TIME "TTime\n"

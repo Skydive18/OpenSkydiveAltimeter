@@ -20,6 +20,7 @@
 #define SENSOR_BME388 4
 
 // Sound system constants
+#define SOUND_NONE 0
 #define SOUND_PASSIVE 1
 #define SOUND_ACTIVE 2
 #define SOUND_VOLUME_CONTROL_ADDR 0x2f
@@ -56,6 +57,7 @@
 
 // Configure sound subsystem.
 #define SOUND SOUND_ACTIVE
+#define SOUND_VOLUME_CONTROL_ENABLE
 // Flash chip.
 // Configure flash page size, depending on a flash chip used.
 // FLASH page size is  32bytes for  24c32 ( 4K) and  24c64 ( 8K)
@@ -80,6 +82,7 @@
 // EEPROM addressing
 #define EEPROM_JUMP_COUNTER 0x0
 #define EEPROM_SETTINGS 0x2
+#define EEPROM_VOLUMEMAP 0x1c
 #define EEPROM_JUMP_PROFILES 0x20
 #define EEPROM_AUDIBLE_SIGNALS 0x30
 #define EEPROM_FREE_AREA 0x130
@@ -240,6 +243,10 @@
 #define PLATFORM_4 '2'
 #else
 #define PLATFORM_4 '0'
+#endif
+
+#if defined(SOUND_VOLUME_CONTROL_ENABLE) && SOUND != SOUND_PASSIVE
+#undef SOUND_VOLUME_CONTROL_ENABLE
 #endif
 
 #endif // __in_hwconfig_h

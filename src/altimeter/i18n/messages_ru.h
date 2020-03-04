@@ -8,7 +8,7 @@
 #define MSG_VERSION PSTR( \
         "Pegasus I\n" \
         "Платформа %c%c%c%c\n" \
-        "Версия 1.0\n" \
+        "Версия 1.1\n" \
         "COM %ld/8N1\n")
 
 #define MSG_JUMP_CONTENT PSTR("%u/%u %c\n%02d.%02d.%04d %02d:%02d\nO:%4dм Р:%4dм\nП:%4dм В:%4dc\nС:%dм/с %dкм/ч\nМ:%dм/с %dкм/ч\n")
@@ -28,8 +28,10 @@
 #define MSG_LOGBOOK_VIEW "VПросмотр\n"
 #define MSG_LOGBOOK_REPLAY_JUMP "RТест всего\n"
 #define MSG_LOGBOOK_CLEAR "CОчистить журнал\n"
+#define MSG_LOGBOOK_DELETE_LAST_JUML "DУдалить крайний\n"
 
 #define MSG_LOGBOOK_CLEAR_CONFIRM_TITLE "Очистить журнал?\n"
+#define MSG_LOGBOOK_DELETE_LAST_JUMP_CONFIRM_TITLE "Удалить крайний?\n"
 
 #define MSG_SETTINGS_TITLE "Настройки\n"
 #define MSG_SETTINGS_SET_TIME "TВремя\n"

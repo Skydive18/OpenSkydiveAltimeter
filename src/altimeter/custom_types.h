@@ -34,8 +34,8 @@ typedef struct {
     uint8_t use_led_signals : 1;
     uint8_t use_audible_signals : 1;
     //
-    int ground_altitude;
-    int target_altitude;
+    int16_t target_altitude;
+    uint8_t volume:2;
 } settings_t;
 
 typedef struct {
