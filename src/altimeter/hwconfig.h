@@ -39,8 +39,8 @@
 // Software Features
 #define LOGBOOK_ENABLE           /* Enables logbook */
 #define SNAPSHOT_ENABLE          /* Enables jump trace recording. Requires LOGBOOK_ENABLE */
-//#define ALARM_ENABLE             /* Enables alarm clock. Requires sound system to be configured. */
-//#define AUDIBLE_SIGNALS_ENABLE   /* Enables audible altitude signals. Requires sound system to be configured. */
+#define ALARM_ENABLE             /* Enables alarm clock. Requires sound system to be configured. */
+#define AUDIBLE_SIGNALS_ENABLE   /* Enables audible altitude signals. Requires sound system to be configured. */
 //#define TETRIS_ENABLE            /* TODO!! Enable 'tetris' game */
 //#define SNAKE_ENABLE             /* TODO!! Enable 'snake' game */
 #define LANGUAGE LANGUAGE_RUSSIAN
