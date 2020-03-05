@@ -1475,6 +1475,7 @@ void memoryDump() {
     sprintf_P(bigbuf, PSTR("\nFLASH_BEGIN %u %u"), FLASH__PAGE_SIZE, FLASH__PAGES);
     Serial.print(bigbuf);
     for (uint16_t page = 0; page < FLASH__PAGES; page++) {
+        LED_show((page & 1) ? 255 : 0, 0, 0);
         flashRom.readBytes(page * FLASH__PAGE_SIZE, FLASH__PAGE_SIZE, (uint8_t*)bigbuf);
         for (i = 0; i < FLASH__PAGE_SIZE; i++) {
             if (! (i & 15)) {
@@ -1485,6 +1486,7 @@ void memoryDump() {
             Serial.print(textbuf);
         }
     }
+    LED_show(0, 0, 0);
     Serial.print(F("\nFLASH_END"));
 #endif
     Serial.print(F("\nPEGASUS_END"));
