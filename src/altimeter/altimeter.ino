@@ -7,23 +7,30 @@
 #include "led.h"
 #include "keyboard.h"
 #include "display.h"
-#ifdef DISPLAY_NOKIA
-#include "fonts_nokia.h"
+#if DISPLAY==DISPLAY_NOKIA5110
+#include "fonts/fonts_nokia.h"
 #endif
-#ifdef DISPLAY_HX1230
-#include "fonts_hx1230.h"
+#if DISPLAY==DISPLAY_NOKIA1201
+#include "fonts/fonts_hx1230.h"
 #endif
 #include "custom_types.h"
 #include "common.h"
-#include "PCF8583.h"
+#include "RTC.h"
 #include "snd.h"
 #include "logbook.h"
+
 #ifdef FLASH_PRESENT
 #include "flash.h"
 extern FlashRom flashRom;
 #endif
 
-#include "messages_ru.h"
+#if LANGUAGE==LANGUAGE_RUSSIAN
+#include "i18n/messages_ru.h"
+#elif LANGUAGE==LANGUAGE_ENGLISH
+#include "i18n/messages_en.h"
+#else
+#error Unknown language, only English and Russian supported.
+#endif
 
 // Altimeter modes (powerMode)
 #define MODE_ON_EARTH 0
@@ -55,10 +62,14 @@ settings_t settings;
 jump_profile_t jump_profile;
 #ifdef AUDIBLE_SIGNALS_ENABLE
 audible_signals_t audible_signals;
-#endif    
+#endif
+
+#if defined(SOUND_VOLUME_CONTROL_ENABLE)
+uint8_t volumemap[4];
+#endif
 
 MPL3115A2 myPressure;
-PCF8583 rtc;
+Rtc rtc;
 void(* resetFunc) (void) = 0;
 
 #define CLEAR_PREVIOUS_ALTITUDE -30000
@@ -118,8 +129,7 @@ bool SetDate(timestamp_t &date);
 bool checkAlarm();
 #endif
 void PowerOff(bool verbose = true);
-
-#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
+void memoryDump();
 
 void pciSetup(byte pin) {
     *digitalPinToPCMSK(pin) |= bit (digitalPinToPCMSKbit(pin));  // enable pin
@@ -128,12 +138,15 @@ void pciSetup(byte pin) {
 }
 
 ISR (PCINT1_vect) { // handle pin change interrupt for A0 to A5 here (328p); the only PCINT for 32u4
+#if defined (__AVR_ATmega32U4__)
+    INTACK = true;
+#endif
 }
 
+#if defined(__AVR_ATmega328P__)
 ISR (PCINT2_vect) { // handle pin change interrupt for D0 to D5 here (328p)
     INTACK = true;
 }
-
 #endif
 
 void loadJumpProfile() {
@@ -156,9 +169,11 @@ void setup() {
     pinMode(PIN_HWPWR, OUTPUT);
     digitalWrite(PIN_HWPWR, 1);
     Wire.begin();
+//    Wire.setClock(WIRE_SPEED);
     delay(50); // Wait hardware to start
 
-    rtc.init(); // reset alarm flags, start generate seed sequence
+    rtc.init();
+    rtc.enableHeartbeat();  // reset alarm flags, start generate seed sequence
     rtc.readTime();
 #ifdef ALARM_ENABLE
     rtc.readAlarm();
@@ -173,6 +188,10 @@ void setup() {
 #if defined(LOGBOOK_ENABLE) || defined(SNAPSHOT_ENABLE)
     EEPROM.get(EEPROM_JUMP_COUNTER, total_jumps);
 #endif
+#if defined(SOUND_VOLUME_CONTROL_ENABLE)
+    EEPROM.get(EEPROM_VOLUMEMAP, volumemap);
+#endif
+
     EEPROM.get(EEPROM_SETTINGS, settings);
     loadJumpProfile();
 
@@ -180,31 +199,8 @@ void setup() {
 
     initSound();
 
-/*
-  Serial.begin(SERIAL_SPEED);
-  //while (!Serial) delay(100); // wait for USB connect, 32u4 only.  Serial.println("Scanning I2C Bus...");
-  int i2cCount = 0;
-  for (uint8_t i = 8; i < 128; i++)
-  {
-    Wire.beginTransmission (i);
-    if (Wire.endTransmission () == 0)
-      {
-      Serial.print ("Found address: ");
-      Serial.print (i, DEC);
-      Serial.print (" (0x");
-      Serial.print (i, HEX);
-      Serial.println (")");
-      i2cCount++;
-      delay (1);  // maybe unneeded?
-      } // end of good response
-  } // end of for loop
-  Serial.print ("Scanning I2C Bus Done. Found ");
-  Serial.print (i2cCount, DEC);
-  Serial.println (" device(s).");
-*/
-
     u8g2.begin();
-#ifdef DISPLAY_HX1230    
+#if DISPLAY==DISPLAY_NOKIA1201
     u8g2.setContrast((uint8_t)(settings.contrast << 4) + 15);
 #endif
     u8g2.enableUTF8Print();    // enable UTF8 support for the Arduino print() function
@@ -220,18 +216,33 @@ void setup() {
 
     heartbeat = ByteToHeartbeat(settings.auto_power_off);
 
-    sound(SIGNAL_WELCOME);
-    // Show greeting message
-    ShowText(16, 30, MSG_HELLO);
-    DISPLAY_LIGHT_ON;
+    if (myPressure.readAltitude() < 450) { // "Reset in airplane" - Disable greeting message if current altitude more than 450m
+        DISPLAY_LIGHT_ON;
+        Serial.begin(SERIAL_SPEED);
+        delay(2000);
+        if (Serial.available() && Serial.read() == '?') {
+            memoryDump();
+        }
+        sound(SIGNAL_WELCOME);
+        // Show greeting message
+        ShowText(16, 30, MSG_HELLO);
+        DISPLAY_LIGHT_ON;
 
-    showVersion();
-    delay(7000);
-    DISPLAY_LIGHT_OFF;
-#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
+        if (Serial.available() && Serial.read() == '?') {
+            memoryDump();
+        }
+
+        showVersion();
+        delay(7000);
+        DISPLAY_LIGHT_OFF;
+        Serial.end();
+#if defined(__AVR_ATmega328P__)
+        pinMode(0, INPUT);
+        pinMode(1, INPUT);
+#endif
+    }
     // Wake by pin-change interrupt from RTC that generates 1Hz 50% duty cycle
-    pciSetup(PIN_INTERRUPT);
-#endif    
+    pciSetup(PIN_INTERRUPT_HEARTBEAT);
 }
 
 #ifdef ALARM_ENABLE
@@ -244,7 +255,7 @@ bool checkAlarm() {
         u8g2.setFont(font_alarm);
         u8g2.firstPage();
         do {
-            u8g2.drawUTF8((DISPLAY_WIDTH - 80) / 2, (DISPLAY_HEIGHT / 2) + 12, bigbuf);
+            u8g2.drawUTF8((DISPLAY_WIDTH - 80) >> 1, (DISPLAY_HEIGHT >> 1) + 12, bigbuf);
         } while(u8g2.nextPage());
 
         while (BTN2_PRESSED);
@@ -347,14 +358,13 @@ void processAltitude() {
         // Change mode to ON_EARTH if vspeed has been populated (approx. 16s after enter to this mode)
         if (vspeedPtr > 32) {
             // set to zero if we close to it
-            if (settings.zero_after_reset) {
+            if (settings.zero_after_reset && current_altitude < 450) {
                 altitude_to_show = 0;
                 myPressure.zero();
             }
             powerMode = MODE_ON_EARTH;
-            return;
         }
-    }
+    } else
 
     //
     // ************************
@@ -367,13 +377,14 @@ void processAltitude() {
     if (powerMode == MODE_ON_EARTH) {
         if ( /*(current_altitude > 250) ||*/ (current_altitude > 30 && average_speed_8 > 1) )
             powerMode = MODE_IN_AIRPLANE;
-        else if (average_speed_8 < -25) {
+        else if (average_speed_8 <= FREEFALL_TH) {
             powerMode = MODE_FREEFALL;
 #ifdef LOGBOOK_ENABLE
             current_jump.total_jump_time = 2047; // do not store this jump in logbook
 #endif
         }
     } else
+    
     if (powerMode == MODE_IN_AIRPLANE) {
         if (current_speed <= EXIT_TH) {
             powerMode = MODE_EXIT;
@@ -391,6 +402,7 @@ void processAltitude() {
         else if (average_speed_32 < 1 && current_altitude < 25)
             powerMode = MODE_ON_EARTH;
     } else
+    
     if (powerMode == MODE_EXIT) {
 #ifdef SNAPSHOT_ENABLE
         saveToJumpSnapshot();
@@ -401,6 +413,7 @@ void processAltitude() {
         else if (current_speed > EXIT_TH)
             powerMode = MODE_IN_AIRPLANE;
     } else
+    
     if (powerMode == MODE_BEGIN_FREEFALL) {
 #ifdef SNAPSHOT_ENABLE
         saveToJumpSnapshot();
@@ -410,6 +423,7 @@ void processAltitude() {
         else if (current_speed > BEGIN_FREEFALL_TH)
             powerMode = MODE_EXIT;
     } else
+    
     if (powerMode == MODE_FREEFALL) {
 #ifdef SNAPSHOT_ENABLE
         saveToJumpSnapshot();
@@ -424,6 +438,7 @@ void processAltitude() {
             current_jump.max_freefall_speed_ms = freefall_speed;
 #endif
     } else
+    
     if (powerMode == MODE_PULLOUT) {
 #ifdef SNAPSHOT_ENABLE
         saveToJumpSnapshot();
@@ -440,7 +455,7 @@ void processAltitude() {
 #endif
         if (current_speed <= OPENING_TH)
             powerMode = MODE_PULLOUT;
-        else if (current_speed > UNDER_PARACHUTE_TH) {
+        else if (average_speed_8 > UNDER_PARACHUTE_TH) {
             powerMode = MODE_UNDER_PARACHUTE;
 #ifdef LOGBOOK_ENABLE
             current_jump.canopy_altitude = current_jump.deploy_altitude - (current_altitude >> 1);
@@ -472,7 +487,9 @@ void processAltitude() {
 
 uint8_t airplane_300m = 0;
 void ShowLEDs() {
-    if ((powerMode != MODE_ON_EARTH && powerMode != MODE_PREFILL && powerMode != MODE_DUMB && settings.backlight == 2) || settings.backlight == 1 || timeToTurnBacklightOn > 0)
+    if ((powerMode != MODE_ON_EARTH && powerMode != MODE_PREFILL && powerMode != MODE_DUMB && settings.backlight == 2)
+        || settings.backlight == 1
+        || (timeToTurnBacklightOn > 0 && timeWhileBtnMenuPressed < 32))
         DISPLAY_LIGHT_ON;
     else
         DISPLAY_LIGHT_OFF;
@@ -480,8 +497,6 @@ void ShowLEDs() {
     // Blink as we entering menu
     switch (timeWhileBtnMenuPressed) {
         case 0:
-        case 14:
-        case 15:
             break; // continue normal processing
         case 1:
         case 3:
@@ -495,7 +510,7 @@ void ShowLEDs() {
         case 12:
             LED_show(255, 0, 0);
             return;
-        default: // 2, 4, 6, 8, 9, 11, 13 => off all LEDs
+        default: // 2, 4, 6, 8, 9, 11, 13+ => off all LEDs
             LED_show(0, 0, 0);
             return;
     }
@@ -598,10 +613,13 @@ void ShowText(const uint8_t x, const uint8_t y, const char* text) {
 void PowerOff(bool verbose = true) {
     if (verbose)
         ShowText(6, 24, MSG_BYE);
+
     noSound();
+    rtc.disableHeartbeat(); // Do it before enabling alarm, because it will tirn alarm off on pcf8583
 #ifdef ALARM_ENABLE
     rtc.enableAlarmInterrupt();
 #endif
+
 
     // turn off i2c
     pinMode(SCL, INPUT);
@@ -618,17 +636,18 @@ void PowerOff(bool verbose = true) {
 
     // After we turned off all peripherial connections, turn peripherial power OFF too.
     digitalWrite(PIN_HWPWR, 0);
+
+#if defined(__AVR_ATmega328P__)
+    // Wake by pin-change interrupt on any key
+    pciSetup(PIN_BTN1);
+    pciSetup(PIN_BTN2);
+    pciSetup(PIN_BTN3);
+    Serial.end();
+    pinMode(0, INPUT);
+    pinMode(1, INPUT);
+#endif
     
     do {
-#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
-        // Wake by pin-change interrupt on any key
-        pciSetup(PIN_BTN1);
-        pciSetup(PIN_BTN2);
-        pciSetup(PIN_BTN3);
-        Serial.end();
-        pinMode(0, INPUT);
-        pinMode(1, INPUT);
-#endif
 #if defined(__AVR_ATmega32U4__)
         // Wake by BTN2 (Middle button)
         attachInterrupt(digitalPinToInterrupt(PIN_BTN2), wake, LOW);
@@ -648,7 +667,7 @@ void PowerOff(bool verbose = true) {
     resetFunc();
 }
 
-#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
+#if defined(__AVR_ATmega328P__)
 uint8_t checkWakeCondition () {
     uint8_t pin;
     if (BTN1_PRESSED)
@@ -1035,7 +1054,7 @@ void userMenu() {
                         MSG_SETTINGS_SET_AUTO_ZERO
                         MSG_SETTINGS_SET_AUTO_POWER_OFF
                         MSG_SETTINGS_SET_SCREEN_ROTATION
-#if defined(DISPLAY_HX1230)
+#if DISPLAY==DISPLAY_NOKIA1201
                         MSG_SETTINGS_SET_SCREEN_CONTRAST
 #endif
                         MSG_SETTINGS_ABOUT
@@ -1050,7 +1069,7 @@ void userMenu() {
                         power_mode_char,
                         zero_after_reset,
                         HeartbeatValue(settings.auto_power_off),
-#if defined(DISPLAY_HX1230)
+#if DISPLAY==DISPLAY_NOKIA1201
                         settings.contrast,
 #endif
                         0 /* Dummy value */);
@@ -1163,7 +1182,7 @@ void userMenu() {
                             settings.display_rotation++;
                             u8g2.setDisplayRotation((settings.display_rotation) ? U8G2_R0 : U8G2_R2);
                             break;
-#if defined(DISPLAY_HX1230)
+#if DISPLAY==DISPLAY_NOKIA1201
                         case 'C':
                             // Contrast
                             settings.contrast++;
@@ -1184,60 +1203,9 @@ void userMenu() {
 #if defined(__AVR_ATmega32U4__)
                             while (!Serial);
 #endif
-                            sprintf_P(bigbuf, PSTR("\nPEGASUS_BEGIN\nPLATFORM %c%c%c%c"), PLATFORM_1, PLATFORM_2, PLATFORM_3, PLATFORM_4);
-                            Serial.print(bigbuf);
-                            // Dump settings
-                            sprintf_P(bigbuf, PSTR("\nLOGBOOK %c %04x %u\nSNAPSHOT %c %04x %u %u\nROM_BEGIN"),
-#if defined(LOGBOOK_ENABLE)
-    #if LOGBOOK_LOCATION == LOCATION_FLASH
-                                'F', LOGBOOK_START, LOGBOOK_SIZE,
-    #else
-                                'E', LOGBOOK_START, LOGBOOK_SIZE,
-    #endif
-#else
-                                'N', 0, 0,
-#endif
-#if defined(SNAPSHOT_ENABLE)
-    #if SNAPSHOT_JOURNAL_LOCATION == LOCATION_FLASH
-                                'F', SNAPSHOT_JOURNAL_START, SNAPSHOT_JOURNAL_SIZE, SNAPSHOT_SIZE
-    #else
-                                'E', SNAPSHOT_JOURNAL_START, SNAPSHOT_JOURNAL_SIZE, SNAPSHOT_SIZE
-    #endif
-#else
-                                'N', 0, 0, 0
-#endif
-                            );
-                            Serial.print(bigbuf);
-                            
-                            uint16_t i;
-                            for (i = 0; i < 1024; i++) {
-                                if (! (i & 15)) {
-                                    sprintf_P(textbuf, PSTR("\n%04x:"), i);
-                                    Serial.print(textbuf);
-                                }
-                                sprintf_P(textbuf, PSTR(" %02x"), EEPROM.read(i));
-                                Serial.print(textbuf);
-                            }
-                            Serial.print(F("\nROM_END"));
-#if defined(FLASH_PRESENT)
-                            sprintf_P(bigbuf, PSTR("\nFLASH_BEGIN %u %u"), FLASH__PAGE_SIZE, FLASH__PAGES);
-                            Serial.print(bigbuf);
-                            for (uint16_t page = 0; page < FLASH__PAGES; page++) {
-                                flashRom.readBytes(page * FLASH__PAGE_SIZE, FLASH__PAGE_SIZE, (uint8_t*)bigbuf);
-                                for (i = 0; i < FLASH__PAGE_SIZE; i++) {
-                                    if (! (i & 15)) {
-                                        sprintf_P(textbuf, PSTR("\n%04x:"), i + (page *FLASH__PAGE_SIZE));
-                                        Serial.print(textbuf);
-                                    }
-                                    sprintf_P(textbuf, PSTR(" %02x"), (uint8_t)(bigbuf[i]));
-                                    Serial.print(textbuf);
-                                }
-                            }
-                            Serial.print(F("\nFLASH_END"));
-#endif
-                            Serial.print(F("\nPEGASUS_END"));
+                            memoryDump();
                             Serial.end();
-#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
+#if defined(__AVR_ATmega328P__)
                             pinMode(0, INPUT);
                             pinMode(1, INPUT);
 #endif
@@ -1269,8 +1237,8 @@ bool SetDate(uint8_t &day, uint8_t &month, uint16_t &year) {
         pos = (pos + 5) % 5;
         if (year > 2100)
             year = 2100;
-        if (year < 2019)
-            year = 2019;
+        if (year < EPOCH)
+            year = EPOCH;
         if (month > 12)
             month = 12;
         if (month == 0)
@@ -1464,6 +1432,66 @@ bool SetTime(uint8_t &hour, uint8_t &minute, char* title) {
     };
 }
 
+void memoryDump() {
+    sprintf_P(bigbuf, PSTR("\nPEGASUS_BEGIN\nPLATFORM %c%c%c%c\nVERSION 1.1"), PLATFORM_1, PLATFORM_2, PLATFORM_3, PLATFORM_4);
+    Serial.print(bigbuf);
+    // Dump settings
+    sprintf_P(bigbuf, PSTR("\nLOGBOOK %c %04x %u\nSNAPSHOT %c %04x %u %u\nROM_BEGIN"),
+
+#if defined(LOGBOOK_ENABLE)
+#if LOGBOOK_LOCATION == LOCATION_FLASH
+    'F', LOGBOOK_START, LOGBOOK_SIZE,
+#else
+    'E', LOGBOOK_START, LOGBOOK_SIZE,
+#endif
+#else
+    'N', 0, 0,
+#endif
+
+#if defined(SNAPSHOT_ENABLE)
+#if SNAPSHOT_JOURNAL_LOCATION == LOCATION_FLASH
+    'F', SNAPSHOT_JOURNAL_START, SNAPSHOT_JOURNAL_SIZE, SNAPSHOT_SIZE
+#else
+    'E', SNAPSHOT_JOURNAL_START, SNAPSHOT_JOURNAL_SIZE, SNAPSHOT_SIZE
+#endif
+#else
+    'N', 0, 0, 0
+#endif
+    );
+    Serial.print(bigbuf);
+
+    uint16_t i;
+    for (i = 0; i < 1024; i++) {
+        if (! (i & 15)) {
+            sprintf_P(textbuf, PSTR("\n%04x:"), i);
+            Serial.print(textbuf);
+        }
+        sprintf_P(textbuf, PSTR(" %02x"), EEPROM.read(i));
+        Serial.print(textbuf);
+    }
+    Serial.print(F("\nROM_END"));
+
+#if defined(FLASH_PRESENT)
+    sprintf_P(bigbuf, PSTR("\nFLASH_BEGIN %u %u"), FLASH__PAGE_SIZE, FLASH__PAGES);
+    Serial.print(bigbuf);
+    for (uint16_t page = 0; page < FLASH__PAGES; page++) {
+        LED_show((page & 1) ? 255 : 0, 0, 0);
+        flashRom.readBytes(page * FLASH__PAGE_SIZE, FLASH__PAGE_SIZE, (uint8_t*)bigbuf);
+        for (i = 0; i < FLASH__PAGE_SIZE; i++) {
+            if (! (i & 15)) {
+                sprintf_P(textbuf, PSTR("\n%04x:"), i + (page *FLASH__PAGE_SIZE));
+                Serial.print(textbuf);
+            }
+            sprintf_P(textbuf, PSTR(" %02x"), (uint8_t)(bigbuf[i]));
+            Serial.print(textbuf);
+        }
+    }
+    LED_show(0, 0, 0);
+    Serial.print(F("\nFLASH_END"));
+#endif
+    Serial.print(F("\nPEGASUS_END"));
+}
+
 void loop() {
     // Read sensors
     rtc.readTime();
@@ -1477,14 +1505,13 @@ void loop() {
     if (BTN2_PRESSED) {
         timeToTurnBacklightOn = 16;
         // Try to enter menu
-        if (timeWhileBtnMenuPressed < 16)
+        if (timeWhileBtnMenuPressed < 32)
             timeWhileBtnMenuPressed++;
     } else {
         if (timeToTurnBacklightOn > 0)
             timeToTurnBacklightOn--;
-        if (timeWhileBtnMenuPressed == 8 || timeWhileBtnMenuPressed == 9) {
-#ifdef FORCE_SAVE_JUMP_FEATURE_ENABLE
-            if (BTN3_PRESSED || BTN1_PRESSED) {
+        if (timeWhileBtnMenuPressed > 6 && timeWhileBtnMenuPressed < 10) {
+            if (powerMode > MODE_IN_AIRPLANE && powerMode < MODE_PREFILL) {
                 // Forcibly Save snapshot for debug purposes
 #ifdef SNAPSHOT_ENABLE
                 saveSnapshot();
@@ -1496,8 +1523,8 @@ void loop() {
                 total_jumps++;
                 EEPROM.put(EEPROM_JUMP_COUNTER, total_jumps);
 #endif
+                powerMode = MODE_ON_EARTH;
             }
-#endif            
             userMenu();
             refresh_display = true; // force display refresh
             previous_altitude = CLEAR_PREVIOUS_ALTITUDE;
@@ -1523,7 +1550,7 @@ void loop() {
     if (powerMode != previousPowerMode)
         interval_number = 0;
 
-    refresh_display += !(interval_number & 31);
+    refresh_display = refresh_display || !(interval_number & 31);
     
     ShowLEDs();
 
@@ -1540,7 +1567,7 @@ void loop() {
             u8g2.drawUTF8(0, 6, textbuf);
             
 #ifdef ALARM_ENABLE
-            sprintf_P(textbuf, PSTR("%3d%c"), rel_voltage, rtc.alarm_enable & 1 ? '@' : '$');
+            sprintf_P(textbuf, PSTR("%3d%c"), rel_voltage, rtc.alarm_enable & 1 ? '@' : '%');
 #else
             sprintf_P(textbuf, PSTR("%3d%%"), rel_voltage);
 #endif
@@ -1567,13 +1594,9 @@ void loop() {
         } while ( u8g2.nextPage() );
     }
 
-#if defined (__AVR_ATmega32U4__)
-    rtc.enableSeedInterrupt();
-    attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
-#endif
     INTACK = false;
     if (disable_sleep) {
-        // When PWM led control or sound delay is active, we cannot go into power down mode -
+        // When PWM led control or sound is active, we cannot go into power down mode -
         // it will stop timers and break PWM control.
         // TODO: Try to use Idle mode here keeping timers running, but stopping CPU clock.
         for (;;) {
@@ -1581,12 +1604,8 @@ void loop() {
                 break;
         }
     } else {
-        off_forever;
+        off_2s;
     }
-#if defined (__AVR_ATmega32U4__)
-    detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
-    rtc.disableInterrupt();
-#endif
 
     interval_number++;
     if (powerMode == MODE_ON_EARTH || powerMode == MODE_DUMB) {

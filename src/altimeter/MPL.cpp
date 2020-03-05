@@ -3,10 +3,11 @@
  */
 
 #include <Wire.h>
-
 #include "MPL.h"
 #include "common.h"
-#include "PCF8583.h"
+#include "RTC.h"
+
+extern Rtc rtc;
 
 #ifdef DEBUG_PRINT
 namespace {
@@ -53,15 +54,14 @@ MPL3115A2::MPL3115A2() {
 /*******************************************************************************************/
 //Start I2C communication
 void MPL3115A2::begin(void) {
-    Wire.begin();
     IIC_WriteByte(MPL3115A2_ADDRESS, CTRL_REG1, (IIC_ReadByte(MPL3115A2_ADDRESS, CTRL_REG1) & B11000111) | B10101000);
     IIC_WriteByte(MPL3115A2_ADDRESS, PT_DATA_CFG, 0x07);
-    ground_altitude = IIC_ReadInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE);
+    ground_altitude = rtc.loadZeroAltitude();
 }
 
 void MPL3115A2::zero() {
     ground_altitude += readAltitude();
-    IIC_WriteInt(RTC_ADDRESS, ADDR_ZERO_ALTITUDE, ground_altitude);
+    rtc.saveZeroAltitude(ground_altitude);
 }
 
 #ifdef DEBUG_PRINT

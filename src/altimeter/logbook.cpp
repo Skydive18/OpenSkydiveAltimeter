@@ -3,7 +3,6 @@
 #include "hwconfig.h"
 
 #if (defined(SNAPSHOT_ENABLE) && SNAPSHOT_JOURNAL_LOCATION == LOCATION_FLASH) || (defined(LOGBOOK_ENABLE) && LOGBOOK_LOCATION == LOCATION_FLASH)
-#include "Wire.h"
 #include "flash.h"
 FlashRom flashRom;
 #endif

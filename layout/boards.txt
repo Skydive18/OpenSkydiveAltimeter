@@ -1,0 +1,15 @@
+## Arduino Pro or Pro Mini (3.3V, 8 MHz internal, optiboot) w/ ATmega328P
+## ---------------------------------------------------
+pro.menu.cpu.8MHziatmega328=ATmega328P (3.3V, 8 MHz internal, optiboot)
+
+pro.menu.cpu.8MHziatmega328.upload.maximum_size=32256
+pro.menu.cpu.8MHziatmega328.upload.maximum_data_size=2048
+pro.menu.cpu.8MHziatmega328.upload.speed=9600
+
+pro.menu.cpu.8MHziatmega328.bootloader.low_fuses=0xF2
+pro.menu.cpu.8MHziatmega328.bootloader.high_fuses=0xDA
+pro.menu.cpu.8MHziatmega328.bootloader.extended_fuses=0xFD
+pro.menu.cpu.8MHziatmega328.bootloader.file=atmega/ATmegaBOOT_168_atmega328_pro_8MHz.hex
+
+pro.menu.cpu.8MHziatmega328.build.mcu=atmega328p
+pro.menu.cpu.8MHziatmega328.build.f_cpu=8000000L

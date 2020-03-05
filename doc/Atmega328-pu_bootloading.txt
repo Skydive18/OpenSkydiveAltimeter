@@ -1,0 +1,28 @@
+So recently i ordered a bunch of atmega chips (atmega328-pu as opposed to the atmega328p pico power series)
+as i dont need the extra power saving gains so i decided to save myself some money. However I had a heck
+of a time trying to burn the bootloader on them and it took me several hours to find the info i needed
+so i thought i would just archive the info for anyone looking for the same. If you have any tips
+or suggestions please add them as i am still quite new to all of this. The chips loaded in this process
+seem to work fine ...
+
+Please note this is for the non picopower atmega328-pu chips  signature = 0x1e 0x95 0x14 (1E 95 14)
+vs atmega328p-xx (1E 95 0F)
+
+I tried to load the optiboot and the demillinauve bootloaders via the arduino ide v22 but all i could
+get was this message - Expected signature for ATMEGA328P is 1E 95 0F Double check chip, or use -F to
+override this ...
+
+After much searching I found you need to modify the avrdude.conf file
+( mac = arduino -show package contents - resources/java/hardware/tools/avr/etc )
+
+Make a backup copy of this file in case something gets messed up.
+
+Open the file with text edit and about 2/3 the way down under atmega 328 find
+   " signature       = 0x1e 0x95 0x0F; "
+
+change the 0F to 14 save it and restart the arduino ide, you should now be able to bootload your
+atmega328-pu chips.
+
+Make sure to change the 14 back to OF and restart when your done loading the bootloaders otherwise
+it will fail with - Expected signature for ATMEGA328P is 1E 95 14 Double check chip, or use -F
+to override this ...
