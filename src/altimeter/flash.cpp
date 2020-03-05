@@ -24,24 +24,33 @@
 #include "flash.h"
 #include "hwconfig.h"
 
-#define EEPROM__RD_BUFFER_SIZE    BUFFER_LENGTH
-#define EEPROM__WR_BUFFER_SIZE    (BUFFER_LENGTH - 2)
+//#define EEPROM__RD_BUFFER_SIZE    BUFFER_LENGTH
+//#define EEPROM__WR_BUFFER_SIZE    (BUFFER_LENGTH - 2)
+#define EEPROM__RD_BUFFER_SIZE    4
+#define EEPROM__WR_BUFFER_SIZE    4
 
 FlashRom::FlashRom() {
 }
 
 void FlashRom::writeByte(uint16_t address, uint8_t data) {
-    Wire.beginTransmission(FLASH_ADDRESS);
-    if (Wire.endTransmission() == 0) {
+//    Wire.begin();
+//    Wire.beginTransmission(FLASH_ADDRESS);
+//    if (Wire.endTransmission() == 0) {
+        Wire.begin();
         Wire.beginTransmission(FLASH_ADDRESS);
         Wire.write(address >> 8);
         Wire.write(address & 0xFF);
         Wire.write(data);
         Wire.endTransmission();
-    }
+//    }
+    delay(10);
 }
 
 void FlashRom::writeBytes(uint16_t address, uint16_t length, uint8_t* p_data) {
+    // TODO. Use buffered read/write. Now it hangs I2C. Consider move to WsWire lib
+    for (uint16_t i = 0; i < length; i++)
+        writeByte(address + i, p_data[i]);
+/*
     // Write first page if not aligned.
     uint8_t notAlignedLength = 0;
     uint8_t pageOffset = address % FLASH__PAGE_SIZE;
@@ -72,11 +81,14 @@ void FlashRom::writeBytes(uint16_t address, uint16_t length, uint8_t* p_data) {
             writePage(address, length, p_data);
         }
     }
+*/
 }
 
 uint8_t FlashRom::readByte(uint16_t address) {
+    Wire.begin();
     Wire.beginTransmission(FLASH_ADDRESS);
     if (Wire.endTransmission() == 0) {
+        Wire.begin();
         Wire.beginTransmission(FLASH_ADDRESS);
         Wire.write(address >> 8);
         Wire.write(address & 0xFF);
@@ -88,6 +100,10 @@ uint8_t FlashRom::readByte(uint16_t address) {
 }
 
 void FlashRom::readBytes(uint16_t address, uint16_t length, uint8_t* p_data) {
+    // TODO. Use buffered read/write. Now it hangs I2C. Consider move to WsWire lib
+    for (uint16_t i = 0; i < length; i++)
+        p_data[i] = readByte(address + i);
+/*
     uint8_t bufferCount = length / EEPROM__RD_BUFFER_SIZE;
     for (uint8_t i = 0; i < bufferCount; i++) {
         uint16_t offset = i * EEPROM__RD_BUFFER_SIZE;
@@ -97,8 +113,10 @@ void FlashRom::readBytes(uint16_t address, uint16_t length, uint8_t* p_data) {
     uint8_t remainingBytes = length % EEPROM__RD_BUFFER_SIZE;
     uint16_t offset = length - remainingBytes;
     readBuffer(address + offset, remainingBytes, p_data + offset);
+*/    
 }
 
+#if 0
 void FlashRom::writePage(uint16_t address, uint8_t length, uint8_t* p_data) {
     // Write complete buffers.
     uint8_t bufferCount = length / EEPROM__WR_BUFFER_SIZE;
@@ -114,8 +132,10 @@ void FlashRom::writePage(uint16_t address, uint8_t length, uint8_t* p_data) {
 }
 
 void FlashRom::writeBuffer(uint16_t address, uint8_t length, uint8_t* p_data) {
+    Wire.begin();
     Wire.beginTransmission(FLASH_ADDRESS);
     if (Wire.endTransmission() == 0) {
+        Wire.begin();
         Wire.beginTransmission(FLASH_ADDRESS);
         Wire.write(address >> 8);
         Wire.write(address & 0xFF);
@@ -131,8 +151,10 @@ void FlashRom::writeBuffer(uint16_t address, uint8_t length, uint8_t* p_data) {
 }
 
 void FlashRom::readBuffer(uint16_t address, uint8_t length, uint8_t* p_data) {
+    Wire.begin();
     Wire.beginTransmission(FLASH_ADDRESS);
     if (Wire.endTransmission() == 0) {
+        Wire.begin();
         Wire.beginTransmission(FLASH_ADDRESS);
         Wire.write(address >> 8);
         Wire.write(address & 0xFF);
@@ -143,3 +165,4 @@ void FlashRom::readBuffer(uint16_t address, uint8_t length, uint8_t* p_data) {
         }
     }
 }
+#endif

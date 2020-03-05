@@ -39,8 +39,8 @@
 // Software Features
 #define LOGBOOK_ENABLE           /* Enables logbook */
 #define SNAPSHOT_ENABLE          /* Enables jump trace recording. Requires LOGBOOK_ENABLE */
-#define ALARM_ENABLE             /* Enables alarm clock. Requires sound system to be configured. */
-#define AUDIBLE_SIGNALS_ENABLE   /* Enables audible altitude signals. Requires sound system to be configured. */
+//#define ALARM_ENABLE             /* Enables alarm clock. Requires sound system to be configured. */
+//#define AUDIBLE_SIGNALS_ENABLE   /* Enables audible altitude signals. Requires sound system to be configured. */
 //#define TETRIS_ENABLE            /* TODO!! Enable 'tetris' game */
 //#define SNAKE_ENABLE             /* TODO!! Enable 'snake' game */
 #define LANGUAGE LANGUAGE_RUSSIAN
@@ -56,8 +56,8 @@
 #define DISPLAY DISPLAY_NOKIA1201
 
 // Configure sound subsystem.
-#define SOUND SOUND_ACTIVE
-#define SOUND_VOLUME_CONTROL_ENABLE
+#define SOUND SOUND_PASSIVE
+//#define SOUND_VOLUME_CONTROL_ENABLE
 // Flash chip.
 // Configure flash page size, depending on a flash chip used.
 // FLASH page size is  32bytes for  24c32 ( 4K) and  24c64 ( 8K)

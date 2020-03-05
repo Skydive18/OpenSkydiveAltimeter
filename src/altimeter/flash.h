@@ -28,14 +28,14 @@
 class FlashRom {
     public:
         FlashRom();
-        void writeByte(uint16_t address, uint8_t data);
-        void writeBytes(uint16_t address, uint16_t length, uint8_t* p_data);
         uint8_t readByte(uint16_t address);
+        void writeByte(uint16_t address, uint8_t data);
         void readBytes(uint16_t address, uint16_t length, uint8_t* p_buffer);
-    private:
-        void writePage(uint16_t address, uint8_t length, uint8_t* p_data);
-        void writeBuffer(uint16_t address, uint8_t length, uint8_t* p_data);
-        void readBuffer(uint16_t address, uint8_t length, uint8_t* p_data);
+        void writeBytes(uint16_t address, uint16_t length, uint8_t* p_data);
+//    private:
+//        void writePage(uint16_t address, uint8_t length, uint8_t* p_data);
+//        void writeBuffer(uint16_t address, uint8_t length, uint8_t* p_data);
+//        void readBuffer(uint16_t address, uint8_t length, uint8_t* p_data);
 };
 
 #endif

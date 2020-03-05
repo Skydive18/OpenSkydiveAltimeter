@@ -177,6 +177,7 @@ ISR(TIMER2_COMPB_vect) {
 #endif // SOUND_USE_TIMER
 
 void sound(uint8_t signalNumber) {
+#if defined(SOUND_USE_TIMER)
     noSound(); // Stop current generation, if any.
 #if SOUND==SOUND_ACTIVE
     MsTimer2m::buzz = 0; // sequence will start from buzzing, not from pause
@@ -208,6 +209,7 @@ void sound(uint8_t signalNumber) {
     } else
         return; // Do nothing for unsupported sequences
     MsTimer2m::nextNote();
+#endif
 }
 
 void noSound() {

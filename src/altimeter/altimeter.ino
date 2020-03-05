@@ -169,7 +169,7 @@ void setup() {
     pinMode(PIN_HWPWR, OUTPUT);
     digitalWrite(PIN_HWPWR, 1);
     Wire.begin();
-    Wire.setClock(WIRE_SPEED);
+//    Wire.setClock(WIRE_SPEED);
     delay(50); // Wait hardware to start
 
     rtc.init();
@@ -1508,7 +1508,7 @@ void loop() {
     } else {
         if (timeToTurnBacklightOn > 0)
             timeToTurnBacklightOn--;
-        if (timeWhileBtnMenuPressed > 6 || timeWhileBtnMenuPressed < 10) {
+        if (timeWhileBtnMenuPressed > 6 && timeWhileBtnMenuPressed < 10) {
             if (powerMode > MODE_IN_AIRPLANE && powerMode < MODE_PREFILL) {
                 // Forcibly Save snapshot for debug purposes
 #ifdef SNAPSHOT_ENABLE
