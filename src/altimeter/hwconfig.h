@@ -57,7 +57,7 @@
 
 // Configure sound subsystem.
 #define SOUND SOUND_PASSIVE
-//#define SOUND_VOLUME_CONTROL_ENABLE
+#define SOUND_VOLUME_CONTROL_ENABLE
 // Flash chip.
 // Configure flash page size, depending on a flash chip used.
 // FLASH page size is  32bytes for  24c32 ( 4K) and  24c64 ( 8K)

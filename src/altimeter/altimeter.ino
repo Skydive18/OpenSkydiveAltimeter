@@ -223,6 +223,7 @@ void setup() {
         if (Serial.available() && Serial.read() == '?') {
             memoryDump();
         }
+        SET_MAX_VOL;
         sound(SIGNAL_WELCOME);
         // Show greeting message
         ShowText(16, 30, MSG_HELLO);
@@ -259,6 +260,7 @@ bool checkAlarm() {
         } while(u8g2.nextPage());
 
         while (BTN2_PRESSED);
+        SET_MAX_VOL;
         for (uint8_t i = 0; i < 90; ++i) {
             sound(SIGNAL_2SHORT);
             DISPLAY_LIGHT_ON;
@@ -519,6 +521,7 @@ void ShowLEDs() {
     if (powerMode != MODE_ON_EARTH && settings.use_audible_signals && current_altitude > 0 && previous_altitude > 0) {
         for (int i = 7; i >=0; i--) {
             if (current_altitude <= audible_signals.signals[i] && previous_altitude > audible_signals.signals[i]) {
+                SET_VOL;
                 sound(128 + i);
                 break;
             }
@@ -535,6 +538,7 @@ void ShowLEDs() {
                             LED_show(0, 140, 0); // green blinks 3 times at 300m but not above 900m
 #ifdef AUDIBLE_SIGNALS_ENABLE
                             if (settings.use_audible_signals)
+                                SET_VOL;
                                 sound(SIGNAL_1MEDIUM);
 #endif
                         } else {
@@ -581,6 +585,7 @@ void ShowLEDs() {
                     noSound();
                 } else {
                     LED_show(0, 80, 0); // green blinks to indicate that altimeter is ready
+                    SET_VOL;
                     sound(SIGNAL_1MEDIUM);
                 }
             } else
@@ -1047,6 +1052,9 @@ void userMenu() {
 #ifdef AUDIBLE_SIGNALS_ENABLE
                         MSG_SETTINGS_SET_SIGNALS
                         MSG_SETTINGS_SET_SIGNALS_TEST
+#ifdef SOUND_VOLUME_CONTROL_ENABLE
+                        MSG_SETTINGS_LOUDNESS
+#endif
                         MSG_SETTINGS_SET_SIGNALS_BUZZER
 #endif
                         MSG_SETTINGS_SET_SIGNALS_LED
@@ -1063,6 +1071,9 @@ void userMenu() {
                         textbuf,
 #endif
 #ifdef AUDIBLE_SIGNALS_ENABLE
+#ifdef SOUND_VOLUME_CONTROL_ENABLE
+                        settings.volume + 1,
+#endif
                         settings.use_audible_signals ? '~' : '-',
 #endif
                         settings.use_led_signals ? '~' : '-',
@@ -1099,8 +1110,11 @@ void userMenu() {
                                     u8g2.drawUTF8(DISPLAY_WIDTH >> 1, DISPLAY_HEIGHT - 10, textbuf);
                                     
                                 } while ( u8g2.nextPage() );
+                                SET_VOL;
                                 sound(i);
-                                delay(8000);
+                                delay(5000);
+                                if (BTN2_PRESSED)
+                                    break;
                             }
                             u8g2.setFont(font_menu);
                             break;
@@ -1109,6 +1123,14 @@ void userMenu() {
                         case 'L':
                             settings.use_led_signals++;
                             break;
+#ifdef SOUND_VOLUME_CONTROL_ENABLE
+                        case 'l':
+                            settings.volume++;
+                            SET_VOL;
+                            sound(SIGNAL_2SHORT);
+                            delay(500);
+                            break;
+#endif
                         case 'T': {
                             // Time
                             rtc.readTime();

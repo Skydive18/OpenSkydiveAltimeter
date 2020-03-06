@@ -39,6 +39,7 @@
 #define MSG_SETTINGS_SET_ALARM "AБудильник %s\n"
 #define MSG_SETTINGS_SET_SIGNALS "SСигналы\n"
 #define MSG_SETTINGS_SET_SIGNALS_TEST "tТест сигналов\n"
+#define MSG_SETTINGS_LOUDNESS "lГромкость: %d\n"
 #define MSG_SETTINGS_SET_SIGNALS_LED "LСветодиод: %c\n"
 #define MSG_SETTINGS_SET_SIGNALS_BUZZER "BПищалка: %c\n"
 #define MSG_SETTINGS_SET_MODE "QАвтоматика: %c\n"

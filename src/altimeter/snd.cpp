@@ -12,6 +12,14 @@ void noSound();
 #include "power.h"
 #endif
 
+#ifdef SOUND_VOLUME_CONTROL_ENABLE
+#include "common.h"
+extern uint8_t volumemap[4];
+void setVol(uint8_t vol) {
+    IIC_WriteByte(SOUND_VOLUME_CONTROL_ADDR, volumemap[vol & 3]);
+}
+#endif
+
 void initSound() {
     pinMode(PIN_SOUND, OUTPUT);
     digitalWrite(PIN_SOUND, 0);
