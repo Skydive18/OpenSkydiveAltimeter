@@ -2,6 +2,8 @@
 #include "EEPROM.h"
 #include "Wire.h"
 
+//#include "MPL.h"
+
 #if defined(__AVR_ATmega32U4__)
 // Pins for Arduino Pro Micro (Atmega-32u4)
 #define PLATFORM_1 'A'
@@ -136,13 +138,17 @@ void setup() {
     Serial.println(batt_percentage_multiplier);
 
   Serial.println("Scanning I2C Bus...");
+  Wire.begin();
   int i2cCount = 0;
-  for (uint8_t i = 8; i < 128; i++)
+  for (uint8_t i = 16; i < 128; i++)
   {
+      Serial.print ("0x");
+      Serial.print (i, HEX);
+      Serial.print (" ");
     Wire.beginTransmission (i);
     if (Wire.endTransmission () == 0)
       {
-      Serial.print ("Found address: ");
+      Serial.print ("\nFound address: ");
       Serial.print (i, DEC);
       Serial.print (" (0x");
       Serial.print (i, HEX);
@@ -151,7 +157,7 @@ void setup() {
       delay (1);  // maybe unneeded?
       } // end of good response
   } // end of for loop
-  Serial.print ("Scanning I2C Bus Done. Found ");
+  Serial.print ("\nScanning I2C Bus Done. Found ");
   Serial.print (i2cCount, DEC);
   Serial.println (" device(s).");
 
