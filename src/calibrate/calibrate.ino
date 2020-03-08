@@ -55,9 +55,13 @@ typedef struct {
     uint8_t zero_after_reset : 1;
     uint8_t auto_power_off : 2;
     uint8_t backlight : 2;
+    uint8_t use_led_signals : 1;
+    uint8_t use_audible_signals : 1;
     //
-    int ground_altitude;
-    int target_altitude;
+    int16_t target_altitude;
+    uint8_t volume:2;
+    uint8_t alarm_volume:2;
+    uint8_t volumemap[4];
 } settings_t;
 
 typedef struct {
@@ -76,6 +80,35 @@ typedef struct {
 byte blinkR = 0;
 byte blinkG = 0;
 byte blinkB = 0;
+
+settings_t settings;
+
+void getBatteryAdaptives() {
+    // batt_max_voltage refers to 4.20v
+    uint16_t batt_max_voltage = analogRead(PIN_BAT_SENSE) - 1; // jutter compensate
+
+    // Assume a value of min voltage that is 3.60v
+    uint16_t batt_min_voltage = batt_max_voltage * (36.0f/42.0f);
+
+    // Compute range that is max_voltage - min_voltage
+    uint16_t batt_voltage_range = batt_max_voltage - batt_min_voltage;
+
+    // Compute a cost, in %%, of one sample
+    float batt_percentage_multiplier = 100.0f / ((float)batt_voltage_range);
+
+    settings.battGranulationD = batt_min_voltage;
+    settings.battGranulationF = batt_percentage_multiplier;
+
+    Serial.print("Max voltage: ");
+    Serial.println(batt_max_voltage);
+    Serial.print("Min voltage: ");
+    Serial.println(batt_min_voltage);
+    Serial.print("Range: ");
+    Serial.println(batt_voltage_range);
+    Serial.print("Multiplier: ");
+    Serial.println(batt_percentage_multiplier);
+    
+}
 
 void setup() {
     Serial.begin(9600);
@@ -102,64 +135,39 @@ void setup() {
     analogRead(PIN_BAT_SENSE);
     delay(200);
     
-    // batt_max_voltage refers to 4.20v
-    uint16_t batt_max_voltage = analogRead(PIN_BAT_SENSE) - 1; // jutter compensate
-
-    // Assume a value of min voltage that is 3.60v
-    uint16_t batt_min_voltage = batt_max_voltage * (36.0f/42.0f);
-
-    // Compute range that is max_voltage - min_voltage
-    uint16_t batt_voltage_range = batt_max_voltage - batt_min_voltage;
-
-    // Compute a cost, in %%, of one sample
-    float batt_percentage_multiplier = 100.0f / ((float)batt_voltage_range);
-
-    // Save settings to nvram
-    settings_t settings;
     EEPROM.get(EEPROM_SETTINGS, settings);
-    settings.battGranulationD = batt_min_voltage;
-    settings.battGranulationF = batt_percentage_multiplier;
 
+    getBatteryAdaptives();
+    
     // Also initialize jump counter.
     // BEWARE! It will effectively erase the logbook.
     // Comment it out when running in existing altimeter,
     // or backup logbook before!
 
-    uint16_t jump_counter = 0;
+    //uint16_t jump_counter = 0;
     //EEPROM.put(EEPROM_JUMP_COUNTER, jump_counter);
     
-    Serial.print("Max voltage: ");
-    Serial.println(batt_max_voltage);
-    Serial.print("Min voltage: ");
-    Serial.println(batt_min_voltage);
-    Serial.print("Range: ");
-    Serial.println(batt_voltage_range);
-    Serial.print("Multiplier: ");
-    Serial.println(batt_percentage_multiplier);
-
-  Serial.println("Scanning I2C Bus...");
-  Wire.begin();
-  int i2cCount = 0;
-  for (uint8_t i = 16; i < 128; i++)
-  {
-      Serial.print ("0x");
-      Serial.print (i, HEX);
-      Serial.print (" ");
-    Wire.beginTransmission (i);
-    if (Wire.endTransmission () == 0)
-      {
-      Serial.print ("\nFound address: ");
-      Serial.print (i, DEC);
-      Serial.print (" (0x");
-      Serial.print (i, HEX);
-      Serial.println (")");
-      i2cCount++;
-      delay (1);  // maybe unneeded?
-      } // end of good response
-  } // end of for loop
-  Serial.print ("\nScanning I2C Bus Done. Found ");
-  Serial.print (i2cCount, DEC);
-  Serial.println (" device(s).");
+    Serial.println("Scanning I2C Bus...");
+    int i2cCount = 0;
+    for (uint8_t i = 0x8; i < 128; i++) {
+        Serial.print ("0x");
+        Serial.print (i, HEX);
+        Serial.print (' ');
+        Wire.begin();
+        Wire.beginTransmission (i);
+        if (Wire.endTransmission () == 0) {
+            Serial.print ("\nFound address: ");
+            Serial.print (i, DEC);
+            Serial.print (" (0x");
+            Serial.print (i, HEX);
+            Serial.println (")");
+            i2cCount++;
+            delay (100);  // maybe unneeded?
+        } // end of good response
+    } // end of for loop
+    Serial.print ("\nScanning I2C Bus Done. Found ");
+    Serial.print (i2cCount, DEC);
+    Serial.println (" device(s).");
 
     byte state = 0;
     do {
@@ -168,7 +176,14 @@ void setup() {
         delay(250);
     } while (digitalRead(PIN_BTN1) && digitalRead(PIN_BTN2) && digitalRead(PIN_BTN3));
 
+    // Volume control adaptives
+    settings.volumemap[0] = 50;
+    settings.volumemap[1] = 55;
+    settings.volumemap[2] = 60;
+    settings.volumemap[3] = 120;
+    
     // Write battery calibration
+    getBatteryAdaptives(); // once again after cable removed
     EEPROM.put(EEPROM_SETTINGS, settings);
 
     // Write state machine profiles

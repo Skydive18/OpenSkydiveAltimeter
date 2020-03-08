@@ -14,9 +14,9 @@ void noSound();
 
 #ifdef SOUND_VOLUME_CONTROL_ENABLE
 #include "common.h"
-extern uint8_t volumemap[4];
+extern settings_t settings;
 void setVol(uint8_t vol) {
-    IIC_WriteByte(SOUND_VOLUME_CONTROL_ADDR, volumemap[vol & 3]);
+    IIC_WriteByte(SOUND_VOLUME_CONTROL_ADDR, settings.volumemap[vol & 3]);
 }
 #endif
 

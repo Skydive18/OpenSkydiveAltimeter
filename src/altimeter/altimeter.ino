@@ -64,10 +64,6 @@ jump_profile_t jump_profile;
 audible_signals_t audible_signals;
 #endif
 
-#if defined(SOUND_VOLUME_CONTROL_ENABLE)
-uint8_t volumemap[4];
-#endif
-
 MPL3115A2 myPressure;
 Rtc rtc;
 void(* resetFunc) (void) = 0;
@@ -187,9 +183,6 @@ void setup() {
     interval_number = 0;
 #if defined(LOGBOOK_ENABLE) || defined(SNAPSHOT_ENABLE)
     EEPROM.get(EEPROM_JUMP_COUNTER, total_jumps);
-#endif
-#if defined(SOUND_VOLUME_CONTROL_ENABLE)
-    EEPROM.get(EEPROM_VOLUMEMAP, volumemap);
 #endif
 
     EEPROM.get(EEPROM_SETTINGS, settings);
@@ -1547,6 +1540,7 @@ void loop() {
 #endif
                 powerMode = MODE_ON_EARTH;
             }
+            LED_show(0, 0, 0);
             userMenu();
             refresh_display = true; // force display refresh
             previous_altitude = CLEAR_PREVIOUS_ALTITUDE;
