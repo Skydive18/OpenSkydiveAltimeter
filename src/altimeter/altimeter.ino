@@ -133,16 +133,20 @@ void pciSetup(byte pin) {
     PCICR  |= bit (digitalPinToPCICRbit(pin)); // enable interrupt for the group
 }
 
-ISR (PCINT1_vect) { // handle pin change interrupt for A0 to A5 here (328p); the only PCINT for 32u4
 #if defined (__AVR_ATmega32U4__)
+ISR (PCINT0_vect) { // the only PCINT for 32u4
     INTACK = true;
-#endif
 }
+#endif
 
 #if defined(__AVR_ATmega328P__)
 ISR (PCINT2_vect) { // handle pin change interrupt for D0 to D5 here (328p)
     INTACK = true;
 }
+
+ISR (PCINT1_vect) { // handle pin change interrupt for A0 to A5 here (328p)
+}
+
 #endif
 
 void loadJumpProfile() {
@@ -211,26 +215,30 @@ void setup() {
 
     if (myPressure.readAltitude() < 450) { // "Reset in airplane" - Disable greeting message if current altitude more than 450m
         DISPLAY_LIGHT_ON;
+#if defined(__AVR_ATmega328P__)
         Serial.begin(SERIAL_SPEED);
         delay(2000);
         if (Serial.available() && Serial.read() == '?') {
             memoryDump();
         }
+#endif
         SET_MAX_VOL;
         sound(SIGNAL_WELCOME);
         // Show greeting message
         ShowText(16, 30, MSG_HELLO);
         DISPLAY_LIGHT_ON;
 
+#if defined(__AVR_ATmega328P__)
         if (Serial.available() && Serial.read() == '?') {
             memoryDump();
         }
+#endif
 
         showVersion();
         delay(7000);
         DISPLAY_LIGHT_OFF;
-        Serial.end();
 #if defined(__AVR_ATmega328P__)
+        Serial.end();
         pinMode(0, INPUT);
         pinMode(1, INPUT);
 #endif
@@ -1059,7 +1067,10 @@ void userMenu() {
                         MSG_SETTINGS_SET_SCREEN_CONTRAST
 #endif
                         MSG_SETTINGS_ABOUT
-                        MSG_SETTINGS_PC_LINK),
+#if defined (__AVR_ATmega32U4__)
+                        MSG_SETTINGS_PC_LINK
+#endif
+                        ),
 #ifdef ALARM_ENABLE
                         textbuf,
 #endif
@@ -1213,19 +1224,15 @@ void userMenu() {
                             showVersion();
                             getKeypress();
                             break;
+#if defined (__AVR_ATmega32U4__)
                         case 'U': {
                             Serial.begin(SERIAL_SPEED); // Console
-#if defined(__AVR_ATmega32U4__)
                             while (!Serial);
-#endif
                             memoryDump();
                             Serial.end();
-#if defined(__AVR_ATmega328P__)
-                            pinMode(0, INPUT);
-                            pinMode(1, INPUT);
-#endif
                             break;
                         }
+#endif
                         default:
                             // timeout
                             return;

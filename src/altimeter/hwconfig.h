@@ -141,6 +141,7 @@
 #define LOGBOOK_SIZE 1000
 #define FLASH_PRESENT
 
+
 // Pin wiring
 
 #if defined(__AVR_ATmega32U4__)
@@ -236,7 +237,11 @@
 #endif
 
 #if SOUND==SOUND_PASSIVE
-#define PLATFORM_4 '1'
+#if defined(SOUND_VOLUME_CONTROL_ENABLE)
+    #define PLATFORM_4 '3'
+#else
+    #define PLATFORM_4 '1'
+#endif
 #define SOUND_USE_TIMER
 #elif SOUND==SOUND_ACTIVE
 #define SOUND_USE_TIMER

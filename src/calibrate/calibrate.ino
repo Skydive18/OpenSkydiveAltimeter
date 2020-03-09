@@ -85,10 +85,10 @@ settings_t settings;
 
 void getBatteryAdaptives() {
     // batt_max_voltage refers to 4.20v
-    uint16_t batt_max_voltage = analogRead(PIN_BAT_SENSE) - 1; // jutter compensate
+    uint16_t batt_max_voltage = analogRead(PIN_BAT_SENSE) - 1; // jitter compensate
 
     // Assume a value of min voltage that is 3.60v
-    uint16_t batt_min_voltage = batt_max_voltage * (36.0f/42.0f);
+    uint16_t batt_min_voltage = (uint16_t)((float)batt_max_voltage * (36.0f/42.0f));
 
     // Compute range that is max_voltage - min_voltage
     uint16_t batt_voltage_range = batt_max_voltage - batt_min_voltage;

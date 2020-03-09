@@ -48,6 +48,7 @@ const uint8_t sineva[] PROGMEM = {
 };
 
 //
+#ifdef AUDIBLE_SIGNALS_ENABLE
 const uint8_t signal_alt0[] PROGMEM = {42,3, 255,2, 42,3, 255,2, 42,3, 255,2, 42,3, 0 };
 const uint8_t signal_alt1[] PROGMEM = {38,4, 255,2, 38,4, 255,2, 38,4, 0 };
 const uint8_t signal_alt2[] PROGMEM = {35,5, 255,3, 35,5, 0 };
@@ -56,6 +57,7 @@ const uint8_t signal_alt4[] PROGMEM = {42,2, 255,1, 42,2, 255,6, 42,2, 255,1, 42
 const uint8_t signal_alt5[] PROGMEM = {38,2, 255,1, 38,2, 255,6, 38,2, 255,1, 38,2, 255,6, 38,2, 255,1, 38,2, 0 };
 const uint8_t signal_alt6[] PROGMEM = {35,2, 255,1, 35,2, 255,6, 35,2, 255,1, 35,2, 0 };
 const uint8_t signal_alt7[] PROGMEM = {32,50, 0 };
+#endif
 
 void note(uint8_t noteNumber) {
     bool silent = false;
@@ -81,7 +83,7 @@ void note(uint8_t noteNumber) {
 #elif defined (__AVR_ATmega328P__) || defined(__AVR_ATmega2560__)
 //    DDRD = DDRD | 1<<DDD3;                     // PD3 (Arduino D3) as output
     uint8_t note = noteNumber % 12;
-    uint8_t octave = (noteNumber/12);
+    uint8_t octave = (noteNumber/12) + 1;
     uint8_t prescaler = 7 - octave;
     TCCR2A = 0<<COM2A0 | (silent ? 0: 1) <<COM2B0 | 2<<WGM20; // Toggle OC2B on match
     TCCR2B = 0<<WGM22 | prescaler<<CS20;
@@ -194,6 +196,7 @@ void sound(uint8_t signalNumber) {
         MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::signal_2short;
     } else if (signalNumber == SIGNAL_1MEDIUM) {
         MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::signal_1medium;
+#ifdef AUDIBLE_SIGNALS_ENABLE
     } else if (signalNumber == 128) {
         MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::signal_alt0;
     } else if (signalNumber == 129) {
@@ -210,6 +213,7 @@ void sound(uint8_t signalNumber) {
         MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::signal_alt6;
     } else if (signalNumber == 135) {
         MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::signal_alt7;
+#endif
 #if SOUND==SOUND_PASSIVE
     } else if (signalNumber == SIGNAL_WELCOME) {
         MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::sineva; 
