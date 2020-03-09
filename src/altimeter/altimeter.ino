@@ -1555,8 +1555,10 @@ void loop() {
         timeWhileBtnMenuPressed = 0;
     }
     
-    if ((interval_number & 63) == 0 || powerMode == MODE_PREFILL) {
+    if ((interval_number & 127) == 0 || powerMode == MODE_PREFILL) {
         // Check and refresh battery meter
+        analogRead(PIN_BAT_SENSE);
+        delay(10);
         batt = analogRead(PIN_BAT_SENSE);
         rel_voltage = (int8_t)((batt - settings.battGranulationD) * settings.battGranulationF);
         if (rel_voltage < 0)
@@ -1589,19 +1591,22 @@ void loop() {
             sprintf_P(textbuf, PSTR("%02d.%02d.%04d %02d:%02d"), rtc.day, rtc.month, rtc.year, rtc.hour, rtc.minute);
             u8g2.drawUTF8(0, 6, textbuf);
             
-#ifdef ALARM_ENABLE
-            sprintf_P(textbuf, PSTR("%3d%c"), rel_voltage, rtc.alarm_enable & 1 ? '@' : '%');
-#else
             sprintf_P(textbuf, PSTR("%3d%%"), rel_voltage);
-#endif
             u8g2.drawUTF8(DISPLAY_WIDTH - 16, 6, textbuf);
     
             u8g2.drawHLine(0, 7, DISPLAY_WIDTH-1);
             u8g2.drawHLine(0, DISPLAY_HEIGHT-8, DISPLAY_WIDTH-1);
     
-            if (powerMode == MODE_ON_EARTH)
-                sprintf_P(textbuf, PSTR("&%1d'"), powerMode);
-            else
+            if (powerMode == MODE_ON_EARTH) {
+#ifdef ALARM_ENABLE
+                if (rtc.alarm_enable & 1)
+                    sprintf_P(textbuf, PSTR("&%1d' %02d:%02d@"), powerMode, rtc.alarm_hour, rtc.alarm_minute);
+                else
+                    sprintf_P(textbuf, PSTR("&%1d' %d$"), powerMode, batt);
+#else            
+                sprintf_P(textbuf, PSTR("&%1d' %d$"), powerMode, batt);
+#endif
+            } else
                 sprintf_P(textbuf, PSTR("&%1d' % 3d % 3d"), powerMode, average_speed_8, average_speed_32);
             u8g2.drawUTF8(0, DISPLAY_HEIGHT - 1, textbuf);
             // Show heartbeat
