@@ -8,7 +8,7 @@
 #define MSG_VERSION PSTR( \
         "Pegasus I\n" \
         "Платформа %c%c%c%c\n" \
-        "Версия 1.1\n" \
+        "Версия 1.2\n" \
         "COM %ld/8N1\n")
 
 #define MSG_JUMP_CONTENT PSTR("%u/%u %c\n%02d.%02d.%04d %02d:%02d\nO:%4dм Р:%4dм\nП:%4dм В:%4dc\nС:%dм/с %dкм/ч\nМ:%dм/с %dкм/ч\n")

@@ -1455,7 +1455,7 @@ bool SetTime(uint8_t &hour, uint8_t &minute, char* title) {
 }
 
 void memoryDump() {
-    sprintf_P(bigbuf, PSTR("\nPEGASUS_BEGIN\nPLATFORM %c%c%c%c\nVERSION 1.1"), PLATFORM_1, PLATFORM_2, PLATFORM_3, PLATFORM_4);
+    sprintf_P(bigbuf, PSTR("\nPEGASUS_BEGIN\nPLATFORM %c%c%c%c\nVERSION 1.2"), PLATFORM_1, PLATFORM_2, PLATFORM_3, PLATFORM_4);
     Serial.print(bigbuf);
     // Dump settings
     sprintf_P(bigbuf, PSTR("\nLOGBOOK %c %04x %u\nSNAPSHOT %c %04x %u %u\nROM_BEGIN"),
