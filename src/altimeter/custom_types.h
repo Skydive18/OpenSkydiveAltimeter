@@ -38,6 +38,8 @@ typedef struct {
     uint8_t volume:2;
     uint8_t alarm_volume:2;
     uint8_t volumemap[4];
+    uint16_t stored_jumps;
+    uint16_t stored_snapshots;
 } settings_t;
 
 typedef struct {

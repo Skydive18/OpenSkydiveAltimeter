@@ -224,8 +224,18 @@ void setup() {
 #endif
         SET_MAX_VOL;
         sound(SIGNAL_WELCOME);
+        
         // Show greeting message
-        ShowText(16, 30, MSG_HELLO);
+        uint8_t hasCustomMessage;
+        EEPROM.get(0x1f, hasCustomMessage);
+        char tmpBuf[16];
+        if (hasCustomMessage == 0x41) {
+            EEPROM.get(0x130, tmpBuf);
+        }
+        else
+            strcpy_P(tmpBuf, MSG_HELLO);
+        ShowText(16, 30, tmpBuf);
+
         DISPLAY_LIGHT_ON;
 
 #if defined(__AVR_ATmega328P__)
@@ -490,7 +500,8 @@ void processAltitude() {
 
 uint8_t airplane_300m = 0;
 void ShowLEDs() {
-    if ((powerMode != MODE_ON_EARTH && powerMode != MODE_PREFILL && powerMode != MODE_DUMB && settings.backlight == 2)
+    if ((powerMode > MODE_ON_EARTH && powerMode < MODE_PREFILL && settings.backlight == 2)
+        || (powerMode > MODE_IN_AIRPLANE && powerMode < MODE_PREFILL && settings.backlight == 2)
         || settings.backlight == 1
         || (timeToTurnBacklightOn > 0 && timeWhileBtnMenuPressed < 32))
         DISPLAY_LIGHT_ON;
@@ -602,9 +613,9 @@ void ShowLEDs() {
 void ShowText(const uint8_t x, const uint8_t y, const char* text) {
     u8g2.setFont(font_hello);
     DISPLAY_LIGHT_ON;
-    uint8_t maxlen = strlen_P(text);
+    uint8_t maxlen = strlen(text);
     for (uint8_t i = 1; i <= maxlen; i++) {
-        strcpy_P(bigbuf, text);
+        strcpy(bigbuf, text);
         bigbuf[i] = 0;
         u8g2.firstPage();
         do {
@@ -617,8 +628,18 @@ void ShowText(const uint8_t x, const uint8_t y, const char* text) {
 }
 
 void PowerOff(bool verbose = true) {
-    if (verbose)
-        ShowText(6, 24, MSG_BYE);
+    if (verbose) {
+        // Show bye message
+        uint8_t hasCustomMessage;
+        EEPROM.get(0x1f, hasCustomMessage);
+        char tmpBuf[16];
+        if (hasCustomMessage == 0x41) {
+            EEPROM.get(0x140, tmpBuf);
+        }
+        else
+            strcpy_P(tmpBuf, MSG_BYE);
+        ShowText(16, 30, tmpBuf);
+    }
 
     noSound();
     rtc.disableHeartbeat(); // Do it before enabling alarm, because it will tirn alarm off on pcf8583
@@ -905,6 +926,8 @@ void userMenu() {
             bl_char = '-';
         if (settings.backlight == 2)
             bl_char = '*';
+        if (settings.backlight == 3)
+            bl_char = '+';
         sprintf_P(bigbuf, PSTR(
             MSG_MENU
             MSG_EXIT
@@ -949,8 +972,6 @@ void userMenu() {
             case 'B':
                 // Backlight turn on/off
                 settings.backlight++;
-                if (settings.backlight > 2)
-                    settings.backlight = 0;
                 break;
 #ifdef LOGBOOK_ENABLE
             case 'L': {
@@ -1132,7 +1153,6 @@ void userMenu() {
                             settings.volume++;
                             SET_VOL;
                             sound(SIGNAL_2SHORT);
-                            delay(500);
                             break;
 #endif
                         case 'T': {
@@ -1455,7 +1475,7 @@ bool SetTime(uint8_t &hour, uint8_t &minute, char* title) {
 }
 
 void memoryDump() {
-    sprintf_P(bigbuf, PSTR("\nPEGASUS_BEGIN\nPLATFORM %c%c%c%c\nVERSION 1.2"), PLATFORM_1, PLATFORM_2, PLATFORM_3, PLATFORM_4);
+    sprintf_P(bigbuf, PSTR("\nPEGASUS_BEGIN\nPLATFORM %c%c%c%c\nVERSION " VERSION "\nLANG " LANGUAGE), PLATFORM_1, PLATFORM_2, PLATFORM_3, PLATFORM_4);
     Serial.print(bigbuf);
     // Dump settings
     sprintf_P(bigbuf, PSTR("\nLOGBOOK %c %04x %u\nSNAPSHOT %c %04x %u %u\nROM_BEGIN"),

@@ -194,7 +194,7 @@ void setup() {
     char custom_hello_message[16];
     char custom_bye_message[16];
     strcpy(custom_hello_message, "Hi!");
-    strcpy(custom_hello_message, "Bye");
+    strcpy(custom_bye_message, "Bye");
     EEPROM.put(0x1f, has_custom_hello_message);
     EEPROM.put(0x130, custom_hello_message);
     EEPROM.put(0x140, custom_bye_message);

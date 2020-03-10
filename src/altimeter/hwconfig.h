@@ -1,6 +1,8 @@
 #ifndef __in_hwconfig_h
 #define __in_hwconfig_h
 
+#define VERSION "1.2"
+
 // ******************
 // Hardware constants
 
@@ -37,13 +39,14 @@
 #define LANGUAGE_RUSSIAN 1
 
 // Software Features
-#define LOGBOOK_ENABLE           /* Enables logbook */
-#define SNAPSHOT_ENABLE          /* Enables jump trace recording. Requires LOGBOOK_ENABLE */
-#define ALARM_ENABLE             /* Enables alarm clock. Requires sound system to be configured. */
-#define AUDIBLE_SIGNALS_ENABLE   /* Enables audible altitude signals. Requires sound system to be configured. */
-//#define TETRIS_ENABLE            /* TODO!! Enable 'tetris' game */
-//#define SNAKE_ENABLE             /* TODO!! Enable 'snake' game */
+#define LOGBOOK_ENABLE            /* Enables logbook */
+#define SNAPSHOT_ENABLE           /* Enables jump trace recording. Requires LOGBOOK_ENABLE */
+#define ALARM_ENABLE              /* Enables alarm clock. Requires sound system to be configured. */
+#define AUDIBLE_SIGNALS_ENABLE    /* Enables audible altitude signals. Requires sound system to be configured. */
+//#define TETRIS_ENABLE           /* TODO!! Enable 'tetris' game */
+//#define SNAKE_ENABLE            /* TODO!! Enable 'snake' game */
 #define LANGUAGE LANGUAGE_RUSSIAN
+#define TEST_JUMP_ENABLE          /* Enable test jump */
 
 // Configure RTC chip
 #define RTC RTC_PCF8563
