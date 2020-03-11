@@ -982,7 +982,7 @@ void userMenu() {
                         MSG_LOGBOOK_TITLE
                         MSG_EXIT
                         MSG_LOGBOOK_VIEW
-#ifdef DEBUG_PRINT
+#ifdef TEST_JUMP_ENABLE
                         MSG_LOGBOOK_REPLAY_JUMP
 #endif
                         MSG_LOGBOOK_CLEAR));
@@ -1018,7 +1018,7 @@ void userMenu() {
                             };
                             break;
                         }
-#ifdef DEBUG_PRINT
+#ifdef TEST_JUMP_ENABLE
                         case 'R':
                             // replay latest jump
                             myPressure.debugPrint();
