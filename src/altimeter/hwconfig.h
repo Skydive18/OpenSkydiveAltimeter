@@ -39,14 +39,18 @@
 #define LANGUAGE_RUSSIAN 1
 
 // Software Features
-#define LOGBOOK_ENABLE            /* Enables logbook */
-#define SNAPSHOT_ENABLE           /* Enables jump trace recording. Requires LOGBOOK_ENABLE */
-#define ALARM_ENABLE              /* Enables alarm clock. Requires sound system to be configured. */
-#define AUDIBLE_SIGNALS_ENABLE    /* Enables audible altitude signals. Requires sound system to be configured. */
-//#define TETRIS_ENABLE           /* TODO!! Enable 'tetris' game */
-//#define SNAKE_ENABLE            /* TODO!! Enable 'snake' game */
+#define LOGBOOK_ENABLE                /* Enables logbook */
+#define SNAPSHOT_ENABLE               /* Enables jump trace recording. Requires LOGBOOK_ENABLE */
+#define ALARM_ENABLE                  /* Enables alarm clock. Requires sound system to be configured. */
+#define AUDIBLE_SIGNALS_ENABLE        /* Enables audible altitude signals. Requires sound system to be configured. */
+//#define TETRIS_ENABLE               /* TODO!! Enable 'tetris' game */
+//#define SNAKE_ENABLE                /* TODO!! Enable 'snake' game */
 #define LANGUAGE LANGUAGE_RUSSIAN
-#define TEST_JUMP_ENABLE          /* Enable test jump */
+//#define TEST_JUMP_ENABLE          /* Enable test jump */
+#define GREETING_ENABLE               /* Enable animated greeting and bye messages */
+#define CUSTOM_GREETING_ENABLE        /* Enable custom greeting and bye messages */
+//#define SOUND_VOLUME_CONTROL_ENABLE   /* Enable sound volume control */
+
 
 // Configure RTC chip
 #define RTC RTC_PCF8563
@@ -55,22 +59,23 @@
 #define LED_COMMON_CATHODE
 //#define LED_COMMON_ANODE
 
-// Configure display. Use one of the following
+// Configure display.
 #define DISPLAY DISPLAY_NOKIA1201
 
 // Configure sound subsystem.
 #define SOUND SOUND_PASSIVE
-#define SOUND_VOLUME_CONTROL_ENABLE
+
 // Flash chip.
 // Configure flash page size, depending on a flash chip used.
 // FLASH page size is  32bytes for  24c32 ( 4K) and  24c64 ( 8K)
 //                     64bytes for 24c128 (16K) and 24c256 (32K)
 //                    128bytes for 24c512 (64K)
-//#define FLASH_PRESENT
 #define FLASH__PAGE_SIZE 128
+
 //#define FLASH__PAGES 128 /* 24c32 */
 //#define FLASH__PAGES 256 /* 24c64, 24c128 */
 #define FLASH__PAGES 512 /* 24c256, 24c512 */
+
 // I2C addfess for flash chip. Note, the default 24cxx address is 0x50 = the same as PCF8583 uses.
 // Also note, the address of PCF8563 is 0x51.
 // So flash chip should be put to a different i2c address by soldering its address lines accordingly.
@@ -133,7 +138,7 @@
 */
 
 
-// 3. Flash 64kb. 1000 jumps in eeprom, 120 snapshots in eeprom
+// 4. Flash 64kb. 1000 jumps in eeprom, 120 snapshots in eeprom
 #define SNAPSHOT_JOURNAL_LOCATION LOCATION_FLASH
 #define SNAPSHOT_JOURNAL_START 12000
 #define SNAPSHOT_JOURNAL_SIZE 120

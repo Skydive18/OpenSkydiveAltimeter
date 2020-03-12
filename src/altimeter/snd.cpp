@@ -42,11 +42,12 @@ const uint8_t freq[]  PROGMEM = {105, 111, 118, 125, 132, 140, 149, 157, 167, 17
 // Signal templates. Contain note numbers (1-12) + (octave*12) and durations in 50ms ticks. 255 for pause, 0 terminates.
 const uint8_t signal_2short[] PROGMEM = {29, 2, 255, 2, 29, 2, 0 };
 const uint8_t signal_1medium[] PROGMEM = {29, 6, 0 };
+#ifdef GREETING_ENABLE
 const uint8_t sineva[] PROGMEM = {
 40,8,   38,8,   40,8,   38,16,  36,4,   35,4,   33,16,  255,8,  38,4,   36,4,   38,8,   36,4,   35,20,
 255,24, 35,4,   38,4,   36,12,  35,4,   33,12,  31,4,   30,16,  35,8,   33,8,   35,12,  28,30,  0
 };
-
+#endif
 //
 #ifdef AUDIBLE_SIGNALS_ENABLE
 const uint8_t signal_alt0[] PROGMEM = {42,3, 255,2, 42,3, 255,2, 42,3, 255,2, 42,3, 0 };
@@ -214,7 +215,7 @@ void sound(uint8_t signalNumber) {
     } else if (signalNumber == 135) {
         MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::signal_alt7;
 #endif
-#if SOUND==SOUND_PASSIVE
+#if SOUND==SOUND_PASSIVE && defined(GREETING_ENABLE)
     } else if (signalNumber == SIGNAL_WELCOME) {
         MsTimer2m::sndptr = (volatile uint8_t*)MsTimer2m::sineva; 
 #endif

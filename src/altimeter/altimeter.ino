@@ -112,7 +112,9 @@ uint8_t timeWhileBtnMenuPressed = 0;
 uint8_t timeToTurnBacklightOn = 0;
 
 // Prototypes
+#ifdef GREETING_ENABLE
 void ShowText(const uint8_t x, const uint8_t y, const char* text);
+#endif
 char myMenu(char *menudef, char event = ' ');
 void showVersion();
 void wake() {
@@ -222,21 +224,26 @@ void setup() {
             memoryDump();
         }
 #endif
+
+#ifdef GREETING_ENABLE
         SET_MAX_VOL;
         sound(SIGNAL_WELCOME);
         
         // Show greeting message
+        char tmpBuf[16];
+#ifdef CUSTOM_GREETING_ENABLE
         uint8_t hasCustomMessage;
         EEPROM.get(0x1f, hasCustomMessage);
-        char tmpBuf[16];
         if (hasCustomMessage == 0x41) {
             EEPROM.get(0x130, tmpBuf);
         }
         else
+#endif
             strcpy_P(tmpBuf, MSG_HELLO);
         ShowText(16, 30, tmpBuf);
 
         DISPLAY_LIGHT_ON;
+#endif // GREETING_ENABLE
 
 #if defined(__AVR_ATmega328P__)
         if (Serial.available() && Serial.read() == '?') {
@@ -244,9 +251,12 @@ void setup() {
         }
 #endif
 
+#ifdef GREETING_ENABLE
         showVersion();
         delay(7000);
         DISPLAY_LIGHT_OFF;
+#endif // GREETING_ENABLE
+
 #if defined(__AVR_ATmega328P__)
         Serial.end();
         pinMode(0, INPUT);
@@ -271,8 +281,13 @@ bool checkAlarm() {
         } while(u8g2.nextPage());
 
         while (BTN2_PRESSED);
-        SET_MAX_VOL;
         for (uint8_t i = 0; i < 90; ++i) {
+#ifdef SOUND_VOLUME_CONTROL_ENABLE
+            byte vol = i >> 3;
+            if (vol > 3)
+                vol = 3;
+            setVol(vol);
+#endif
             sound(SIGNAL_2SHORT);
             DISPLAY_LIGHT_ON;
             delay(500);
@@ -610,6 +625,7 @@ void ShowLEDs() {
 //    noSound();
 }
 
+#ifdef GREETING_ENABLE
 void ShowText(const uint8_t x, const uint8_t y, const char* text) {
     u8g2.setFont(font_hello);
     DISPLAY_LIGHT_ON;
@@ -626,21 +642,25 @@ void ShowText(const uint8_t x, const uint8_t y, const char* text) {
     delay(5000);
     DISPLAY_LIGHT_OFF;
 }
+#endif
 
 void PowerOff(bool verbose = true) {
+#ifdef GREETING_ENABLE
     if (verbose) {
         // Show bye message
+        char tmpBuf[16];
+#ifdef CUSTOM_GREETING_ENABLE
         uint8_t hasCustomMessage;
         EEPROM.get(0x1f, hasCustomMessage);
-        char tmpBuf[16];
         if (hasCustomMessage == 0x41) {
             EEPROM.get(0x140, tmpBuf);
         }
         else
+#endif
             strcpy_P(tmpBuf, MSG_BYE);
         ShowText(16, 30, tmpBuf);
     }
-
+#endif
     noSound();
     rtc.disableHeartbeat(); // Do it before enabling alarm, because it will tirn alarm off on pcf8583
 #ifdef ALARM_ENABLE
