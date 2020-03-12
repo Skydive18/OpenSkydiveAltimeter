@@ -644,7 +644,7 @@ void ShowText(const uint8_t x, const uint8_t y, const char* text) {
 }
 #endif
 
-void PowerOff(bool verbose = true) {
+void PowerOff(bool verbose) {
 #ifdef GREETING_ENABLE
     if (verbose) {
         // Show bye message
@@ -775,7 +775,7 @@ void showVersion() {
 // Returns ' ' on timeout; otherwise, current position
 // event = '*' => show menu and wait for keypress, no navigation performed.
 // event == 'z' => show menu and exit immediately.
-char myMenu(char *menudef, char event = ' ') {
+char myMenu(char *menudef, char event) {
     uint16_t ptr = 0;
     char ptrs[20];
     uint8_t menupos = 0;
@@ -1402,7 +1402,7 @@ bool SetDate(uint8_t &day, uint8_t &month, uint16_t &year) {
     };
 }
 
-bool SetTime(uint8_t &hour, uint8_t &minute, char* title) {
+bool SetTime(uint8_t &hour, uint8_t &minute, const char* title) {
     uint8_t pos = 0;
     for(;;) {
         pos &= 3;
