@@ -1642,9 +1642,9 @@ void loop() {
                 if (rtc.alarm_enable & 1)
                     sprintf_P(textbuf, PSTR("&%1d' %02d:%02d@"), powerMode, rtc.alarm_hour, rtc.alarm_minute);
                 else
-                    sprintf_P(textbuf, PSTR("&%1d' %d$"), powerMode, batt);
+                    sprintf_P(textbuf, PSTR("&%1d'"), powerMode);
 #else            
-                sprintf_P(textbuf, PSTR("&%1d' %d$"), powerMode, batt);
+                sprintf_P(textbuf, PSTR("&%1d'"), powerMode);
 #endif
             } else
                 sprintf_P(textbuf, PSTR("&%1d' % 3d % 3d"), powerMode, average_speed_8, average_speed_32);
