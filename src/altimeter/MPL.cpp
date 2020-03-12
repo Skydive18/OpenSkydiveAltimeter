@@ -9,7 +9,7 @@
 
 extern Rtc rtc;
 
-#ifdef DEBUG_PRINT
+#ifdef TEST_JUMP_ENABLE
 namespace {
     // Debug data
     const int data1[] PROGMEM = {
@@ -45,7 +45,7 @@ namespace {
 
 MPL3115A2::MPL3115A2() {
     //Set initial values for private vars
-#ifdef DEBUG_PRINT
+#ifdef TEST_JUMP_ENABLE
     isDebug = false;
 #endif
 }
@@ -64,7 +64,7 @@ void MPL3115A2::zero() {
     rtc.saveZeroAltitude(ground_altitude);
 }
 
-#ifdef DEBUG_PRINT
+#ifdef TEST_JUMP_ENABLE
 void MPL3115A2::debugPrint() {
     debugAltitude = 0;
     isDebug = true;
@@ -75,7 +75,7 @@ void MPL3115A2::debugPrint() {
 //Returns the number of meters above sea level
 //Returns -999 if no new data is available
 int MPL3115A2::readAltitude() {
-#ifdef DEBUG_PRINT
+#ifdef TEST_JUMP_ENABLE
     if (isDebug) {
         if (readPtr < 0) {
             if (debugAltitude < (pgm_read_word(&data1[0]))) {

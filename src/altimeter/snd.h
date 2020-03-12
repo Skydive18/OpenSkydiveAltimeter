@@ -19,13 +19,22 @@ void sound(uint8_t signalNumber);
 #elif defined(__arm__) && defined(TEENSYDUINO)
 #include <Arduino.h>
 #else
-#error Timer-based sound subsystem sypported on AVR architecture only.
+#error Timer-based sound subsystem supported on AVR architecture only.
 #endif
 
 #else
 
 #define sound(a)
 
+#endif
+
+#ifdef SOUND_VOLUME_CONTROL_ENABLE
+void setVol(uint8_t vol);
+#define SET_MAX_VOL setVol(3)
+#define SET_VOL setVol(settings.volume)
+#else
+#define SET_MAX_VOL
+#define SET_VOL
 #endif
 
 #endif

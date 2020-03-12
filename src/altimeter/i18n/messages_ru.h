@@ -3,13 +3,16 @@
 
 // Messages, russian
 
+#define LANGUAGE "RU"
+
 #define MSG_HELLO PSTR("  Ossu!")
 #define MSG_BYE PSTR("Sayonara")
 #define MSG_VERSION PSTR( \
         "Pegasus I\n" \
         "Платформа %c%c%c%c\n" \
-        "Версия 1.1\n" \
-        "COM %ld/8N1\n")
+        "Версия " \
+        VERSION \
+        "\nCOM %ld/8N1\n")
 
 #define MSG_JUMP_CONTENT PSTR("%u/%u %c\n%02d.%02d.%04d %02d:%02d\nO:%4dм Р:%4dм\nП:%4dм В:%4dc\nС:%dм/с %dкм/ч\nМ:%dм/с %dкм/ч\n")
 #define MSG_MENU "Меню\n"
@@ -39,6 +42,7 @@
 #define MSG_SETTINGS_SET_ALARM "AБудильник %s\n"
 #define MSG_SETTINGS_SET_SIGNALS "SСигналы\n"
 #define MSG_SETTINGS_SET_SIGNALS_TEST "tТест сигналов\n"
+#define MSG_SETTINGS_LOUDNESS "lГромкость: %d\n"
 #define MSG_SETTINGS_SET_SIGNALS_LED "LСветодиод: %c\n"
 #define MSG_SETTINGS_SET_SIGNALS_BUZZER "BПищалка: %c\n"
 #define MSG_SETTINGS_SET_MODE "QАвтоматика: %c\n"

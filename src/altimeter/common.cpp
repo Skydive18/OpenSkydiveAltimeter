@@ -17,6 +17,12 @@ void IIC_WriteByte(uint8_t iicAddr, uint8_t regAddr, uint8_t value) {
     Wire.endTransmission(true);    
 }
 
+void IIC_WriteByte(uint8_t iicAddr, uint8_t value) {
+    Wire.beginTransmission(iicAddr);
+    Wire.write(value);
+    Wire.endTransmission(true);    
+}
+
 int IIC_ReadInt(uint8_t iicAddr, uint8_t regAddr) {
     Wire.beginTransmission(iicAddr);
     Wire.write(regAddr);

@@ -64,10 +64,6 @@ jump_profile_t jump_profile;
 audible_signals_t audible_signals;
 #endif
 
-#if defined(SOUND_VOLUME_CONTROL_ENABLE)
-uint8_t volumemap[4];
-#endif
-
 MPL3115A2 myPressure;
 Rtc rtc;
 void(* resetFunc) (void) = 0;
@@ -116,7 +112,9 @@ uint8_t timeWhileBtnMenuPressed = 0;
 uint8_t timeToTurnBacklightOn = 0;
 
 // Prototypes
+#ifdef GREETING_ENABLE
 void ShowText(const uint8_t x, const uint8_t y, const char* text);
+#endif
 char myMenu(char *menudef, char event = ' ');
 void showVersion();
 void wake() {
@@ -137,16 +135,20 @@ void pciSetup(byte pin) {
     PCICR  |= bit (digitalPinToPCICRbit(pin)); // enable interrupt for the group
 }
 
-ISR (PCINT1_vect) { // handle pin change interrupt for A0 to A5 here (328p); the only PCINT for 32u4
 #if defined (__AVR_ATmega32U4__)
+ISR (PCINT0_vect) { // the only PCINT for 32u4
     INTACK = true;
-#endif
 }
+#endif
 
 #if defined(__AVR_ATmega328P__)
 ISR (PCINT2_vect) { // handle pin change interrupt for D0 to D5 here (328p)
     INTACK = true;
 }
+
+ISR (PCINT1_vect) { // handle pin change interrupt for A0 to A5 here (328p)
+}
+
 #endif
 
 void loadJumpProfile() {
@@ -188,9 +190,6 @@ void setup() {
 #if defined(LOGBOOK_ENABLE) || defined(SNAPSHOT_ENABLE)
     EEPROM.get(EEPROM_JUMP_COUNTER, total_jumps);
 #endif
-#if defined(SOUND_VOLUME_CONTROL_ENABLE)
-    EEPROM.get(EEPROM_VOLUMEMAP, volumemap);
-#endif
 
     EEPROM.get(EEPROM_SETTINGS, settings);
     loadJumpProfile();
@@ -218,25 +217,48 @@ void setup() {
 
     if (myPressure.readAltitude() < 450) { // "Reset in airplane" - Disable greeting message if current altitude more than 450m
         DISPLAY_LIGHT_ON;
+#if defined(__AVR_ATmega328P__)
         Serial.begin(SERIAL_SPEED);
         delay(2000);
         if (Serial.available() && Serial.read() == '?') {
             memoryDump();
         }
-        sound(SIGNAL_WELCOME);
-        // Show greeting message
-        ShowText(16, 30, MSG_HELLO);
-        DISPLAY_LIGHT_ON;
+#endif
 
+#ifdef GREETING_ENABLE
+        SET_MAX_VOL;
+        sound(SIGNAL_WELCOME);
+        
+        // Show greeting message
+        char tmpBuf[16];
+#ifdef CUSTOM_GREETING_ENABLE
+        uint8_t hasCustomMessage;
+        EEPROM.get(0x1f, hasCustomMessage);
+        if (hasCustomMessage == 0x41) {
+            EEPROM.get(0x130, tmpBuf);
+        }
+        else
+#endif
+            strcpy_P(tmpBuf, MSG_HELLO);
+        ShowText(16, 30, tmpBuf);
+
+        DISPLAY_LIGHT_ON;
+#endif // GREETING_ENABLE
+
+#if defined(__AVR_ATmega328P__)
         if (Serial.available() && Serial.read() == '?') {
             memoryDump();
         }
+#endif
 
+#ifdef GREETING_ENABLE
         showVersion();
         delay(7000);
         DISPLAY_LIGHT_OFF;
-        Serial.end();
+#endif // GREETING_ENABLE
+
 #if defined(__AVR_ATmega328P__)
+        Serial.end();
         pinMode(0, INPUT);
         pinMode(1, INPUT);
 #endif
@@ -260,6 +282,12 @@ bool checkAlarm() {
 
         while (BTN2_PRESSED);
         for (uint8_t i = 0; i < 90; ++i) {
+#ifdef SOUND_VOLUME_CONTROL_ENABLE
+            byte vol = i >> 3;
+            if (vol > 3)
+                vol = 3;
+            setVol(vol);
+#endif
             sound(SIGNAL_2SHORT);
             DISPLAY_LIGHT_ON;
             delay(500);
@@ -487,7 +515,8 @@ void processAltitude() {
 
 uint8_t airplane_300m = 0;
 void ShowLEDs() {
-    if ((powerMode != MODE_ON_EARTH && powerMode != MODE_PREFILL && powerMode != MODE_DUMB && settings.backlight == 2)
+    if ((powerMode > MODE_ON_EARTH && powerMode < MODE_PREFILL && settings.backlight == 2)
+        || (powerMode > MODE_IN_AIRPLANE && powerMode < MODE_PREFILL && settings.backlight == 2)
         || settings.backlight == 1
         || (timeToTurnBacklightOn > 0 && timeWhileBtnMenuPressed < 32))
         DISPLAY_LIGHT_ON;
@@ -519,6 +548,7 @@ void ShowLEDs() {
     if (powerMode != MODE_ON_EARTH && settings.use_audible_signals && current_altitude > 0 && previous_altitude > 0) {
         for (int i = 7; i >=0; i--) {
             if (current_altitude <= audible_signals.signals[i] && previous_altitude > audible_signals.signals[i]) {
+                SET_VOL;
                 sound(128 + i);
                 break;
             }
@@ -535,6 +565,7 @@ void ShowLEDs() {
                             LED_show(0, 140, 0); // green blinks 3 times at 300m but not above 900m
 #ifdef AUDIBLE_SIGNALS_ENABLE
                             if (settings.use_audible_signals)
+                                SET_VOL;
                                 sound(SIGNAL_1MEDIUM);
 #endif
                         } else {
@@ -581,6 +612,7 @@ void ShowLEDs() {
                     noSound();
                 } else {
                     LED_show(0, 80, 0); // green blinks to indicate that altimeter is ready
+                    SET_VOL;
                     sound(SIGNAL_1MEDIUM);
                 }
             } else
@@ -593,12 +625,13 @@ void ShowLEDs() {
 //    noSound();
 }
 
+#ifdef GREETING_ENABLE
 void ShowText(const uint8_t x, const uint8_t y, const char* text) {
     u8g2.setFont(font_hello);
     DISPLAY_LIGHT_ON;
-    uint8_t maxlen = strlen_P(text);
+    uint8_t maxlen = strlen(text);
     for (uint8_t i = 1; i <= maxlen; i++) {
-        strcpy_P(bigbuf, text);
+        strcpy(bigbuf, text);
         bigbuf[i] = 0;
         u8g2.firstPage();
         do {
@@ -609,11 +642,25 @@ void ShowText(const uint8_t x, const uint8_t y, const char* text) {
     delay(5000);
     DISPLAY_LIGHT_OFF;
 }
+#endif
 
 void PowerOff(bool verbose = true) {
-    if (verbose)
-        ShowText(6, 24, MSG_BYE);
-
+#ifdef GREETING_ENABLE
+    if (verbose) {
+        // Show bye message
+        char tmpBuf[16];
+#ifdef CUSTOM_GREETING_ENABLE
+        uint8_t hasCustomMessage;
+        EEPROM.get(0x1f, hasCustomMessage);
+        if (hasCustomMessage == 0x41) {
+            EEPROM.get(0x140, tmpBuf);
+        }
+        else
+#endif
+            strcpy_P(tmpBuf, MSG_BYE);
+        ShowText(16, 30, tmpBuf);
+    }
+#endif
     noSound();
     rtc.disableHeartbeat(); // Do it before enabling alarm, because it will tirn alarm off on pcf8583
 #ifdef ALARM_ENABLE
@@ -899,6 +946,8 @@ void userMenu() {
             bl_char = '-';
         if (settings.backlight == 2)
             bl_char = '*';
+        if (settings.backlight == 3)
+            bl_char = '+';
         sprintf_P(bigbuf, PSTR(
             MSG_MENU
             MSG_EXIT
@@ -943,8 +992,6 @@ void userMenu() {
             case 'B':
                 // Backlight turn on/off
                 settings.backlight++;
-                if (settings.backlight > 2)
-                    settings.backlight = 0;
                 break;
 #ifdef LOGBOOK_ENABLE
             case 'L': {
@@ -955,7 +1002,7 @@ void userMenu() {
                         MSG_LOGBOOK_TITLE
                         MSG_EXIT
                         MSG_LOGBOOK_VIEW
-#ifdef DEBUG_PRINT
+#ifdef TEST_JUMP_ENABLE
                         MSG_LOGBOOK_REPLAY_JUMP
 #endif
                         MSG_LOGBOOK_CLEAR));
@@ -991,7 +1038,7 @@ void userMenu() {
                             };
                             break;
                         }
-#ifdef DEBUG_PRINT
+#ifdef TEST_JUMP_ENABLE
                         case 'R':
                             // replay latest jump
                             myPressure.debugPrint();
@@ -1047,6 +1094,9 @@ void userMenu() {
 #ifdef AUDIBLE_SIGNALS_ENABLE
                         MSG_SETTINGS_SET_SIGNALS
                         MSG_SETTINGS_SET_SIGNALS_TEST
+#ifdef SOUND_VOLUME_CONTROL_ENABLE
+                        MSG_SETTINGS_LOUDNESS
+#endif
                         MSG_SETTINGS_SET_SIGNALS_BUZZER
 #endif
                         MSG_SETTINGS_SET_SIGNALS_LED
@@ -1058,11 +1108,17 @@ void userMenu() {
                         MSG_SETTINGS_SET_SCREEN_CONTRAST
 #endif
                         MSG_SETTINGS_ABOUT
-                        MSG_SETTINGS_PC_LINK),
+#if defined (__AVR_ATmega32U4__)
+                        MSG_SETTINGS_PC_LINK
+#endif
+                        ),
 #ifdef ALARM_ENABLE
                         textbuf,
 #endif
 #ifdef AUDIBLE_SIGNALS_ENABLE
+#ifdef SOUND_VOLUME_CONTROL_ENABLE
+                        settings.volume + 1,
+#endif
                         settings.use_audible_signals ? '~' : '-',
 #endif
                         settings.use_led_signals ? '~' : '-',
@@ -1099,8 +1155,11 @@ void userMenu() {
                                     u8g2.drawUTF8(DISPLAY_WIDTH >> 1, DISPLAY_HEIGHT - 10, textbuf);
                                     
                                 } while ( u8g2.nextPage() );
+                                SET_VOL;
                                 sound(i);
-                                delay(8000);
+                                delay(5000);
+                                if (BTN2_PRESSED)
+                                    break;
                             }
                             u8g2.setFont(font_menu);
                             break;
@@ -1109,6 +1168,13 @@ void userMenu() {
                         case 'L':
                             settings.use_led_signals++;
                             break;
+#ifdef SOUND_VOLUME_CONTROL_ENABLE
+                        case 'l':
+                            settings.volume++;
+                            SET_VOL;
+                            sound(SIGNAL_2SHORT);
+                            break;
+#endif
                         case 'T': {
                             // Time
                             rtc.readTime();
@@ -1198,19 +1264,15 @@ void userMenu() {
                             showVersion();
                             getKeypress();
                             break;
+#if defined (__AVR_ATmega32U4__)
                         case 'U': {
                             Serial.begin(SERIAL_SPEED); // Console
-#if defined(__AVR_ATmega32U4__)
                             while (!Serial);
-#endif
                             memoryDump();
                             Serial.end();
-#if defined(__AVR_ATmega328P__)
-                            pinMode(0, INPUT);
-                            pinMode(1, INPUT);
-#endif
                             break;
                         }
+#endif
                         default:
                             // timeout
                             return;
@@ -1433,7 +1495,7 @@ bool SetTime(uint8_t &hour, uint8_t &minute, char* title) {
 }
 
 void memoryDump() {
-    sprintf_P(bigbuf, PSTR("\nPEGASUS_BEGIN\nPLATFORM %c%c%c%c\nVERSION 1.1"), PLATFORM_1, PLATFORM_2, PLATFORM_3, PLATFORM_4);
+    sprintf_P(bigbuf, PSTR("\nPEGASUS_BEGIN\nPLATFORM %c%c%c%c\nVERSION " VERSION "\nLANG " LANGUAGE), PLATFORM_1, PLATFORM_2, PLATFORM_3, PLATFORM_4);
     Serial.print(bigbuf);
     // Dump settings
     sprintf_P(bigbuf, PSTR("\nLOGBOOK %c %04x %u\nSNAPSHOT %c %04x %u %u\nROM_BEGIN"),
@@ -1525,6 +1587,7 @@ void loop() {
 #endif
                 powerMode = MODE_ON_EARTH;
             }
+            LED_show(0, 0, 0);
             userMenu();
             refresh_display = true; // force display refresh
             previous_altitude = CLEAR_PREVIOUS_ALTITUDE;
@@ -1532,8 +1595,10 @@ void loop() {
         timeWhileBtnMenuPressed = 0;
     }
     
-    if ((interval_number & 63) == 0 || powerMode == MODE_PREFILL) {
+    if ((interval_number & 127) == 0 || powerMode == MODE_PREFILL) {
         // Check and refresh battery meter
+        analogRead(PIN_BAT_SENSE);
+        delay(10);
         batt = analogRead(PIN_BAT_SENSE);
         rel_voltage = (int8_t)((batt - settings.battGranulationD) * settings.battGranulationF);
         if (rel_voltage < 0)
@@ -1566,19 +1631,22 @@ void loop() {
             sprintf_P(textbuf, PSTR("%02d.%02d.%04d %02d:%02d"), rtc.day, rtc.month, rtc.year, rtc.hour, rtc.minute);
             u8g2.drawUTF8(0, 6, textbuf);
             
-#ifdef ALARM_ENABLE
-            sprintf_P(textbuf, PSTR("%3d%c"), rel_voltage, rtc.alarm_enable & 1 ? '@' : '%');
-#else
             sprintf_P(textbuf, PSTR("%3d%%"), rel_voltage);
-#endif
             u8g2.drawUTF8(DISPLAY_WIDTH - 16, 6, textbuf);
     
             u8g2.drawHLine(0, 7, DISPLAY_WIDTH-1);
             u8g2.drawHLine(0, DISPLAY_HEIGHT-8, DISPLAY_WIDTH-1);
     
-            if (powerMode == MODE_ON_EARTH)
-                sprintf_P(textbuf, PSTR("&%1d'"), powerMode);
-            else
+            if (powerMode == MODE_ON_EARTH) {
+#ifdef ALARM_ENABLE
+                if (rtc.alarm_enable & 1)
+                    sprintf_P(textbuf, PSTR("&%1d' %02d:%02d@"), powerMode, rtc.alarm_hour, rtc.alarm_minute);
+                else
+                    sprintf_P(textbuf, PSTR("&%1d' %d$"), powerMode, batt);
+#else            
+                sprintf_P(textbuf, PSTR("&%1d' %d$"), powerMode, batt);
+#endif
+            } else
                 sprintf_P(textbuf, PSTR("&%1d' % 3d % 3d"), powerMode, average_speed_8, average_speed_32);
             u8g2.drawUTF8(0, DISPLAY_HEIGHT - 1, textbuf);
             // Show heartbeat

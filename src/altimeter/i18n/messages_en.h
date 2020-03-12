@@ -3,13 +3,16 @@
 
 // Messages, english
 
+#define LANGUAGE "EN"
+
 #define MSG_HELLO PSTR("  Ossu!")
 #define MSG_BYE PSTR("Sayonara")
 #define MSG_VERSION PSTR( \
         "Pegasus I\n" \
         "Platform %c%c%c%c\n" \
-        "Version 1.1\n" \
-        "COM %ld/8N1\n")
+        "Version " \
+        VERSION \
+        "\nCOM %ld/8N1\n")
 
 #define MSG_JUMP_CONTENT PSTR("%u/%u %c\n%02d.%02d.%04d %02d:%02d\nE:%4dm D:%4dm\nC:%4dm T:%4dc\nS:%dm/s %dkm/h\nM:%dm/s %dkm/h\n")
 #define MSG_MENU "Menu\n"
@@ -39,6 +42,7 @@
 #define MSG_SETTINGS_SET_ALARM "AAlarm %s\n"
 #define MSG_SETTINGS_SET_SIGNALS "SSignals\n"
 #define MSG_SETTINGS_SET_SIGNALS_TEST "tTest signals\n"
+#define MSG_SETTINGS_LOUDNESS "lLoudness: %d\n"
 #define MSG_SETTINGS_SET_SIGNALS_LED "LLED: %c\n"
 #define MSG_SETTINGS_SET_SIGNALS_BUZZER "BBuzzer: %c\n"
 #define MSG_SETTINGS_SET_MODE "QAutomatics: %c\n"
