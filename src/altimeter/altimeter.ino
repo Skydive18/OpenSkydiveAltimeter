@@ -166,6 +166,8 @@ void setup() {
     pinMode(PIN_BTN3, INPUT_PULLUP);
     pinMode(PIN_INTERRUPT, INPUT_PULLUP);
     pinMode(PIN_LIGHT, OUTPUT);
+    pinMode(PIN_SOUND, OUTPUT);
+    digitalWrite(PIN_SOUND, 0);
 
     // Turn ON hardware
     pinMode(PIN_HWPWR, OUTPUT);
@@ -179,10 +181,26 @@ void setup() {
     delay(1000);
 #endif
     rtc.init();
+#ifdef DIAGNOSTIC_ENABLE
+    LED_show(255,255,255,1000);
+    delay(1000);
+#endif
     rtc.enableHeartbeat();  // reset alarm flags, start generate seed sequence
+#ifdef DIAGNOSTIC_ENABLE
+    LED_show(255,255,255,1000);
+    delay(1000);
+#endif
     rtc.readTime();
+#ifdef DIAGNOSTIC_ENABLE
+    LED_show(255,255,255,1000);
+    delay(1000);
+#endif
 #ifdef ALARM_ENABLE
     rtc.readAlarm();
+#ifdef DIAGNOSTIC_ENABLE
+    LED_show(255,255,255,1000);
+    delay(1000);
+#endif
 #endif
 
     // Read presets
