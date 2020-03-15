@@ -754,6 +754,7 @@ void checkWakeCondition () {
 #ifdef ALARM_ENABLE
         if (!digitalRead(PIN_INTERRUPT)) { // alarm => interrupt => wake
             LED_show(0, 255, 0, 400);
+            hardwareReset();
             asm("jmp 0\n");
         } else {
 #ifdef DIAGNOSTIC_ENABLE
@@ -777,6 +778,7 @@ void checkWakeCondition () {
 #ifdef DIAGNOSTIC_ENABLE
     LED_show(0, 255, 0, 400);
 #endif
+    hardwareReset();
     asm("jmp 0\n");
 }
 #endif

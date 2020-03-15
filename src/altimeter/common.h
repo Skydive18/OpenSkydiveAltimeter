@@ -12,4 +12,5 @@ void IIC_WriteInt(uint8_t iicAddr,uint8_t regAddr, int value);
 long ByteToHeartbeat(uint8_t hbAsByte);
 uint8_t HeartbeatValue(uint8_t hbAsByte);
 
+void hardwareReset();
 #endif
