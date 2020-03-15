@@ -166,15 +166,18 @@ void setup() {
     pinMode(PIN_BTN3, INPUT_PULLUP);
     pinMode(PIN_INTERRUPT, INPUT_PULLUP);
     pinMode(PIN_LIGHT, OUTPUT);
-    DISPLAY_LIGHT_OFF;
 
     // Turn ON hardware
     pinMode(PIN_HWPWR, OUTPUT);
     digitalWrite(PIN_HWPWR, 1);
+    DISPLAY_LIGHT_ON;
     Wire.begin();
 //    Wire.setClock(WIRE_SPEED);
     delay(50); // Wait hardware to start
-
+#ifdef DIAGNOSTIC_ENABLE
+    LED_show(255,255,255,1000);
+    delay(1000);
+#endif
     rtc.init();
     rtc.enableHeartbeat();  // reset alarm flags, start generate seed sequence
     rtc.readTime();
@@ -209,6 +212,10 @@ void setup() {
 #ifdef ALARM_ENABLE
     if (checkAlarm())
         PowerOff(false);
+#endif
+#ifdef DIAGNOSTIC_ENABLE
+    LED_show(255,0,255,1000);
+    delay(1000);
 #endif
 
     //Configure the sensor
@@ -728,7 +735,7 @@ void checkWakeCondition () {
 #ifdef ALARM_ENABLE
         if (!digitalRead(PIN_INTERRUPT)) { // alarm => interrupt => wake
             LED_show(0, 255, 0, 400);
-            resetFunc();
+            asm("jmp 0\n");
         } else {
 #ifdef DIAGNOSTIC_ENABLE
             LED_show(255, 0, 0, 400);
@@ -751,7 +758,7 @@ void checkWakeCondition () {
 #ifdef DIAGNOSTIC_ENABLE
     LED_show(0, 255, 0, 400);
 #endif
-    resetFunc();
+    asm("jmp 0\n");
 }
 #endif
 
