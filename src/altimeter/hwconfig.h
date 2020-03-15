@@ -50,7 +50,7 @@
 #define GREETING_ENABLE               /* Enable animated greeting and bye messages */
 #define CUSTOM_GREETING_ENABLE        /* Enable custom greeting and bye messages */
 //#define SOUND_VOLUME_CONTROL_ENABLE   /* Enable sound volume control */
-#define DIAGNOSTIC_ENABLE
+//#define DIAGNOSTIC_ENABLE
 
 // Configure RTC chip
 #define RTC RTC_PCF8563
