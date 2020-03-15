@@ -177,28 +177,24 @@ void setup() {
 //    Wire.setClock(WIRE_SPEED);
     delay(50); // Wait hardware to start
 #ifdef DIAGNOSTIC_ENABLE
+    delay(2000);
     LED_show(255,255,255,1000);
     delay(1000);
 #endif
-    rtc.init();
+    rtc.init(true);
 #ifdef DIAGNOSTIC_ENABLE
-    LED_show(255,255,255,1000);
-    delay(1000);
-#endif
-    rtc.enableHeartbeat();  // reset alarm flags, start generate seed sequence
-#ifdef DIAGNOSTIC_ENABLE
-    LED_show(255,255,255,1000);
+    LED_show(255,0,0,1000);
     delay(1000);
 #endif
     rtc.readTime();
 #ifdef DIAGNOSTIC_ENABLE
-    LED_show(255,255,255,1000);
+    LED_show(0,255,0,1000);
     delay(1000);
 #endif
 #ifdef ALARM_ENABLE
     rtc.readAlarm();
 #ifdef DIAGNOSTIC_ENABLE
-    LED_show(255,255,255,1000);
+    LED_show(0,0,255,1000);
     delay(1000);
 #endif
 #endif
@@ -232,7 +228,7 @@ void setup() {
         PowerOff(false);
 #endif
 #ifdef DIAGNOSTIC_ENABLE
-    LED_show(255,0,255,1000);
+    LED_show(255,0,0,1000);
     delay(1000);
 #endif
 
@@ -290,6 +286,11 @@ void setup() {
 #endif
     }
     // Wake by pin-change interrupt from RTC that generates 1Hz 50% duty cycle
+    rtc.enableHeartbeat();  // reset alarm flags, start generate seed sequence
+#ifdef DIAGNOSTIC_ENABLE
+    LED_show(0,255,0,1000);
+    delay(1000);
+#endif
     pciSetup(PIN_INTERRUPT_HEARTBEAT);
 }
 

@@ -47,7 +47,7 @@ public:
     void disableHeartbeat();
     
     Rtc();
-    void init();
+    void init(bool reset_registers = false);
     
     void readTime();
     timestamp_t getTimestamp();

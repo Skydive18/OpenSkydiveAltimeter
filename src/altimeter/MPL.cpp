@@ -109,8 +109,7 @@ int MPL3115A2::readAltitude() {
     }
 
     // Read pressure registers
-    Wire.begin();
-    Wire.beginTransmission(MPL3115A2_ADDRESS);
+    beginTransmission(MPL3115A2_ADDRESS);
     Wire.write(OUT_P_MSB);  // Address of data to get
     Wire.endTransmission(false); // Send data to I2C dev with option for a repeated start. THIS IS NECESSARY and not supported before Arduino V1.0.1!
     if (Wire.requestFrom(MPL3115A2_ADDRESS, 2) != 2) { // Request two bytes
