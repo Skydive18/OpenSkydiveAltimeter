@@ -544,7 +544,7 @@ void processAltitude() {
 uint8_t airplane_300m = 0;
 void ShowLEDs() {
     if ((powerMode > MODE_ON_EARTH && powerMode < MODE_PREFILL && settings.backlight == 2)
-        || (powerMode > MODE_IN_AIRPLANE && powerMode < MODE_PREFILL && settings.backlight == 2)
+        || (powerMode > MODE_IN_AIRPLANE && powerMode < MODE_PREFILL && settings.backlight == 3)
         || settings.backlight == 1
         || (timeToTurnBacklightOn > 0 && timeWhileBtnMenuPressed < 32))
         DISPLAY_LIGHT_ON;
