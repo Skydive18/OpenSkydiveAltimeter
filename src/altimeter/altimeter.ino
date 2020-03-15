@@ -186,6 +186,7 @@ void setup() {
     LED_show(255,0,0,1000);
     delay(1000);
 #endif
+    rtc.enableHeartbeat();  // reset alarm flags, start generate seed sequence
     rtc.readTime();
 #ifdef DIAGNOSTIC_ENABLE
     LED_show(0,255,0,1000);
@@ -753,7 +754,9 @@ void checkWakeCondition () {
     else
 #ifdef ALARM_ENABLE
         if (!digitalRead(PIN_INTERRUPT)) { // alarm => interrupt => wake
+#ifdef DIAGNOSTIC_ENABLE
             LED_show(0, 255, 0, 400);
+#endif
             hardwareReset();
             asm("jmp 0\n");
         } else {

@@ -20,11 +20,8 @@ void Rtc::init(bool reset_registers) {
         status_register_1 = 0;
         status_register_2 = 0;
     }
-    beginTransmission(RTC_ADDRESS);
-    Wire.write(0x00);
-    Wire.write(status_register_1);
-    Wire.write(status_register_2);
-    Wire.endTransmission();
+    IIC_WriteByte(RTC_ADDRESS, 0, status_register_1);
+    IIC_WriteByte(RTC_ADDRESS, 1, status_register_2);
 #endif
 }
 
