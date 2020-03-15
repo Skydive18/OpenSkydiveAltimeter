@@ -10,7 +10,7 @@
 #define off_250ms       LowPower.powerDown(SLEEP_250MS,   ADC_OFF, BOD_OFF)
 #define off_500ms       LowPower.powerDown(SLEEP_500MS,   ADC_OFF, BOD_OFF)
 #define off_1s          LowPower.powerDown(SLEEP_1S,      ADC_OFF, BOD_OFF)
-/#define off_2s          LowPower.powerDown(SLEEP_2S,      ADC_OFF, BOD_OFF)
+#define off_2s          LowPower.powerDown(SLEEP_2S,      ADC_OFF, BOD_OFF)
 //#define off_2s sleepMode(SLEEP_POWER_DOWN); sleep();
 #define off_4s          LowPower.powerDown(SLEEP_4S,      ADC_OFF, BOD_OFF)
 #define off_8s          LowPower.powerDown(SLEEP_8S,      ADC_OFF, BOD_OFF)

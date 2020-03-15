@@ -127,6 +127,7 @@ bool SetDate(timestamp_t &date);
 bool checkAlarm();
 #endif
 void PowerOff(bool verbose = true);
+void checkWakeCondition();
 void memoryDump();
 
 void pciSetup(byte pin) {
@@ -694,7 +695,7 @@ void PowerOff(bool verbose) {
     pinMode(1, INPUT);
 #endif
     
-    do {
+    for(;;) {
 #if defined(__AVR_ATmega32U4__)
         // Wake by BTN2 (Middle button)
         attachInterrupt(digitalPinToInterrupt(PIN_BTN2), wake, LOW);
@@ -710,12 +711,12 @@ void PowerOff(bool verbose) {
 #if defined(__AVR_ATmega32U4__)
         detachInterrupt(digitalPinToInterrupt(PIN_BTN2));
 #endif
-    } while (!checkWakeCondition());
-    resetFunc();
+        checkWakeCondition();
+    }
 }
 
 #if defined(__AVR_ATmega328P__)
-uint8_t checkWakeCondition () {
+void checkWakeCondition () {
     uint8_t pin;
     if (BTN1_PRESSED)
         pin = PIN_BTN1;
@@ -725,19 +726,32 @@ uint8_t checkWakeCondition () {
         pin = PIN_BTN3;
     else
 #ifdef ALARM_ENABLE
-        return !digitalRead(PIN_INTERRUPT); // alarm => interrupt => wake
-#else
-        return 0;
+        if (!digitalRead(PIN_INTERRUPT)) { // alarm => interrupt => wake
+            LED_show(0, 255, 0, 400);
+            resetFunc();
+        } else {
+#ifdef DIAGNOSTIC_ENABLE
+            LED_show(255, 0, 0, 400);
+#endif
+            return;
+        }
 #endif
     LED_show(0, 0, 80, 400);
     for (uint8_t i = 1; i < 193; ++i) {
-        if (digitalRead(pin))
-            return 0;
+        if (digitalRead(pin)) {
+#ifdef DIAGNOSTIC_ENABLE
+            LED_show(255, 0, 0, 400);
+#endif
+            return;
+        }
         if (! (i & 63))
             LED_show(0, 0, 80, 200);
         delay(15);
     }
-    return 1;
+#ifdef DIAGNOSTIC_ENABLE
+    LED_show(0, 255, 0, 400);
+#endif
+    resetFunc();
 }
 #endif
 
