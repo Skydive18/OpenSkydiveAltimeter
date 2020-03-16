@@ -175,22 +175,41 @@ void setup() {
     pinMode(PIN_BTN3, INPUT_PULLUP);
     pinMode(PIN_INTERRUPT, INPUT_PULLUP);
     pinMode(PIN_LIGHT, OUTPUT);
-    DISPLAY_LIGHT_OFF;
+    pinMode(PIN_SOUND, OUTPUT);
+    digitalWrite(PIN_SOUND, 0);
 
     // Turn ON hardware
     pinMode(PIN_HWPWR, OUTPUT);
     digitalWrite(PIN_HWPWR, 1);
+    DISPLAY_LIGHT_ON;
     Wire.begin();
 //    Wire.setClock(WIRE_SPEED);
     delay(50); // Wait hardware to start
+#ifdef DIAGNOSTIC_ENABLE
+    delay(2000);
+    LED_show(255,255,255,1000);
+    delay(1000);
+#endif
+    rtc.init(true);
+#ifdef DIAGNOSTIC_ENABLE
+    LED_show(255,0,0,1000);
+    delay(1000);
+#endif
 
     TIME_TMPL = PSTR("%02d:%02d");
     
-    rtc.init();
     rtc.enableHeartbeat();  // reset alarm flags, start generate seed sequence
     rtc.readTime();
+#ifdef DIAGNOSTIC_ENABLE
+    LED_show(0,255,0,1000);
+    delay(1000);
+#endif
 #ifdef ALARM_ENABLE
     rtc.readAlarm();
+#ifdef DIAGNOSTIC_ENABLE
+    LED_show(0,0,255,1000);
+    delay(1000);
+#endif
 #endif
 
     // Read presets
@@ -220,6 +239,10 @@ void setup() {
 #ifdef ALARM_ENABLE
     if (checkAlarm())
         powerOff(false);
+#endif
+#ifdef DIAGNOSTIC_ENABLE
+    LED_show(255,0,0,1000);
+    delay(1000);
 #endif
 
     //Configure the sensor
@@ -272,6 +295,11 @@ void setup() {
 #endif
     }
     // Wake by pin-change interrupt from RTC that generates 1Hz 50% duty cycle
+    rtc.enableHeartbeat();  // reset alarm flags, start generate seed sequence
+#ifdef DIAGNOSTIC_ENABLE
+    LED_show(0,255,0,1000);
+    delay(1000);
+#endif
     pciSetup(PIN_INTERRUPT_HEARTBEAT);
 }
 
@@ -523,7 +551,7 @@ void processAltitude() {
 uint8_t airplane_300m = 0;
 void showSignals() {
     if ((MODE_IN_AIR && settings.backlight == 2)
-        || (MODE_IN_JUMP && settings.backlight == 2)
+        || (MODE_IN_JUMP && settings.backlight == 3)
         || settings.backlight == 1
         || (time_while_backlight_on > 0 && time_while_btn_menu_pressed < 32))
         DISPLAY_LIGHT_ON;
@@ -701,7 +729,7 @@ void powerOff(bool verbose) {
     pinMode(1, INPUT);
 #endif
     
-    do {
+    for(;;) {
 #if defined(__AVR_ATmega32U4__)
         // Wake by BTN2 (Middle button)
         attachInterrupt(digitalPinToInterrupt(PIN_BTN2), wake, LOW);
@@ -717,12 +745,12 @@ void powerOff(bool verbose) {
 #if defined(__AVR_ATmega32U4__)
         detachInterrupt(digitalPinToInterrupt(PIN_BTN2));
 #endif
-    } while (!checkWakeCondition());
-    resetFunc();
+        checkWakeCondition();
+    }
 }
 
 #if defined(__AVR_ATmega328P__)
-uint8_t checkWakeCondition () {
+void checkWakeCondition () {
     uint8_t pin;
     if (BTN1_PRESSED)
         pin = PIN_BTN1;
@@ -732,19 +760,36 @@ uint8_t checkWakeCondition () {
         pin = PIN_BTN3;
     else
 #ifdef ALARM_ENABLE
-        return !digitalRead(PIN_INTERRUPT); // alarm => interrupt => wake
-#else
-        return 0;
+        if (!digitalRead(PIN_INTERRUPT)) { // alarm => interrupt => wake
+#ifdef DIAGNOSTIC_ENABLE
+            LED_show(0, 255, 0, 400);
+#endif
+            hardwareReset();
+            asm("jmp 0\n");
+        } else {
+#ifdef DIAGNOSTIC_ENABLE
+            LED_show(255, 0, 0, 400);
+#endif
+            return;
+        }
 #endif
     LED_show(0, 0, 80, 400);
     for (uint8_t i = 1; i < 193; ++i) {
-        if (digitalRead(pin))
-            return 0;
+        if (digitalRead(pin)) {
+#ifdef DIAGNOSTIC_ENABLE
+            LED_show(255, 0, 0, 400);
+#endif
+            return;
+        }
         if (! (i & 63))
             LED_show(0, 0, 80, 200);
         delay(15);
     }
-    return 1;
+#ifdef DIAGNOSTIC_ENABLE
+    LED_show(0, 255, 0, 400);
+#endif
+    hardwareReset();
+    asm("jmp 0\n");
 }
 #endif
 
