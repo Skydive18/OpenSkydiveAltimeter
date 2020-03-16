@@ -127,7 +127,7 @@ void setup() {
     // Configure keyboard and enable pullup resistors
     TIME_TMPL = PSTR("%02d:%02d");
     DDRC &= 0xf0; // PIN_BTN1, PIN_BTN2, PIN_BTN3, PIN_BAT_SENSE => input
-    PORTC |= 0xe0; // Pullup on PIN_BTN1, PIN_BTN2, PIN_BTN3
+    PORTC |= 0x0e; // Pullup on PIN_BTN1, PIN_BTN2, PIN_BTN3
     DDRD = 0xf8; // PIN_INTERRUPT to INPUT, serial to input, rest to output
     PORTD = 0x14; // HWON up, PIN_INTERRUPT to pullup, the rest to 0. Will turn ON display light too.
 
