@@ -41,6 +41,7 @@
 #define MSG_SETTINGS_SET_DATE "DДата\n"
 #define MSG_SETTINGS_SET_ALARM "AБудильник %s\n"
 #define MSG_SETTINGS_SET_SIGNALS "SСигналы\n"
+#define MSG_SETTINGS_SET_SIGNALS_SIGNAL "%c%c\n1%c%4u 5%c%4u\n2%c%4u 6%c%4u\n3%c%4u 7%c%4u\n4%c%4u 8%c%4u\n%cОтмена %cOK\n"
 #define MSG_SETTINGS_SET_SIGNALS_TEST "tТест сигналов\n"
 #define MSG_SETTINGS_LOUDNESS "lГромкость: %d\n"
 #define MSG_SETTINGS_SET_SIGNALS_LED "LСветодиод: %c\n"

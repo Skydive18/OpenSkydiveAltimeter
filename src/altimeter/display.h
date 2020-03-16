@@ -33,4 +33,5 @@ U8G2_PCD8544_84X48_F_4W_HW_SPI u8g2(U8G2_R2, SS, DC_PIN, U8X8_PIN_NONE);
 // 3-wire over-hardware SPI
 U8G2_HX1230_96X68_2_3W_HW_SPI u8g2(U8G2_R0, SS, PIN_DC);
 #endif
+
 #endif
