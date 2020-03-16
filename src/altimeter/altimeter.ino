@@ -112,10 +112,6 @@ ISR (PCINT2_vect) { // handle pin change interrupt for D0 to D5 here (328p)
 ISR (PCINT1_vect) { // handle pin change interrupt for A0 to A5 here (328p)
 }
 
-void serialEvent() {
-    memoryDump(false);
-}
-
 void loadJumpProfile() {
     EEPROM.get(EEPROM_JUMP_PROFILES + ((settings.jump_profile_number >> 2) * sizeof(jump_profile_t)), jump_profile);
 #ifdef AUDIBLE_SIGNALS_ENABLE
@@ -180,6 +176,8 @@ void setup() {
         Serial.begin(SERIAL_SPEED);
 #ifdef GREETING_ENABLE
         SET_MAX_VOL;
+        delay(1000);
+        memoryDump(false);
         sound(SIGNAL_WELCOME);
         
         // Show greeting message
@@ -202,6 +200,7 @@ void setup() {
 #else
         delay(3000); // wait for memory dump request
 #endif // GREETING_ENABLE
+        memoryDump(false);
 
         termSerial();
     }
@@ -405,9 +404,10 @@ void powerOff(bool verbose) {
     
     // Stop all on portC, enable pullups on keyboard
     DDRC = 0;
-    PORTC = 0xe0;
+    PORTC = 0x0e;
     
     // Stop all on portB, no pullups
+    // TODO: Keep sound amplifier off as well.
     DDRB = 0;
     PORTB = 0;
 
@@ -416,14 +416,14 @@ void powerOff(bool verbose) {
 #endif
 
     // After we turned off all peripherial connections, turn peripherial power OFF too.
-    PORTD = 0x80; // LED, sound, HWON to 0, display light to 1 that turns it off
+    PORTD = 0x84; // LED, sound, HWON to 0, display light to 1 that turns it off, pullup in PIN_INTERRUPT
 
     // Wake by pin-change interrupt on any key
     pciSetup(PIN_BTN1);
     pciSetup(PIN_BTN2);
     pciSetup(PIN_BTN3);
     termSerial();
-    
+
     for(;;) {
         // Also wake by alarm. TODO.
 #ifdef ALARM_ENABLE

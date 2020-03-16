@@ -3,6 +3,8 @@
 
 void powerDown() __attribute__((optimize("-O1")));
 
+//void powerDown();
+
 extern uint8_t disable_sleep;
 
 #endif
