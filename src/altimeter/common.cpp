@@ -65,3 +65,9 @@ void hardwareReset() {
     PORTB &= 0x7f;
     resetFunc();
 }
+
+void termSerial() {
+    Serial.end();
+    DDRD &= 0xfc; // pins to input
+    PORTD &= 0xfc; // disable pullups
+}

@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include "hwconfig.h"
-#include "custom_types.h"
+#include "common.h"
 #include "snd.h"
 
 void initSound();

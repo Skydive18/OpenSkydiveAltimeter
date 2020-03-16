@@ -16,12 +16,8 @@ void Rtc::init(bool reset_registers) {
     IIC_WriteByte(RTC_ADDRESS, 0, status_register);
     last_stored_year = IIC_ReadInt(RTC_ADDRESS, ADDR_LAST_STORED_YEAR);
 #elif RTC==RTC_PCF8563
-    if (reset_registers) {
-        status_register_1 = 0;
-        status_register_2 = 0;
-    }
-    IIC_WriteByte(RTC_ADDRESS, 0, status_register_1);
-    IIC_WriteByte(RTC_ADDRESS, 1, status_register_2);
+    IIC_WriteByte(RTC_ADDRESS, 0, 0);
+    IIC_WriteByte(RTC_ADDRESS, 1, 0);
 #endif
 }
 
@@ -81,6 +77,7 @@ void Rtc::setDate() {
     IIC_WriteInt(RTC_ADDRESS, ADDR_YEAR_BASE, year & 0xfffc);
     last_stored_year = year;
     IIC_WriteInt(RTC_ADDRESS, ADDR_LAST_STORED_YEAR, year);
+    init(); // re set the control/status register
 
 #elif RTC==RTC_PCF8563
     IIC_WriteByte(RTC_ADDRESS, 0, 0x20);
@@ -91,9 +88,9 @@ void Rtc::setDate() {
     Wire.write(bin_to_bcd(month));   // Month (1-12, century bit (bit 7) = 1)
     Wire.write(bin_to_bcd(year - EPOCH));   // Year (00-99)
     Wire.endTransmission();
+    IIC_WriteByte(RTC_ADDRESS, 0, 0);
 #endif
 
-    init(); // re set the control/status register
 }
 
 void Rtc::setTime() {
@@ -108,7 +105,11 @@ void Rtc::setTime() {
     Wire.write(bin_to_bcd(minute));
     Wire.write(bin_to_bcd(hour));
     Wire.endTransmission();
-    init(); // re set the control/status register
+#if RTC==RTC_PCF8583
+    init();
+#elif RTC==RTC_PCF8563
+    IIC_WriteByte(RTC_ADDRESS, 0, 0);
+#endif
 }
 
 #ifdef ALARM_ENABLE
@@ -123,8 +124,7 @@ void Rtc::enableAlarmInterrupt() {
     }
 #elif RTC==RTC_PCF8563
     if (alarm_enable) {
-        status_register_2 = 0x2; // Enable alarm interrupt, clear outstanding interrupt
-        init();
+        IIC_WriteByte(RTC_ADDRESS, 1, PCF8563_ALARM_AIE);
     }
 #endif
 }
@@ -182,9 +182,7 @@ void Rtc::enableHeartbeat() {
     status_register &= 0xfb;
     init();
 #elif RTC==RTC_PCF8563
-    status_register_2 = 0; // acknowledge alarm and disable its interrupt
-    init();
-    delay(50);
+    IIC_WriteByte(RTC_ADDRESS, 1, 0); // set clkout to 1hz 50% duty cycle
     IIC_WriteByte(RTC_ADDRESS, 0xd, 0x83); // set clkout to 1hz 50% duty cycle
 #endif    
 }

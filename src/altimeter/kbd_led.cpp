@@ -3,7 +3,7 @@
 #include "power.h"
 #include "wiring_private.h"
 #include "kbd_led.h"
-#include "custom_types.h"
+#include "common.h"
 
 extern settings_t settings;
 
@@ -105,7 +105,7 @@ void LED_showOne(byte pin, byte val) {
                 OCR1C = val; // set pwm duty
                 break;
             #endif
-
+/*
             #if defined(TCCR2) && defined(COM21)
             case TIMER2:
                 // connect pwm to pin on timer 2
@@ -129,7 +129,7 @@ void LED_showOne(byte pin, byte val) {
                 OCR2B = val; // set pwm duty
                 break;
             #endif
-
+*/
             #if defined(TCCR3A) && defined(COM3A1)
             case TIMER3A:
                 // connect pwm to pin on timer 3, channel A

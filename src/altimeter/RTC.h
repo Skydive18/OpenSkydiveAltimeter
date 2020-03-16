@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include "hwconfig.h"
-#include "custom_types.h"
+#include "common.h"
 
 // RTC epoch year
 #define EPOCH 2020
@@ -65,9 +65,6 @@ private:
     byte alarm_register;
     void writeAlarmControlRegister();
     uint16_t last_stored_year;
-#elif RTC==RTC_PCF8563
-    uint8_t status_register_1;
-    uint8_t status_register_2;
 #endif
 };
 

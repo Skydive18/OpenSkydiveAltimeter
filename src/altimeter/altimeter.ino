@@ -12,7 +12,6 @@
 #if DISPLAY==DISPLAY_NOKIA1201
 #include "fonts/fonts_hx1230.h"
 #endif
-#include "custom_types.h"
 #include "common.h"
 #include "RTC.h"
 #include "snd.h"
@@ -31,33 +30,12 @@ extern FlashRom flashRom;
 #error Unknown language, only English and Russian supported.
 #endif
 
-// Altimeter modes (altimeter_mode)
-#define MODE_ON_EARTH 0
-#define MODE_IN_AIRPLANE 1
-#define MODE_EXIT 2
-#define MODE_BEGIN_FREEFALL 3
-#define MODE_FREEFALL 4
-#define MODE_PULLOUT 5
-#define MODE_OPENING 6
-#define MODE_UNDER_PARACHUTE 7
-#define MODE_PREFILL 8
-#define MODE_DUMB 9
-#define MODE_IN_AIR (altimeter_mode > MODE_ON_EARTH && altimeter_mode < MODE_PREFILL)
-#define MODE_IN_JUMP (altimeter_mode > MODE_IN_AIRPLANE && altimeter_mode < MODE_PREFILL)
+#include "automatics.h"
 //
 // State machine sequences
 //
 //   Dumb) DUMB -> DUMB (Show altitude only; no automatic, no logbook, etc.)
 // Normal) PREFILL -> ON_EARTH <-> IN_AIRPLANE <-> EXIT <-> BEGIN_FREEFALL -> FREEFALL <-> PULLOUT <-> OPENING -> UNDER_PARACHUTE -> ON_EARTH
-//
-// State machine points
-//
-#define EXIT_TH -jump_profile.exit
-#define BEGIN_FREEFALL_TH -jump_profile.begin_freefall
-#define FREEFALL_TH -jump_profile.freefall
-#define PULLOUT_TH -jump_profile.pullout
-#define OPENING_TH -jump_profile.opening
-#define UNDER_PARACHUTE_TH -jump_profile.under_parachute
 
 settings_t settings;
 jump_profile_t jump_profile;
@@ -68,19 +46,16 @@ audible_signals_t audible_signals;
 MPL3115A2 myPressure;
 Rtc rtc;
 
-#define CLEAR_PREVIOUS_ALTITUDE -30000
-int vspeed[32]; // used in mode detector. TODO clean it in setup maybe?
 uint32_t interval_number; // global heartbeat counter
 long heartbeat; // heartbeat in 500ms ticks until auto turn off
+int vspeed[32]; // used in mode detector. TODO clean it in setup maybe?
 uint8_t vspeedPtr = 0; // pointer to write to vspeed buffer
 int current_speed;
 int average_speed_8;
 int average_speed_32;
-// Auto zero drift correction
-uint8_t zero_drift_sense = 128;
 
 
-// ********* Main power move flag
+// ********* Main altimeter move flag
 uint8_t altimeter_mode;
 uint8_t previous_altimeter_mode;
 volatile bool INTACK;
@@ -93,12 +68,6 @@ int8_t rel_voltage; // ballery relative voltage, in percent (0-100). 0 relates t
 
 #ifdef LOGBOOK_ENABLE
 jump_t current_jump;
-#endif
-
-#ifdef SNAPSHOT_ENABLE
-// Used in snapshot saver
-uint16_t accumulated_altitude;
-int accumulated_speed;
 #endif
 
 #if defined(LOGBOOK_ENABLE) || defined(SNAPSHOT_ENABLE)
@@ -143,6 +112,10 @@ ISR (PCINT2_vect) { // handle pin change interrupt for D0 to D5 here (328p)
 ISR (PCINT1_vect) { // handle pin change interrupt for A0 to A5 here (328p)
 }
 
+void serialEvent() {
+    memoryDump(false);
+}
+
 void loadJumpProfile() {
     EEPROM.get(EEPROM_JUMP_PROFILES + ((settings.jump_profile_number >> 2) * sizeof(jump_profile_t)), jump_profile);
 #ifdef AUDIBLE_SIGNALS_ENABLE
@@ -153,18 +126,11 @@ void loadJumpProfile() {
 void setup() {
     // Configure keyboard and enable pullup resistors
     TIME_TMPL = PSTR("%02d:%02d");
-    pinMode(PIN_BTN1, INPUT_PULLUP);
-    pinMode(PIN_BTN2, INPUT_PULLUP);
-    pinMode(PIN_BTN3, INPUT_PULLUP);
-    pinMode(PIN_INTERRUPT, INPUT_PULLUP);
-    pinMode(PIN_LIGHT, OUTPUT);
-    pinMode(PIN_SOUND, OUTPUT);
-    digitalWrite(PIN_SOUND, 0);
+    DDRC &= 0xf0; // PIN_BTN1, PIN_BTN2, PIN_BTN3, PIN_BAT_SENSE => input
+    PORTC |= 0xe0; // Pullup on PIN_BTN1, PIN_BTN2, PIN_BTN3
+    DDRD = 0xf8; // PIN_INTERRUPT to INPUT, serial to input, rest to output
+    PORTD = 0x14; // HWON up, PIN_INTERRUPT to pullup, the rest to 0. Will turn ON display light too.
 
-    // Turn ON hardware
-    pinMode(PIN_HWPWR, OUTPUT);
-    digitalWrite(PIN_HWPWR, 1);
-    DISPLAY_LIGHT_ON;
     Wire.begin();
     delay(50); // Wait hardware to start
 
@@ -212,42 +178,35 @@ void setup() {
     if (myPressure.readAltitude() < 450) { // "Reset in airplane" - Disable greeting message if current altitude more than 450m
         DISPLAY_LIGHT_ON;
         Serial.begin(SERIAL_SPEED);
-        delay(2000);
-        memoryDump(false);
-
 #ifdef GREETING_ENABLE
         SET_MAX_VOL;
         sound(SIGNAL_WELCOME);
         
         // Show greeting message
-        char tmpBuf[16];
+        char tmp_buf[16];
 #ifdef CUSTOM_GREETING_ENABLE
-        uint8_t hasCustomMessage;
-        EEPROM.get(0x1f, hasCustomMessage);
-        if (hasCustomMessage == 0x41) {
-            EEPROM.get(0x130, tmpBuf);
+        uint8_t has_custom_message;
+        EEPROM.get(0x1f, has_custom_message);
+        if (has_custom_message == 0x41) {
+            EEPROM.get(0x130, tmp_buf);
         }
         else
 #endif
-            strcpy_P(tmpBuf, MSG_HELLO);
-        showText(16, 30, tmpBuf);
+            strcpy_P(tmp_buf, MSG_HELLO);
+        showText(16, 30, tmp_buf);
 
         DISPLAY_LIGHT_ON;
-#endif // GREETING_ENABLE
-
-        memoryDump(false);
-
-#ifdef GREETING_ENABLE
         showVersion();
         delay(7000);
         DISPLAY_LIGHT_OFF;
+#else
+        delay(3000); // wait for memory dump request
 #endif // GREETING_ENABLE
 
-        Serial.end();
-        pinMode(0, INPUT);
-        pinMode(1, INPUT);
+        termSerial();
     }
-    // Wake by pin-change interrupt from RTC that generates 1Hz 50% duty cycle
+    
+    // Enable wake by pin-change interrupt from RTC that generates 1Hz 50% duty cycle
     pciSetup(PIN_INTERRUPT_HEARTBEAT);
 }
 
@@ -285,216 +244,6 @@ bool checkAlarm() {
     return false;
 }
 #endif
-
-#ifdef SNAPSHOT_ENABLE
-void saveToJumpSnapshot() {
-    if (current_jump.total_jump_time < 2045)
-        current_jump.total_jump_time++;
-
-    if (current_jump.total_jump_time >= (SNAPSHOT_SIZE * 2) || (current_jump.total_jump_time & 1) /* write once per second */ )
-        return;
-    int speed_now = current_altitude - accumulated_altitude;
-    // Limit acceleration (in fact, this is exactly what we store) with 1.1g down, 2,5g up.
-    // Anyway, while freefall, acceleration more than 1g down is not possible.
-    int8_t accel = (speed_now - accumulated_speed);
-    if (accel < -11)
-        accel = -11;
-    if (accel > 25)
-        accel = 25;
-    bigbuf[current_jump.total_jump_time >> 1] = (char)(speed_now - accumulated_speed);
-    accumulated_speed += accel;
-    accumulated_altitude += accumulated_speed;
-}
-#endif
-
-//
-// Main state machine
-// Ideas got from EZ430 project at skycentre.net
-//
-void processAltitude() {
-    if (previous_altitude == CLEAR_PREVIOUS_ALTITUDE) { // unknown delay or first run; just save
-        previous_altitude = current_altitude;
-        return;
-    }
-    
-    current_speed = (current_altitude - previous_altitude) << 1; // ok there; sign bit will be kept because <int> is big enough
-
-    vspeed[vspeedPtr & 31] = (int8_t)current_speed;
-    // Calculate averages
-    uint8_t startPtr = ((uint8_t)(vspeedPtr)) & 31;
-    average_speed_32 = 0;
-    for (uint8_t i = 0; i < 32; i++) {
-        average_speed_32 += vspeed[(startPtr - i) & 31];
-        if (i == 7)
-            average_speed_8 = average_speed_32 / 8; // sign extension used
-    }
-    average_speed_32 /= 32;
-    vspeedPtr++;
-
-    int jitter = current_altitude - altitude_to_show;
-    bool jitter_in_range = (jitter < 5 && jitter > -5);
-
-    // Compute altitude to show
-    if (altimeter_mode == MODE_ON_EARTH) {
-        // Jitter compensation
-        if (jitter_in_range) {
-            // Inside jitter range. Try to correct zero drift.
-            if (altitude_to_show == 0) {
-                zero_drift_sense += jitter;
-
-                if (zero_drift_sense < 8) {
-                    // Do correct zero drift
-                    myPressure.zero();
-                    // Altitude already shown as 0. current_altitude is not needed anymore.
-                    // It will be re-read in next cycle and assumed to be zero, as we corrected
-                    // zero drift.
-                    zero_drift_sense = 128;
-                }
-            } else {
-                // Not at ground
-                zero_drift_sense = 128;
-            }
-        } else {
-            // jitter out of range
-            altitude_to_show = current_altitude;
-            zero_drift_sense = 128;
-        }
-    } else {
-        // Do not perform zero drift compensation and jitter correction in modes other than MODE_ON_EARTH
-        altitude_to_show = current_altitude;
-        zero_drift_sense = 128;
-    }
-
-    if (altimeter_mode == MODE_PREFILL) {
-        // Change mode to ON_EARTH if vspeed has been populated (approx. 16s after enter to this mode)
-        if (vspeedPtr > 32) {
-            // set to zero if we close to it
-            if (settings.zero_after_reset && current_altitude < 450) {
-                altitude_to_show = 0;
-                myPressure.zero();
-            }
-            altimeter_mode = MODE_ON_EARTH;
-        }
-    } else
-
-    //
-    // ************************
-    // ** MAIN STATE MACHINE **
-    // ************************
-    //
-    // Due to compiler optimization, **DO NOT** use `case` here.
-    // Also, **DO NOT** remove `else`'s.
-
-    if (altimeter_mode == MODE_ON_EARTH) {
-        if ( /*(current_altitude > 250) ||*/ (current_altitude > 30 && average_speed_8 > 1) )
-            altimeter_mode = MODE_IN_AIRPLANE;
-        else if (average_speed_8 <= FREEFALL_TH) {
-            altimeter_mode = MODE_FREEFALL;
-#ifdef LOGBOOK_ENABLE
-            current_jump.total_jump_time = 2047; // do not store this jump in logbook
-#endif
-        }
-    } else
-    
-    if (altimeter_mode == MODE_IN_AIRPLANE) {
-        if (current_speed <= EXIT_TH) {
-            altimeter_mode = MODE_EXIT;
-#ifdef LOGBOOK_ENABLE
-            current_jump.exit_altitude = (current_altitude) >> 1;
-            current_jump.exit_timestamp = rtc.getTimestamp();
-            current_jump.total_jump_time = current_jump.max_freefall_speed_ms = 0;
-#endif
-#ifdef SNAPSHOT_ENABLE
-            bigbuf[0] = (char)current_speed;
-            accumulated_altitude = current_altitude;
-            accumulated_speed = current_speed;
-#endif
-        }
-        else if (average_speed_32 < 1 && current_altitude < 25)
-            altimeter_mode = MODE_ON_EARTH;
-    } else
-    
-    if (altimeter_mode == MODE_EXIT) {
-#ifdef SNAPSHOT_ENABLE
-        saveToJumpSnapshot();
-#endif
-        if (current_speed <= BEGIN_FREEFALL_TH) {
-            altimeter_mode = MODE_BEGIN_FREEFALL;
-        }
-        else if (current_speed > EXIT_TH)
-            altimeter_mode = MODE_IN_AIRPLANE;
-    } else
-    
-    if (altimeter_mode == MODE_BEGIN_FREEFALL) {
-#ifdef SNAPSHOT_ENABLE
-        saveToJumpSnapshot();
-#endif
-        if (current_speed <= FREEFALL_TH)
-            altimeter_mode = MODE_FREEFALL;
-        else if (current_speed > BEGIN_FREEFALL_TH)
-            altimeter_mode = MODE_EXIT;
-    } else
-    
-    if (altimeter_mode == MODE_FREEFALL) {
-#ifdef SNAPSHOT_ENABLE
-        saveToJumpSnapshot();
-#endif
-        if (current_speed > PULLOUT_TH)
-            altimeter_mode = MODE_PULLOUT;
-#ifdef LOGBOOK_ENABLE
-        current_jump.deploy_altitude = current_altitude >> 1;
-        current_jump.deploy_time = current_jump.total_jump_time;
-        int8_t freefall_speed = 0 - average_speed_8;
-        if (freefall_speed > current_jump.max_freefall_speed_ms)
-            current_jump.max_freefall_speed_ms = freefall_speed;
-#endif
-    } else
-    
-    if (altimeter_mode == MODE_PULLOUT) {
-#ifdef SNAPSHOT_ENABLE
-        saveToJumpSnapshot();
-#endif
-        if (current_speed <= PULLOUT_TH)
-            altimeter_mode = MODE_FREEFALL;
-        else if (current_speed > OPENING_TH) {
-            altimeter_mode = MODE_OPENING;
-        }
-    } else
-    if (altimeter_mode == MODE_OPENING) {
-#ifdef SNAPSHOT_ENABLE
-        saveToJumpSnapshot();
-#endif
-        if (current_speed <= OPENING_TH)
-            altimeter_mode = MODE_PULLOUT;
-        else if (average_speed_8 > UNDER_PARACHUTE_TH) {
-            altimeter_mode = MODE_UNDER_PARACHUTE;
-#ifdef LOGBOOK_ENABLE
-            current_jump.canopy_altitude = current_jump.deploy_altitude - (current_altitude >> 1);
-#endif
-        }
-    } else
-    if (altimeter_mode == MODE_UNDER_PARACHUTE) {
-#ifdef SNAPSHOT_ENABLE
-        saveToJumpSnapshot();
-#endif
-        if (average_speed_32 == 0) {
-            altimeter_mode = MODE_ON_EARTH;
-            // try to lock zero altitude
-            altitude_to_show = 0;
-#ifdef SNAPSHOT_ENABLE
-            saveSnapshot();
-#endif
-#ifdef LOGBOOK_ENABLE
-            saveJump();
-#endif
-#if defined(LOGBOOK_ENABLE) || defined(SNAPSHOT_ENABLE)
-            total_jumps++;
-            EEPROM.put(EEPROM_JUMP_COUNTER, total_jumps);
-#endif
-        }
-    }
-    
-}
 
 uint8_t airplane_300m = 0;
 void showSignals() {
@@ -605,7 +354,6 @@ void showSignals() {
 
     airplane_300m = 0;
     LED_show(0, 0, 0);
-//    noSound();
 }
 
 #ifdef GREETING_ENABLE
@@ -650,37 +398,38 @@ void powerOff(bool verbose) {
     rtc.enableAlarmInterrupt();
 #endif
 
-
     // turn off i2c
-    pinMode(SCL, INPUT);
-    pinMode(SDA, INPUT);
+    TWCR &= ~_BV(TWEN);
     // turn off SPI
     SPI.end();
-    pinMode(MOSI, INPUT); // todo: set all portB as input
-    pinMode(MISO, INPUT);
-    pinMode(SCK, INPUT);
-    pinMode(SS, INPUT);
+    
+    // Stop all on portC, enable pullups on keyboard
+    DDRC = 0;
+    PORTC = 0xe0;
+    
+    // Stop all on portB, no pullups
+    DDRB = 0;
+    PORTB = 0;
+
 #ifdef DC_PIN    
     pinMode(DC_PIN, INPUT);
 #endif
 
     // After we turned off all peripherial connections, turn peripherial power OFF too.
-    digitalWrite(PIN_HWPWR, 0);
+    PORTD = 0x80; // LED, sound, HWON to 0, display light to 1 that turns it off
 
     // Wake by pin-change interrupt on any key
     pciSetup(PIN_BTN1);
     pciSetup(PIN_BTN2);
     pciSetup(PIN_BTN3);
-    Serial.end();
-    pinMode(0, INPUT);
-    pinMode(1, INPUT);
+    termSerial();
     
     for(;;) {
         // Also wake by alarm. TODO.
 #ifdef ALARM_ENABLE
         attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
 #endif
-        off_forever;
+        powerDown();
 #ifdef ALARM_ENABLE
         detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
 #endif
@@ -688,7 +437,6 @@ void powerOff(bool verbose) {
     }
 }
 
-#if defined(__AVR_ATmega328P__)
 void checkWakeCondition () {
     uint8_t pin;
     if (BTN1_PRESSED)
@@ -705,8 +453,7 @@ void checkWakeCondition () {
             return;
         }
 #endif
-    LED_show(0, 0, 80, 400);
-    for (uint8_t i = 1; i < 193; ++i) {
+    for (uint8_t i = 0; i < 193; ++i) {
         if (digitalRead(pin)) {
             return;
         }
@@ -716,7 +463,6 @@ void checkWakeCondition () {
     }
     hardwareReset();
 }
-#endif
 
 void showVersion() {
     u8g2.setFont(font_menu);
@@ -1613,7 +1359,7 @@ void loop() {
                 break;
         }
     } else {
-        off_2s;
+        powerDown();
     }
 
     interval_number++;

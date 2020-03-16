@@ -1,7 +1,7 @@
 #ifndef __in_hwconfig_h
 #define __in_hwconfig_h
 
-#define VERSION "1.2"
+#define VERSION "1.3"
 
 // ******************
 // Hardware constants
