@@ -66,22 +66,6 @@ void note(uint8_t noteNumber) {
         silent = true;
         noteNumber = 11;
     }
-#if defined(__AVR_ATmega32U4__)
-    TCCR4C = (1 << PWM4D) | (1 << COM4D1); // enable output
-    uint8_t note = noteNumber % 12;
-    uint8_t octave = (noteNumber/12);
-    uint8_t prescaler = 9 - octave;
-    uint8_t val = pgm_read_byte(&scale[note]);
-    OCR4C = val;
-    OCR4D = silent ? 0 : (val / 2);
-    TCCR4B = prescaler<<CS40;
-    duration = (duration * pgm_read_byte(&freq[note])) >> (5 - octave);
-    // Start
-    disable_sleep |= 0x2;
-    TIFR4 = (1<<TOV4);
-    TCNT4 = 0;
-    TIMSK4 = (1<<TOIE4);
-#elif defined (__AVR_ATmega328P__) || defined(__AVR_ATmega2560__)
 //    DDRD = DDRD | 1<<DDD3;                     // PD3 (Arduino D3) as output
     uint8_t note = noteNumber % 12;
     uint8_t octave = (noteNumber/12) + 1;
@@ -94,7 +78,6 @@ void note(uint8_t noteNumber) {
     // Start
     disable_sleep |= 0x2;
     TIMSK2 |= (1 << OCIE2B);
-#endif
 }
 
 void nextNote() {
@@ -122,20 +105,8 @@ const uint8_t signal_alt5[] PROGMEM = {1, 1, 1, 6, 1, 1, 1, 6, 1, 1, 1, 0 };
 const uint8_t signal_alt6[] PROGMEM = {1, 1, 1, 6, 1, 1, 1, 0 };
 const uint8_t signal_alt7[] PROGMEM = {40, 0 };
 #endif
+
 void note() {
-#if defined(__AVR_ATmega32U4__)
-    TCCR4C = 0; // disable timer output
-    OCR4C = 127;
-    OCR4D = 0;
-    TCCR4B = 9<<CS40;
-    duration = (duration * 194) >> 5;
-    digitalWrite(PIN_SOUND, (++buzz) & 1);
-    // Start
-    disable_sleep |= 0x2;
-    TIFR4 = (1<<TOV4);
-    TCNT4 = 0;
-    TIMSK4 = (1<<TOIE4);
-#elif defined (__AVR_ATmega328P__) || defined(__AVR_ATmega2560__)
     TCNT2 = 0;
     OCR2A = 127;
     TCCR2A = 2<<WGM20; // Clear-on-compare-match mode, no output
@@ -145,7 +116,6 @@ void note() {
     // Start
     disable_sleep |= 0x2;
     TIMSK2 |= (1 << OCIE2B);
-#endif
 }
 
 void nextNote() {
@@ -162,28 +132,18 @@ void nextNote() {
 } // namespace
 
 void MsTimer2m::stop() {
-#if defined (__AVR_ATmega328P__) || defined(__AVR_ATmega2560__)
     TIMSK2 &= ~(1<<OCIE2B);
     TCCR2A &= ~((1 << COM2B0) | (1 << COM2B1)); // Disable OCR2B output
-#elif defined (__AVR_ATmega32U4__)
-    TIMSK4 = 0;
-#endif
     disable_sleep &= 0xfd;
     digitalWrite(PIN_SOUND, 0);
 }
 
-#if defined (__AVR__)
-#if defined (__AVR_ATmega32U4__)
-ISR(TIMER4_OVF_vect) {
-#else
 ISR(TIMER2_COMPB_vect) {
-#endif
     if (! (--MsTimer2m::duration)) {
         MsTimer2m::stop();
         MsTimer2m::nextNote();
     }
 }
-#endif // AVR
 
 #endif // SOUND_USE_TIMER
 

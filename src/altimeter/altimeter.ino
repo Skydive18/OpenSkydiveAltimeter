@@ -119,23 +119,14 @@ void showText(const uint8_t x, const uint8_t y, const char* text);
 #endif
 char myMenu(char *menudef, char event = ' ');
 void showVersion();
-void wake() {
-#if defined (__AVR_ATmega32U4__)
-    INTACK = true;
-#endif
-}
+void wake() {}
 bool SetDate(timestamp_t &date);
 #ifdef ALARM_ENABLE
 bool checkAlarm();
 #endif
 void powerOff(bool verbose = true);
-void(* resetFunc) (void) = 0;
 
-#if defined (__AVR_ATmega32U4__)
-void memoryDump();
-#else
 void memoryDump(bool noComCheck = true);
-#endif
 void showSignals();
 
 
@@ -145,21 +136,12 @@ void pciSetup(byte pin) {
     PCICR  |= bit (digitalPinToPCICRbit(pin)); // enable interrupt for the group
 }
 
-#if defined (__AVR_ATmega32U4__)
-ISR (PCINT0_vect) { // the only PCINT for 32u4
-    INTACK = true;
-}
-#endif
-
-#if defined(__AVR_ATmega328P__)
 ISR (PCINT2_vect) { // handle pin change interrupt for D0 to D5 here (328p)
     INTACK = true;
 }
 
 ISR (PCINT1_vect) { // handle pin change interrupt for A0 to A5 here (328p)
 }
-
-#endif
 
 void loadJumpProfile() {
     EEPROM.get(EEPROM_JUMP_PROFILES + ((settings.jump_profile_number >> 2) * sizeof(jump_profile_t)), jump_profile);
@@ -170,6 +152,7 @@ void loadJumpProfile() {
 
 void setup() {
     // Configure keyboard and enable pullup resistors
+    TIME_TMPL = PSTR("%02d:%02d");
     pinMode(PIN_BTN1, INPUT_PULLUP);
     pinMode(PIN_BTN2, INPUT_PULLUP);
     pinMode(PIN_BTN3, INPUT_PULLUP);
@@ -183,33 +166,13 @@ void setup() {
     digitalWrite(PIN_HWPWR, 1);
     DISPLAY_LIGHT_ON;
     Wire.begin();
-//    Wire.setClock(WIRE_SPEED);
     delay(50); // Wait hardware to start
-#ifdef DIAGNOSTIC_ENABLE
-    delay(2000);
-    LED_show(255,255,255,1000);
-    delay(1000);
-#endif
-    rtc.init(true);
-#ifdef DIAGNOSTIC_ENABLE
-    LED_show(255,0,0,1000);
-    delay(1000);
-#endif
 
-    TIME_TMPL = PSTR("%02d:%02d");
-    
+    rtc.init(true);
     rtc.enableHeartbeat();  // reset alarm flags, start generate seed sequence
     rtc.readTime();
-#ifdef DIAGNOSTIC_ENABLE
-    LED_show(0,255,0,1000);
-    delay(1000);
-#endif
 #ifdef ALARM_ENABLE
     rtc.readAlarm();
-#ifdef DIAGNOSTIC_ENABLE
-    LED_show(0,0,255,1000);
-    delay(1000);
-#endif
 #endif
 
     // Read presets
@@ -240,10 +203,6 @@ void setup() {
     if (checkAlarm())
         powerOff(false);
 #endif
-#ifdef DIAGNOSTIC_ENABLE
-    LED_show(255,0,0,1000);
-    delay(1000);
-#endif
 
     //Configure the sensor
     myPressure.begin(); // Get sensor online
@@ -252,11 +211,9 @@ void setup() {
 
     if (myPressure.readAltitude() < 450) { // "Reset in airplane" - Disable greeting message if current altitude more than 450m
         DISPLAY_LIGHT_ON;
-#if defined(__AVR_ATmega328P__)
         Serial.begin(SERIAL_SPEED);
         delay(2000);
         memoryDump(false);
-#endif
 
 #ifdef GREETING_ENABLE
         SET_MAX_VOL;
@@ -278,9 +235,7 @@ void setup() {
         DISPLAY_LIGHT_ON;
 #endif // GREETING_ENABLE
 
-#if defined(__AVR_ATmega328P__)
         memoryDump(false);
-#endif
 
 #ifdef GREETING_ENABLE
         showVersion();
@@ -288,18 +243,11 @@ void setup() {
         DISPLAY_LIGHT_OFF;
 #endif // GREETING_ENABLE
 
-#if defined(__AVR_ATmega328P__)
         Serial.end();
         pinMode(0, INPUT);
         pinMode(1, INPUT);
-#endif
     }
     // Wake by pin-change interrupt from RTC that generates 1Hz 50% duty cycle
-    rtc.enableHeartbeat();  // reset alarm flags, start generate seed sequence
-#ifdef DIAGNOSTIC_ENABLE
-    LED_show(0,255,0,1000);
-    delay(1000);
-#endif
     pciSetup(PIN_INTERRUPT_HEARTBEAT);
 }
 
@@ -719,7 +667,6 @@ void powerOff(bool verbose) {
     // After we turned off all peripherial connections, turn peripherial power OFF too.
     digitalWrite(PIN_HWPWR, 0);
 
-#if defined(__AVR_ATmega328P__)
     // Wake by pin-change interrupt on any key
     pciSetup(PIN_BTN1);
     pciSetup(PIN_BTN2);
@@ -727,13 +674,8 @@ void powerOff(bool verbose) {
     Serial.end();
     pinMode(0, INPUT);
     pinMode(1, INPUT);
-#endif
     
     for(;;) {
-#if defined(__AVR_ATmega32U4__)
-        // Wake by BTN2 (Middle button)
-        attachInterrupt(digitalPinToInterrupt(PIN_BTN2), wake, LOW);
-#endif
         // Also wake by alarm. TODO.
 #ifdef ALARM_ENABLE
         attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
@@ -741,9 +683,6 @@ void powerOff(bool verbose) {
         off_forever;
 #ifdef ALARM_ENABLE
         detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
-#endif
-#if defined(__AVR_ATmega32U4__)
-        detachInterrupt(digitalPinToInterrupt(PIN_BTN2));
 #endif
         checkWakeCondition();
     }
@@ -761,58 +700,21 @@ void checkWakeCondition () {
     else
 #ifdef ALARM_ENABLE
         if (!digitalRead(PIN_INTERRUPT)) { // alarm => interrupt => wake
-#ifdef DIAGNOSTIC_ENABLE
-            LED_show(0, 255, 0, 400);
-#endif
             hardwareReset();
-            asm("jmp 0\n");
         } else {
-#ifdef DIAGNOSTIC_ENABLE
-            LED_show(255, 0, 0, 400);
-#endif
             return;
         }
 #endif
     LED_show(0, 0, 80, 400);
     for (uint8_t i = 1; i < 193; ++i) {
         if (digitalRead(pin)) {
-#ifdef DIAGNOSTIC_ENABLE
-            LED_show(255, 0, 0, 400);
-#endif
             return;
         }
         if (! (i & 63))
             LED_show(0, 0, 80, 200);
         delay(15);
     }
-#ifdef DIAGNOSTIC_ENABLE
-    LED_show(0, 255, 0, 400);
-#endif
     hardwareReset();
-    asm("jmp 0\n");
-}
-#endif
-
-#if defined(__AVR_ATmega32U4__)
-uint8_t checkWakeCondition () {
-    // Determine wake condition
-    if (BTN2_PRESSED) {
-        // Wake by awake button. Should be kept pressed for 3s
-        LED_show(0, 0, 80, 400);
-        for (uint8_t i = 1; i < 193; ++i) {
-        if (BTN2_RELEASED)
-            return 0;
-        if (! (i & 63))
-            LED_show(0, 0, 80, 200);
-        delay(15);
-        }
-        return 1;
-    }
-#ifdef ALARM_ENABLE
-    return !digitalRead(PIN_INTERRUPT); // alarm => interrupt => wake
-#else
-    return 0;
-#endif
 }
 #endif
 
@@ -1155,9 +1057,6 @@ void userMenu() {
                         MSG_SETTINGS_SET_SCREEN_CONTRAST
 #endif
                         MSG_SETTINGS_ABOUT
-#if defined (__AVR_ATmega32U4__)
-                        MSG_SETTINGS_PC_LINK
-#endif
                         ),
 #ifdef ALARM_ENABLE
                         textbuf,
@@ -1315,15 +1214,6 @@ void userMenu() {
                             getKeypress();
                             break;
 
-#if defined (__AVR_ATmega32U4__)
-                        case 'U': {
-                            Serial.begin(SERIAL_SPEED); // Console
-                            while (!Serial);
-                            memoryDump();
-                            Serial.end();
-                            break;
-                        }
-#endif
                         default:
                             // timeout
                             return;
@@ -1545,13 +1435,9 @@ bool SetTime(uint8_t &hour, uint8_t &minute, const char* title) {
     };
 }
 
-#if defined (__AVR_ATmega32U4__)
-void memoryDump() {
-#else
 void memoryDump(bool noComCheck) {
     if (!(noComCheck || (Serial.available() && Serial.read() == '?')))
         return;
-#endif
     sprintf_P(bigbuf, PSTR("\nPEGASUS_BEGIN\nPLATFORM %c%c%c%c\nVERSION " VERSION "\nLANG " LANGUAGE), PLATFORM_1, PLATFORM_2, PLATFORM_3, PLATFORM_4);
     Serial.print(bigbuf);
     // Dump settings

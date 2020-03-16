@@ -58,7 +58,10 @@ uint8_t HeartbeatValue(uint8_t hbAsByte) {
     }
 }
 
+void(* resetFunc) (void) = 0;
+
 void hardwareReset() {
     DDRB |= 0x80;
     PORTB &= 0x7f;
+    resetFunc();
 }

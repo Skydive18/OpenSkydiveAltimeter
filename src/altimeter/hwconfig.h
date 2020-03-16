@@ -46,11 +46,10 @@
 //#define TETRIS_ENABLE               /* TODO!! Enable 'tetris' game */
 //#define SNAKE_ENABLE                /* TODO!! Enable 'snake' game */
 #define LANGUAGE LANGUAGE_RUSSIAN
-#define TEST_JUMP_ENABLE          /* Enable test jump */
+//#define TEST_JUMP_ENABLE            /* Enable test jump */
 #define GREETING_ENABLE               /* Enable animated greeting and bye messages */
 #define CUSTOM_GREETING_ENABLE        /* Enable custom greeting and bye messages */
 //#define SOUND_VOLUME_CONTROL_ENABLE   /* Enable sound volume control */
-//#define DIAGNOSTIC_ENABLE
 
 // Configure RTC chip
 #define RTC RTC_PCF8563
@@ -151,30 +150,7 @@
 
 // Pin wiring
 
-#if defined(__AVR_ATmega32U4__)
-// Pins for Arduino Pro Micro (Atmega-32u4)
-#if RTC==RTC_PCF8583
-#define PLATFORM_1 'A'
-#elif RTC==RTC_PCF8563
-#define PLATFORM_1 'C'
-#else
-#define PLATFORM_1 'Z'
-#endif
-#define PIN_HWPWR 1
-#define PIN_LIGHT 4
-#define PIN_R 5
-#define PIN_G 9
-#define PIN_B 10
-#define PIN_BTN1 A3
-#define PIN_BTN2 0
-#define PIN_BTN3 A1
-#define PIN_BAT_SENSE A0
-#define PIN_SOUND 6
-#define PIN_INTERRUPT 7
-#define PIN_INTERRUPT_HEARTBEAT 8
-#define PIN_DC 30
-
-#elif defined(__AVR_ATmega328P__)
+#if defined(__AVR_ATmega328P__)
 // Pins for Arduino Pro Mini (Atmega-328[P] - based)
 #if RTC==RTC_PCF8583
 #define PLATFORM_1 'B'
