@@ -62,7 +62,7 @@ uint8_t HeartbeatValue(uint8_t hbAsByte) {
 
 int precisionMultiplier() {
     switch (settings.precision_in_freefall) {
-        case 0: return 0;
+        case 0: return 1;
         case 1: return 10;
         case 2: return 50;
         case 3: return 100;

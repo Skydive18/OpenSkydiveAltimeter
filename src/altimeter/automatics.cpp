@@ -128,7 +128,7 @@ void processAltitude() {
         // Do not perform zero drift compensation and jitter correction in modes other than MODE_ON_EARTH
         if (settings.precision_in_freefall > 0 && altimeter_mode > MODE_IN_AIRPLANE && altimeter_mode < MODE_PULLOUT) {
             // Round altitude in freefall
-            altitude_to_show = ((current_altitude / precisionMultiplier()) + 0.5) * precisionMultiplier();
+            altitude_to_show = int(((float)current_altitude / precisionMultiplier()) + 0.5) * precisionMultiplier();
         } else
             altitude_to_show = current_altitude;
         zero_drift_sense = 128;
