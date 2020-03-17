@@ -2,6 +2,8 @@
 #include <Wire.h>
 #include "common.h"
 
+extern settings_t settings;
+
 void beginTransmission(uint8_t iicAddr) {
     Wire.begin();
     Wire.beginTransmission(iicAddr);
@@ -55,6 +57,15 @@ uint8_t HeartbeatValue(uint8_t hbAsByte) {
         case 2: return 12; // 12 hrs
         case 3: return 10; // 10 hrs
         default: return 18;
+    }
+}
+
+int precisionMultiplier() {
+    switch (settings.precision_in_freefall) {
+        case 0: return 0;
+        case 1: return 10;
+        case 2: return 50;
+        case 3: return 100;
     }
 }
 

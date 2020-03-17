@@ -47,6 +47,7 @@
 #define MSG_SETTINGS_SET_SIGNALS_LED "LСветодиод: %c\n"
 #define MSG_SETTINGS_SET_SIGNALS_BUZZER "BПищалка: %c\n"
 #define MSG_SETTINGS_SET_MODE "QАвтоматика: %c\n"
+#define MSG_SETTINGS_SET_ROUNDING "PТочность: %dм\n"
 #define MSG_SETTINGS_SET_AUTO_POWER_OFF "OАвтовыкл: %dч\n"
 #define MSG_SETTINGS_SET_SCREEN_ROTATION "RПоворот экрана\n"
 #define MSG_SETTINGS_SET_SCREEN_CONTRAST "CКонтраст %d\n"

@@ -47,6 +47,7 @@
 #define MSG_SETTINGS_SET_SIGNALS_LED "LLED: %c\n"
 #define MSG_SETTINGS_SET_SIGNALS_BUZZER "BBuzzer: %c\n"
 #define MSG_SETTINGS_SET_MODE "QAutomatics: %c\n"
+#define MSG_SETTINGS_SET_ROUNDING "PRounding: %dm\n"
 #define MSG_SETTINGS_SET_AUTO_POWER_OFF "OAuto off: %dh\n"
 #define MSG_SETTINGS_SET_SCREEN_ROTATION "RRotate screen\n"
 #define MSG_SETTINGS_SET_SCREEN_CONTRAST "CContrast %d\n"

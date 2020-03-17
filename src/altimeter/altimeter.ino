@@ -796,6 +796,7 @@ void userMenu() {
 #endif
                         MSG_SETTINGS_SET_SIGNALS_LED
                         MSG_SETTINGS_SET_MODE
+                        MSG_SETTINGS_SET_ROUNDING
                         MSG_SETTINGS_SET_AUTO_ZERO
                         MSG_SETTINGS_SET_AUTO_POWER_OFF
                         MSG_SETTINGS_SET_SCREEN_ROTATION
@@ -815,6 +816,7 @@ void userMenu() {
 #endif
                         settings.use_led_signals ? '~' : '-',
                         power_mode_char,
+                        precisionMultiplier(),
                         zero_after_reset,
                         HeartbeatValue(settings.auto_power_off),
 #if DISPLAY==DISPLAY_NOKIA1201
@@ -930,6 +932,10 @@ void userMenu() {
                             altimeter_mode = altimeter_mode == MODE_DUMB ? MODE_ON_EARTH : MODE_DUMB;
                             break;
 
+                        case 'P':
+                            settings.precision_in_freefall++;
+                            break;
+                        
                         case 'O': {
                             // Auto poweroff
                             settings.auto_power_off++;

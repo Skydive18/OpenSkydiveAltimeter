@@ -39,6 +39,7 @@ typedef struct {
     //
     uint8_t volume:2;
     uint8_t sound_amplifier_power_on:1; // this value turns sound voltage gainer / amplifier ON
+    uint8_t precision_in_freefall:2; // precision in freefall: 0=no rounding, 1=10m, 2=50m, 3=100m
     //
     uint8_t volumemap[4];
     uint16_t stored_jumps;
@@ -68,6 +69,7 @@ void IIC_WriteInt(uint8_t iicAddr,uint8_t regAddr, int value);
 
 long ByteToHeartbeat(uint8_t hbAsByte);
 uint8_t HeartbeatValue(uint8_t hbAsByte);
+int precisionMultiplier();
 
 void hardwareReset();
 void termSerial();
