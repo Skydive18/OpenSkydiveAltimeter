@@ -411,10 +411,6 @@ void powerOff(bool verbose) {
     DDRB = 0;
     PORTB = 0;
 
-#ifdef DC_PIN    
-    pinMode(DC_PIN, INPUT);
-#endif
-
     // After we turned off all peripherial connections, turn peripherial power OFF too.
     PORTD = 0x84; // LED, sound, HWON to 0, display light to 1 that turns it off, pullup in PIN_INTERRUPT
 
@@ -427,41 +423,34 @@ void powerOff(bool verbose) {
     for(;;) {
         // Also wake by alarm. TODO.
 #ifdef ALARM_ENABLE
-        attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
+//        attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
 #endif
         powerDown();
 #ifdef ALARM_ENABLE
-        detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
+//        detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
 #endif
         checkWakeCondition();
     }
 }
 
 void checkWakeCondition () {
-    uint8_t pin;
-    if (BTN1_PRESSED)
-        pin = PIN_BTN1;
-    else if (BTN2_PRESSED)
-        pin = PIN_BTN2;
-    else if (BTN3_PRESSED)
-        pin = PIN_BTN3;
-    else
 #ifdef ALARM_ENABLE
-        if (!digitalRead(PIN_INTERRUPT)) { // alarm => interrupt => wake
+        if (! (PORTD & 0x4) /* digitalRead(PIN_INTERRUPT)*/) { // alarm => interrupt => wake
             hardwareReset();
-        } else {
-            return;
         }
 #endif
-    for (uint8_t i = 0; i < 193; ++i) {
-        if (digitalRead(pin)) {
-            return;
+    uint8_t pin = PORTC & 0x0e;
+    if (pin != 0x0e) { // A button pressed.
+        for (uint8_t i = 0; i < 193; ++i) {
+            if (PORTD != pin) {
+                return;
+            }
+            if (! (i & 63))
+                LED_show(0, 0, 80, 200);
+            delay(15);
         }
-        if (! (i & 63))
-            LED_show(0, 0, 80, 200);
-        delay(15);
+        hardwareReset();
     }
-    hardwareReset();
 }
 
 void showVersion() {
