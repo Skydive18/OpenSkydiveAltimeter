@@ -11,7 +11,7 @@ uint8_t getKeypress(uint16_t timeout) {
     uint16_t i = 0;
     // Wait for all keys to be released
     for (;;) {
-        if (!(BTN1_PRESSED || BTN2_PRESSED || BTN3_PRESSED))
+        if ((PORTC & 0x0e) != 0x0e)
             break;
         if ((++i) >= timeout)
             return 255;
@@ -20,11 +20,11 @@ uint8_t getKeypress(uint16_t timeout) {
     // Wait for keypress
     for (;;) {
         if (BTN1_PRESSED)
-            return (settings.display_rotation & 1) ? PIN_BTN1 : PIN_BTN3;
+            return (settings.display_rotation) ? PIN_BTN1 : PIN_BTN3;
         if (BTN2_PRESSED)
             return PIN_BTN2;
         if (BTN3_PRESSED)
-            return (settings.display_rotation & 1) ? PIN_BTN3 : PIN_BTN1;
+            return (settings.display_rotation) ? PIN_BTN3 : PIN_BTN1;
         if ((++i) >= timeout)
             break;
         delay(15);

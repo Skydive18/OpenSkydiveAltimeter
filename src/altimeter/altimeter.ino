@@ -414,30 +414,24 @@ void powerOff(bool verbose) {
     // After we turned off all peripherial connections, turn peripherial power OFF too.
     PORTD = 0x84; // LED, sound, HWON to 0, display light to 1 that turns it off, pullup in PIN_INTERRUPT
 
-    // Wake by pin-change interrupt on any key
+    // Wake by pin-change interrupt on any key.
+    // Alarm, if enabled, already has its pinchange interrupt set.
     pciSetup(PIN_BTN1);
     pciSetup(PIN_BTN2);
     pciSetup(PIN_BTN3);
     termSerial();
 
     for(;;) {
-        // Also wake by alarm. TODO.
-#ifdef ALARM_ENABLE
-//        attachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT), wake, LOW);
-#endif
         powerDown();
-#ifdef ALARM_ENABLE
-//        detachInterrupt(digitalPinToInterrupt(PIN_INTERRUPT));
-#endif
         checkWakeCondition();
     }
 }
 
 void checkWakeCondition () {
 #ifdef ALARM_ENABLE
-        if (! (PORTD & 0x4) /* digitalRead(PIN_INTERRUPT)*/) { // alarm => interrupt => wake
-            hardwareReset();
-        }
+    if (! (PORTD & 0x4)) { // alarm => interrupt => wake
+        hardwareReset();
+    }
 #endif
     uint8_t pin = PORTC & 0x0e;
     if (pin != 0x0e) { // A button pressed.
@@ -657,7 +651,8 @@ void userMenu() {
 #ifdef AUDIBLE_SIGNALS_ENABLE
                 settings.jump_profile_number++;
 #else
-                settings.jump_profile_number++;
+                settings.jump_profile_number += 4;
+                settings.jump_profile_number &= 0xc;
 #endif
                 loadJumpProfile();
                 break;
