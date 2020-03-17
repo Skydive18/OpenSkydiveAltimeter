@@ -5,14 +5,14 @@
 
 #define LANGUAGE "EN"
 
-#define MSG_HELLO PSTR("  Ossu!")
+#define MSG_HELLO PSTR("Ossu!")
 #define MSG_BYE PSTR("Sayonara")
 #define MSG_VERSION PSTR( \
         "Pegasus I\n" \
         "Platform %c%c%c%c\n" \
         "Version " \
         VERSION \
-        "\nCOM %ld/8N1\n")
+        "\n")
 
 #define MSG_JUMP_CONTENT PSTR("%u/%u %c\n%02d.%02d.%04d %02d:%02d\nE:%4dm D:%4dm\nC:%4dm T:%4dc\nS:%dm/s %dkm/h\nM:%dm/s %dkm/h\n")
 #define MSG_MENU "Menu\n"

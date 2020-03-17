@@ -5,14 +5,8 @@
 #ifndef __in_mpl_h
 #define __in_mpl_h
 
-#if defined(ARDUINO) && ARDUINO >= 100
 #include "Arduino.h"
-#else
-#include "WProgram.h"
-#endif
-
 #include "hwconfig.h"
-#include <Wire.h>
 
 #define MPL3115A2_ADDRESS 0x60 // Unshifted 7-bit I2C address for sensor
 

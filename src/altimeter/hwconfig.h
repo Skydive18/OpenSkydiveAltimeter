@@ -42,25 +42,25 @@
 #define LOGBOOK_ENABLE                /* Enables logbook */
 #define SNAPSHOT_ENABLE               /* Enables jump trace recording. Requires LOGBOOK_ENABLE */
 #define ALARM_ENABLE                  /* Enables alarm clock. Requires sound system to be configured. */
-#define AUDIBLE_SIGNALS_ENABLE        /* Enables audible altitude signals. Requires sound system to be configured. */
+//#define AUDIBLE_SIGNALS_ENABLE        /* Enables audible altitude signals. Requires sound system to be configured. */
 //#define TETRIS_ENABLE               /* TODO!! Enable 'tetris' game */
 //#define SNAKE_ENABLE                /* TODO!! Enable 'snake' game */
 #define LANGUAGE LANGUAGE_RUSSIAN
 //#define TEST_JUMP_ENABLE          /* Enable test jump */
 #define GREETING_ENABLE               /* Enable animated greeting and bye messages */
-#define CUSTOM_GREETING_ENABLE        /* Enable custom greeting and bye messages */
+//#define CUSTOM_GREETING_ENABLE        /* Enable custom greeting and bye messages */
 //#define SOUND_VOLUME_CONTROL_ENABLE   /* Enable sound volume control */
 
 
 // Configure RTC chip
-#define RTC RTC_PCF8563
+#define RTC RTC_PCF8583
 
 // Configure RGB LED. Define one of the following
 #define LED_COMMON_CATHODE
 //#define LED_COMMON_ANODE
 
 // Configure display.
-#define DISPLAY DISPLAY_NOKIA1201
+#define DISPLAY DISPLAY_NOKIA5110
 
 // Configure sound subsystem.
 #define SOUND SOUND_PASSIVE
@@ -102,7 +102,7 @@
 
 // Predefined offered configurations.
 
-/*
+
 // 1. No external flash. 25 jumps, 1 snapshot
 #define SNAPSHOT_JOURNAL_LOCATION LOCATION_EEPROM
 #define SNAPSHOT_JOURNAL_START 0x25c
@@ -111,7 +111,7 @@
 #define LOGBOOK_LOCATION LOCATION_EEPROM
 #define LOGBOOK_START EEPROM_FREE_AREA
 #define LOGBOOK_SIZE 25
-*/
+
 
 /*
 // 2. Flash 4kb. 120 jumps, 6 snapshots, all in flash
@@ -137,7 +137,7 @@
 #define FLASH_PRESENT
 */
 
-
+/*
 // 4. Flash 64kb. 1000 jumps in eeprom, 120 snapshots in eeprom
 #define SNAPSHOT_JOURNAL_LOCATION LOCATION_FLASH
 #define SNAPSHOT_JOURNAL_START 12000
@@ -147,7 +147,7 @@
 #define LOGBOOK_START 0
 #define LOGBOOK_SIZE 1000
 #define FLASH_PRESENT
-
+*/
 
 // Pin wiring
 
@@ -173,29 +173,6 @@
 #define PIN_INTERRUPT 7
 #define PIN_INTERRUPT_HEARTBEAT 8
 #define PIN_DC 30
-
-#elif defined(__AVR_ATmega328P__)
-// Pins for Arduino Pro Mini (Atmega-328[P] - based)
-#if RTC==RTC_PCF8583
-#define PLATFORM_1 'B'
-#elif RTC==RTC_PCF8563
-#define PLATFORM_1 'D'
-#else
-#define PLATFORM_1 'Y'
-#endif
-#define PIN_HWPWR 4
-#define PIN_LIGHT 7
-#define PIN_R 5
-#define PIN_G 6
-#define PIN_B 9
-#define PIN_BTN1 A3
-#define PIN_BTN2 A2
-#define PIN_BTN3 A1
-#define PIN_BAT_SENSE A0
-#define PIN_SOUND 3
-#define PIN_INTERRUPT 2
-#define PIN_INTERRUPT_HEARTBEAT 2
-#define PIN_DC 8
 
 #else
 #error CPU unsupported.

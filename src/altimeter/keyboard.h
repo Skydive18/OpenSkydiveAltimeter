@@ -3,12 +3,12 @@
 #include "Arduino.h"
 #include "hwconfig.h"
 
-#define BTN1_PRESSED !digitalRead(PIN_BTN1)
-#define BTN1_RELEASED digitalRead(PIN_BTN1)
-#define BTN2_PRESSED !digitalRead(PIN_BTN2)
-#define BTN2_RELEASED digitalRead(PIN_BTN2)
-#define BTN3_PRESSED !digitalRead(PIN_BTN3)
-#define BTN3_RELEASED digitalRead(PIN_BTN3)
+#define BTN1_PRESSED (!(PORTF & 0x10))
+#define BTN1_RELEASED !BTN1_PRESSED
+#define BTN2_PRESSED (!(PORTD & 0x40))
+#define BTN2_RELEASED !BTN2_PRESSED
+#define BTN3_PRESSED (!(PORTF & 0x20))
+#define BTN3_RELEASED !BTN3_PRESSED
 
 uint8_t getKeypress(uint16_t timeout = 20000); // timeout in 15ms chunks, default is 5 min
 #endif

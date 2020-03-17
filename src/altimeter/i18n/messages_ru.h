@@ -5,14 +5,14 @@
 
 #define LANGUAGE "RU"
 
-#define MSG_HELLO PSTR("  Ossu!")
+#define MSG_HELLO PSTR("Ossu!")
 #define MSG_BYE PSTR("Sayonara")
 #define MSG_VERSION PSTR( \
         "Pegasus I\n" \
         "Платформа %c%c%c%c\n" \
         "Версия " \
         VERSION \
-        "\nCOM %ld/8N1\n")
+        "\n")
 
 #define MSG_JUMP_CONTENT PSTR("%u/%u %c\n%02d.%02d.%04d %02d:%02d\nO:%4dм Р:%4dм\nП:%4dм В:%4dc\nС:%dм/с %dкм/ч\nМ:%dм/с %dкм/ч\n")
 #define MSG_MENU "Меню\n"

@@ -1,6 +1,6 @@
 #include "hwconfig.h"
 #include "keyboard.h"
-#include "custom_types.h"
+#include "common.h"
 
 extern settings_t settings;
 
