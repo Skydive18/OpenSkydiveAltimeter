@@ -1276,7 +1276,7 @@ void loop() {
     if ((interval_number & 127) == 0) {
         // Check and refresh battery meter
         batt = analogRead(PIN_BAT_SENSE);
-        rel_voltage = (int8_t)((batt - settings.battGranulationD) * settings.battGranulationF);
+        rel_voltage = (int8_t)((batt - settings.batt_min_voltage) * settings.batt_multiplier / 100);
         if (rel_voltage < 0)
             rel_voltage = 0;
         if (rel_voltage > 100)

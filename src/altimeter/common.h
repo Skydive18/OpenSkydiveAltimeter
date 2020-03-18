@@ -22,9 +22,11 @@ typedef struct {
 } jump_t;
 
 typedef struct {
-    uint16_t battGranulationD; // Factory settings: min battery voltage, in items
-    float battGranulationF; // Factory settings: battery percentage per 1 digitalRead item
-    //
+    uint16_t batt_min_voltage; // Factory settings: min battery voltage, in items
+    uint8_t batt_multiplier;
+    uint8_t unused1;
+    uint8_t unused2;
+    uint8_t unused3;
     uint8_t contrast : 4;
     uint8_t jump_profile_number : 4;
     // Flags byte 1
