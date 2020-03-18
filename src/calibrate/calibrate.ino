@@ -106,7 +106,7 @@ void getBatteryAdaptives() {
     float batt_percentage_multiplier = 100.0f / ((float)batt_voltage_range);
 
     settings.batt_min_voltage = batt_min_voltage;
-    settings.batt_multiplier = batt_percentage_multiplier * 100;
+    settings.batt_multiplier = 2 + (batt_percentage_multiplier * 100);
 
     Serial.print("Max voltage: ");
     Serial.println(batt_max_voltage);
@@ -221,7 +221,7 @@ void setup() {
     jump_profile.freefall = 40;
     jump_profile.pullout = 40;
     jump_profile.opening = 14;
-    jump_profile.under_parachute = 7;
+    jump_profile.under_parachute = 5;
     EEPROM.put(EEPROM_JUMP_PROFILES, jump_profile);
     
     // Profile F - Freefly
@@ -230,25 +230,25 @@ void setup() {
     jump_profile.freefall = 40;
     jump_profile.pullout = 40;
     jump_profile.opening = 14;
-    jump_profile.under_parachute = 7;
+    jump_profile.under_parachute = 5;
     EEPROM.put(EEPROM_JUMP_PROFILES + sizeof(jump_profile_t), jump_profile);
     
     // Profile C - CRW, Hop&Pop
-    jump_profile.exit = 7;
-    jump_profile.begin_freefall = 10;
-    jump_profile.freefall = 40;
-    jump_profile.pullout = 40;
-    jump_profile.opening = 14;
-    jump_profile.under_parachute = 7;
+    jump_profile.exit = 6;
+    jump_profile.begin_freefall = 8;
+    jump_profile.freefall = 12;
+    jump_profile.pullout = 12;
+    jump_profile.opening = 10;
+    jump_profile.under_parachute = 5;
     EEPROM.put(EEPROM_JUMP_PROFILES + (2 * sizeof(jump_profile_t)), jump_profile);
     
     // Profile W - Wingsuit
     jump_profile.exit = 7;
     jump_profile.begin_freefall = 10;
-    jump_profile.freefall = 40;
-    jump_profile.pullout = 40;
+    jump_profile.freefall = 20;
+    jump_profile.pullout = 20;
     jump_profile.opening = 14;
-    jump_profile.under_parachute = 7;
+    jump_profile.under_parachute = 5;
     EEPROM.put(EEPROM_JUMP_PROFILES + (3 * sizeof(jump_profile_t)), jump_profile);
 
     // Write audible signals
