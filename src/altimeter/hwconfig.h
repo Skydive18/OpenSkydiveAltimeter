@@ -46,7 +46,7 @@
 //#define TETRIS_ENABLE               /* TODO!! Enable 'tetris' game */
 //#define SNAKE_ENABLE                /* TODO!! Enable 'snake' game */
 #define LANGUAGE LANGUAGE_RUSSIAN
-//#define TEST_JUMP_ENABLE            /* Enable test jump */
+#define TEST_JUMP_ENABLE            /* Enable test jump */
 #define GREETING_ENABLE               /* Enable animated greeting and bye messages */
 #define CUSTOM_GREETING_ENABLE        /* Enable custom greeting and bye messages */
 //#define SOUND_VOLUME_CONTROL_ENABLE   /* Enable sound volume control */
