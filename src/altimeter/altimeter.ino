@@ -86,7 +86,7 @@ static const char* TIME_TMPL;
 #ifdef GREETING_ENABLE
 void showText(const uint8_t x, const uint8_t y, const char* text);
 #endif
-char myMenu(char *menudef, char event = ' ');
+char myMenu(char *menudef, char event = ' ', bool enable_repeat = false);
 void showVersion();
 void wake() {}
 bool SetDate(timestamp_t &date);
@@ -429,14 +429,14 @@ void powerOff(bool verbose) {
 
 void checkWakeCondition () {
 #ifdef ALARM_ENABLE
-    if (! (PORTD & 0x4)) { // alarm => interrupt => wake
+    if (! (PIND & 0x4)) { // alarm => interrupt => wake
         hardwareReset();
     }
 #endif
-    uint8_t pin = PORTC & 0x0e;
+    uint8_t pin = PINC & 0x0e;
     if (pin != 0x0e) { // A button pressed.
         for (uint8_t i = 0; i < 193; ++i) {
-            if (PORTD != pin) {
+            if ((PINC & 0x0e) != pin) {
                 return;
             }
             if (! (i & 63))
@@ -458,7 +458,7 @@ void showVersion() {
 // Returns ' ' on timeout; otherwise, current position
 // event = '*' => show menu and wait for keypress, no navigation performed.
 // event == 'z' => show menu and exit immediately.
-char myMenu(char *menudef, char event) {
+char myMenu(char *menudef, char event, bool enable_repeat) {
     uint16_t ptr = 0;
     char ptrs[20];
     uint8_t menupos = 0;
@@ -504,7 +504,7 @@ char myMenu(char *menudef, char event) {
         } while (u8g2.nextPage());
         if (event == 'z')
             return 'z';
-        uint8_t key = getKeypress();
+        uint8_t key = getKeypress(enable_repeat);
         if (event == '*')
             return (key == 255) ? 'z' : (char)key;
         if (key == PIN_BTN2)
@@ -579,7 +579,7 @@ char setAudibleSignals() {
             pos == 8 ? '}' : ' ',
             pos == 9 ? '}' : ' '
         );
-        event = myMenu(bigbuf, '*');
+        event = myMenu(bigbuf, '*', true);
         if (event == 'z')
             return 'z';
         if (event == PIN_BTN1) {
@@ -705,7 +705,7 @@ void userMenu() {
                                 // Read jump from logbook
                                 loadJump(jump_to_show - 1);
                                 current_jump_to_bigbuf(jump_to_show);
-                                logbook_view_event = (uint8_t)myMenu(bigbuf, '*');
+                                logbook_view_event = (uint8_t)myMenu(bigbuf, '*', true);
                                 if (logbook_view_event == PIN_BTN1)
                                     jump_to_show--;
                                 if (logbook_view_event == PIN_BTN2)
@@ -1017,7 +1017,7 @@ bool SetDate(uint8_t &day, uint8_t &month, uint16_t &year) {
             u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 7, textbuf);
             
         } while(u8g2.nextPage());
-        uint8_t keyEvent = getKeypress();
+        uint8_t keyEvent = getKeypress(true);
         switch (keyEvent) {
             case PIN_BTN1: {
                 switch (pos) {
@@ -1108,7 +1108,7 @@ bool SetTime(uint8_t &hour, uint8_t &minute, const char* title) {
             u8g2.drawUTF8(0, MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + MENU_FONT_HEIGHT + 7, textbuf);
             
         } while(u8g2.nextPage());
-        uint8_t keyEvent = getKeypress();
+        uint8_t keyEvent = getKeypress(true);
         switch (keyEvent) {
             case PIN_BTN1: {
                 switch (pos) {

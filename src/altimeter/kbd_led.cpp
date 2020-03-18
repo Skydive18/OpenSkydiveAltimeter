@@ -7,13 +7,23 @@
 
 extern settings_t settings;
 
-uint8_t getKeypress(uint16_t timeout) {
+#define KBD_TIMEOUT 20000
+bool auto_repeat;
+uint8_t getKeypress(bool enable_repeat) {
     uint16_t i = 0;
     // Wait for all keys to be released
     for (;;) {
-        if ((PORTC & 0x0e) != 0x0e)
+        if ((PINC & 0x0e) == 0x0e) {
+            auto_repeat = false;
             break;
-        if ((++i) >= timeout)
+        }
+        if (enable_repeat && auto_repeat)
+            break;
+        if (enable_repeat && i > 45) {
+            auto_repeat = true;
+            break;
+        }
+        if ((++i) >= 1000)
             return 255;
         delay(15);
     }
@@ -25,7 +35,7 @@ uint8_t getKeypress(uint16_t timeout) {
             return PIN_BTN2;
         if (BTN3_PRESSED)
             return (settings.display_rotation) ? PIN_BTN3 : PIN_BTN1;
-        if ((++i) >= timeout)
+        if ((++i) >= KBD_TIMEOUT)
             break;
         delay(15);
     }

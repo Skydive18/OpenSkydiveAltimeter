@@ -126,7 +126,7 @@ void processAltitude() {
         }
     } else {
         // Do not perform zero drift compensation and jitter correction in modes other than MODE_ON_EARTH
-        if (altimeter_mode > MODE_IN_AIRPLANE && altimeter_mode < MODE_PULLOUT) {
+        if (altimeter_mode > MODE_IN_AIRPLANE && altimeter_mode < MODE_OPENING) {
             // Round altitude in freefall
             altitude_to_show = int(((float)current_altitude / precisionMultiplier()) + 0.5) * precisionMultiplier();
         } else
@@ -185,24 +185,24 @@ void processAltitude() {
     
     if (altimeter_mode == MODE_EXIT) {
         saveToJumpSnapshot();
-        if (current_speed <= BEGIN_FREEFALL_TH) {
+        if (accumulated_speed <= BEGIN_FREEFALL_TH) {
             altimeter_mode = MODE_BEGIN_FREEFALL;
         }
-        else if (current_speed > EXIT_TH)
+        else if (accumulated_speed > EXIT_TH)
             altimeter_mode = MODE_IN_AIRPLANE;
     } else
     
     if (altimeter_mode == MODE_BEGIN_FREEFALL) {
         saveToJumpSnapshot();
-        if (current_speed <= FREEFALL_TH)
+        if (accumulated_speed <= FREEFALL_TH)
             altimeter_mode = MODE_FREEFALL;
-        else if (current_speed > BEGIN_FREEFALL_TH)
+        else if (accumulated_speed > BEGIN_FREEFALL_TH)
             altimeter_mode = MODE_EXIT;
     } else
     
     if (altimeter_mode == MODE_FREEFALL) {
         saveToJumpSnapshot();
-        if (current_speed > PULLOUT_TH)
+        if (accumulated_speed > PULLOUT_TH)
             altimeter_mode = MODE_PULLOUT;
 #ifdef LOGBOOK_ENABLE
         current_jump.deploy_altitude = current_altitude >> 1;
@@ -215,16 +215,16 @@ void processAltitude() {
     
     if (altimeter_mode == MODE_PULLOUT) {
         saveToJumpSnapshot();
-        if (current_speed <= PULLOUT_TH)
+        if (accumulated_speed <= PULLOUT_TH)
             altimeter_mode = MODE_FREEFALL;
-        else if (current_speed > OPENING_TH) {
+        else if (accumulated_speed > OPENING_TH) {
             altimeter_mode = MODE_OPENING;
         }
     } else
     
     if (altimeter_mode == MODE_OPENING) {
         saveToJumpSnapshot();
-        if (current_speed <= OPENING_TH)
+        if (accumulated_speed <= OPENING_TH)
             altimeter_mode = MODE_PULLOUT;
         else if (average_speed_8 > UNDER_PARACHUTE_TH) {
             altimeter_mode = MODE_UNDER_PARACHUTE;
