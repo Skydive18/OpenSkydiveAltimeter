@@ -4,32 +4,26 @@
 #include "common.h"
 
 Rtc::Rtc() {
-#if RTC==RTC_PCF8583
-    status_register = 0;
-    alarm_register = 0;
-#elif RTC==RTC_PCF8563
-    status_register_1 = 0;
-    status_register_2 = 0;
-#endif
 }
 
 // initialization 
-void Rtc::init() {
+void Rtc::init(bool reset_registers) {
 #if RTC==RTC_PCF8583
+    if (reset_registers) {
+        status_register = 0;
+        alarm_register = 0;
+    }
     IIC_WriteByte(RTC_ADDRESS, 0, status_register);
     last_stored_year = IIC_ReadInt(RTC_ADDRESS, ADDR_LAST_STORED_YEAR);
 #elif RTC==RTC_PCF8563
-    Wire.beginTransmission(RTC_ADDRESS);
-    Wire.write(0x00);
-    Wire.write(status_register_1);
-    Wire.write(status_register_2);
-    Wire.endTransmission();
+    IIC_WriteByte(RTC_ADDRESS, 0, 0);
+    IIC_WriteByte(RTC_ADDRESS, 1, 0);
 #endif
 }
 
 void Rtc::readTime() {
 #if RTC==RTC_PCF8583
-    Wire.beginTransmission(RTC_ADDRESS);
+    beginTransmission(RTC_ADDRESS);
     Wire.write(0x03);
     Wire.endTransmission(false);
     Wire.requestFrom(RTC_ADDRESS, 4);
@@ -47,7 +41,7 @@ void Rtc::readTime() {
         setDate();
     }
 #elif RTC==RTC_PCF8563
-    Wire.beginTransmission(RTC_ADDRESS);
+    beginTransmission(RTC_ADDRESS);
     Wire.write(0x03);
     Wire.endTransmission(false);
     Wire.requestFrom(RTC_ADDRESS, 6);
@@ -75,7 +69,7 @@ timestamp_t Rtc::getTimestamp() {
 void Rtc::setDate() {
 #if RTC==RTC_PCF8583
     IIC_WriteByte(RTC_ADDRESS, 0, 0xc0);
-    Wire.beginTransmission(RTC_ADDRESS);
+    beginTransmission(RTC_ADDRESS);
     Wire.write(0x05);
     Wire.write(((uint8_t)(year & 3) << 6) | bin_to_bcd(day));
     Wire.write((bin_to_bcd(month) & 0x1f));
@@ -83,19 +77,20 @@ void Rtc::setDate() {
     IIC_WriteInt(RTC_ADDRESS, ADDR_YEAR_BASE, year & 0xfffc);
     last_stored_year = year;
     IIC_WriteInt(RTC_ADDRESS, ADDR_LAST_STORED_YEAR, year);
+    init(); // re set the control/status register
 
 #elif RTC==RTC_PCF8563
     IIC_WriteByte(RTC_ADDRESS, 0, 0x20);
-    Wire.beginTransmission(RTC_ADDRESS);
+    beginTransmission(RTC_ADDRESS);
     Wire.write(0x05);                       // Start address
     Wire.write(bin_to_bcd(day));             // Day (1-31)
     Wire.write(0);     // Weekday (0-6 = Sunday-Saturday)
     Wire.write(bin_to_bcd(month));   // Month (1-12, century bit (bit 7) = 1)
     Wire.write(bin_to_bcd(year - EPOCH));   // Year (00-99)
     Wire.endTransmission();
+    IIC_WriteByte(RTC_ADDRESS, 0, 0);
 #endif
 
-    init(); // re set the control/status register
 }
 
 void Rtc::setTime() {
@@ -104,13 +99,17 @@ void Rtc::setTime() {
 #elif RTC==RTC_PCF8563
     IIC_WriteByte(RTC_ADDRESS, 0, 0x20);
 #endif
-    Wire.beginTransmission(RTC_ADDRESS);
+    beginTransmission(RTC_ADDRESS);
     Wire.write(0x02);
     Wire.write(0);
     Wire.write(bin_to_bcd(minute));
     Wire.write(bin_to_bcd(hour));
     Wire.endTransmission();
-    init(); // re set the control/status register
+#if RTC==RTC_PCF8583
+    init();
+#elif RTC==RTC_PCF8563
+    IIC_WriteByte(RTC_ADDRESS, 0, 0);
+#endif
 }
 
 #ifdef ALARM_ENABLE
@@ -125,15 +124,14 @@ void Rtc::enableAlarmInterrupt() {
     }
 #elif RTC==RTC_PCF8563
     if (alarm_enable) {
-        status_register_2 = 0x2; // Enable alarm interrupt, clear outstanding interrupt
-        init();
+        IIC_WriteByte(RTC_ADDRESS, 1, PCF8563_ALARM_AIE);
     }
 #endif
 }
 
 void Rtc::readAlarm() {
 #if RTC==RTC_PCF8583
-    Wire.beginTransmission(RTC_ADDRESS);
+    beginTransmission(RTC_ADDRESS);
     Wire.write(0x0b); // Set the register pointer to (0x0B) 
     Wire.endTransmission(false);
     Wire.requestFrom(RTC_ADDRESS, 3);
@@ -142,7 +140,7 @@ void Rtc::readAlarm() {
     alarm_hour   = bcd_to_bin(Wire.read());
     alarm_enable = !!(Wire.read());
 #elif RTC==RTC_PCF8563
-    Wire.beginTransmission(RTC_ADDRESS);
+    beginTransmission(RTC_ADDRESS);
     Wire.write(0x09);
     Wire.endTransmission(false);
     Wire.requestFrom(RTC_ADDRESS, 2);
@@ -156,7 +154,7 @@ void Rtc::readAlarm() {
 //Set a daily alarm
 void Rtc::setAlarm() {
 #if RTC==RTC_PCF8583
-    Wire.beginTransmission(RTC_ADDRESS);
+    beginTransmission(RTC_ADDRESS);
     Wire.write(0x09); // Set the register pointer to (0x0a)
     Wire.write(0); // alarm msecs
     Wire.write(0); // alarm seconds
@@ -166,7 +164,7 @@ void Rtc::setAlarm() {
     Wire.endTransmission();
 #elif RTC==RTC_PCF8563
     byte mask = alarm_enable ? 0 : 0x80;
-    Wire.beginTransmission(RTC_ADDRESS);
+    beginTransmission(RTC_ADDRESS);
     Wire.write(0x09);
     Wire.write(bin_to_bcd(alarm_minute) | mask);
     Wire.write(bin_to_bcd(alarm_hour) | mask);
@@ -184,8 +182,7 @@ void Rtc::enableHeartbeat() {
     status_register &= 0xfb;
     init();
 #elif RTC==RTC_PCF8563
-    status_register_2 = 0; // acknowledge alarm and disable its interrupt
-    init();
+    IIC_WriteByte(RTC_ADDRESS, 1, 0); // set clkout to 1hz 50% duty cycle
     IIC_WriteByte(RTC_ADDRESS, 0xd, 0x83); // set clkout to 1hz 50% duty cycle
 #endif    
 }

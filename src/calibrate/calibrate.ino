@@ -46,11 +46,15 @@
 #define EEPROM_AUDIBLE_SIGNALS 0x30
 
 typedef struct {
-    uint16_t battGranulationD; // Factory settings: min battery voltage, in items
-    float battGranulationF; // Factory settings: battery percentage per 1 digitalRead item
+    uint16_t batt_min_voltage; // Factory settings: min battery voltage, in items
+    uint8_t batt_multiplier;
+    uint8_t unused1;
+    uint8_t unused2;
+    uint8_t unused3;
+    //
     uint8_t contrast : 4;
     uint8_t jump_profile_number : 4;
-    // Flags
+    // Flags byte 1
     uint8_t display_rotation : 1;
     uint8_t zero_after_reset : 1;
     uint8_t auto_power_off : 2;
@@ -59,9 +63,14 @@ typedef struct {
     uint8_t use_audible_signals : 1;
     //
     int16_t target_altitude;
+    //
     uint8_t volume:2;
-    uint8_t alarm_volume:2;
+    uint8_t sound_amplifier_power_on:1; // this value turns sound voltage gainer / amplifier ON
+    uint8_t precision_in_freefall:2; // precision in freefall: 0=no rounding, 1=10m, 2=50m, 3=100m
+    //
     uint8_t volumemap[4];
+    uint16_t stored_jumps;
+    uint16_t stored_snapshots;
 } settings_t;
 
 typedef struct {
@@ -84,11 +93,11 @@ byte blinkB = 0;
 settings_t settings;
 
 void getBatteryAdaptives() {
-    // batt_max_voltage refers to 4.1v
+    // batt_max_voltage refers to 4.18v
     uint16_t batt_max_voltage = analogRead(PIN_BAT_SENSE) - 3; // jitter compensate
 
-    // Assume a value of min voltage that is 3.60v
-    uint16_t batt_min_voltage = (uint16_t)((float)batt_max_voltage * (36.0f/41.0f));
+    // Assume a value of min voltage that is 3.70v
+    uint16_t batt_min_voltage = (uint16_t)((float)batt_max_voltage * (37.0f/41.8f));
 
     // Compute range that is max_voltage - min_voltage
     uint16_t batt_voltage_range = batt_max_voltage - batt_min_voltage;
@@ -96,8 +105,8 @@ void getBatteryAdaptives() {
     // Compute a cost, in %%, of one sample
     float batt_percentage_multiplier = 100.0f / ((float)batt_voltage_range);
 
-    settings.battGranulationD = batt_min_voltage;
-    settings.battGranulationF = batt_percentage_multiplier;
+    settings.batt_min_voltage = batt_min_voltage;
+    settings.batt_multiplier = 2 + (batt_percentage_multiplier * 100);
 
     Serial.print("Max voltage: ");
     Serial.println(batt_max_voltage);
@@ -212,7 +221,7 @@ void setup() {
     jump_profile.freefall = 40;
     jump_profile.pullout = 40;
     jump_profile.opening = 14;
-    jump_profile.under_parachute = 7;
+    jump_profile.under_parachute = 5;
     EEPROM.put(EEPROM_JUMP_PROFILES, jump_profile);
     
     // Profile F - Freefly
@@ -221,25 +230,25 @@ void setup() {
     jump_profile.freefall = 40;
     jump_profile.pullout = 40;
     jump_profile.opening = 14;
-    jump_profile.under_parachute = 7;
+    jump_profile.under_parachute = 5;
     EEPROM.put(EEPROM_JUMP_PROFILES + sizeof(jump_profile_t), jump_profile);
     
     // Profile C - CRW, Hop&Pop
-    jump_profile.exit = 7;
-    jump_profile.begin_freefall = 10;
-    jump_profile.freefall = 40;
-    jump_profile.pullout = 40;
-    jump_profile.opening = 14;
-    jump_profile.under_parachute = 7;
+    jump_profile.exit = 6;
+    jump_profile.begin_freefall = 8;
+    jump_profile.freefall = 12;
+    jump_profile.pullout = 12;
+    jump_profile.opening = 10;
+    jump_profile.under_parachute = 5;
     EEPROM.put(EEPROM_JUMP_PROFILES + (2 * sizeof(jump_profile_t)), jump_profile);
     
     // Profile W - Wingsuit
     jump_profile.exit = 7;
     jump_profile.begin_freefall = 10;
-    jump_profile.freefall = 40;
-    jump_profile.pullout = 40;
+    jump_profile.freefall = 20;
+    jump_profile.pullout = 20;
     jump_profile.opening = 14;
-    jump_profile.under_parachute = 7;
+    jump_profile.under_parachute = 5;
     EEPROM.put(EEPROM_JUMP_PROFILES + (3 * sizeof(jump_profile_t)), jump_profile);
 
     // Write audible signals

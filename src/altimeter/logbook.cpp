@@ -1,5 +1,5 @@
 #include "logbook.h"
-#include "custom_types.h"
+#include "common.h"
 #include "hwconfig.h"
 
 #if (defined(SNAPSHOT_ENABLE) && SNAPSHOT_JOURNAL_LOCATION == LOCATION_FLASH) || (defined(LOGBOOK_ENABLE) && LOGBOOK_LOCATION == LOCATION_FLASH)
