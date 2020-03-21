@@ -42,6 +42,8 @@ typedef struct {
     uint8_t volume:2;
     uint8_t sound_amplifier_power_on:1; // this value turns sound voltage gainer / amplifier ON
     uint8_t precision_in_freefall:2; // precision in freefall: 0=no rounding, 1=10m, 2=50m, 3=100m
+    uint8_t display_flipped:1; // 0 here means display is soldered in flipped position
+    uint8_t sound_amplifier_power_polarity:1; // write this to PB6 to turn sound amplifier power ON
     //
     uint8_t volumemap[4];
     uint16_t stored_jumps;

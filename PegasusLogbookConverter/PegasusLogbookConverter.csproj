@@ -40,6 +40,7 @@
     </Compile>
     <Compile Include="Logbook\Dropzone.cs" />
     <Compile Include="Logbook\Jump.cs" />
+    <Compile Include="PegasusSettings.cs" />
     <Compile Include="Program.cs" />
   </ItemGroup>
   <ItemGroup>
