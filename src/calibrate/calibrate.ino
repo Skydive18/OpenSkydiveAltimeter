@@ -1,8 +1,9 @@
 // Battery calibration sketch
 #include "EEPROM.h"
 #include "Wire.h"
-
-//#include "MPL.h"
+#include <avr/sleep.h>
+#include <avr/power.h>
+#include <avr/interrupt.h>
 
 #if defined(__AVR_ATmega32U4__)
 // Pins for Arduino Pro Micro (Atmega-32u4)
@@ -20,8 +21,8 @@
 #define PIN_INTERRUPT 7
 #define PIN_DC 30
 
-#elif defined(__AVR_ATmega328P__) || defined(__AVR_ATmega328__)
-// Pins for Arduino Pro Mini (Atmega-328[P] - based)
+#elif defined(__AVR_ATmega328P__)
+// Pins for Arduino Pro Mini (Atmega-328P - based)
 #define PLATFORM_1 'B'
 #define PIN_HWPWR 4
 #define PIN_LIGHT 7
@@ -91,10 +92,23 @@ byte blinkG = 0;
 byte blinkB = 0;
 
 settings_t settings;
+int loopCount;
 
 void getBatteryAdaptives() {
     // batt_max_voltage refers to 4.18v
+    analogReference(INTERNAL);
+    for (byte i = 0; i < 64; ++i)
+        analogRead(PIN_BAT_SENSE);
     uint16_t batt_max_voltage = analogRead(PIN_BAT_SENSE) - 3; // jitter compensate
+    if (batt_max_voltage < 1020) {
+        Serial.println("Use internal analog reference");
+    } else {
+        analogReference(DEFAULT);
+        Serial.println("Use default analog reference; may be buggy");
+        for (byte i = 0; i < 64; ++i)
+            analogRead(PIN_BAT_SENSE);
+        batt_max_voltage = analogRead(PIN_BAT_SENSE) - 3; // jitter compensate        
+    }
 
     // Assume a value of min voltage that is 3.70v
     uint16_t batt_min_voltage = (uint16_t)((float)batt_max_voltage * (37.0f/41.8f));
@@ -115,7 +129,9 @@ void getBatteryAdaptives() {
     Serial.print("Range: ");
     Serial.println(batt_voltage_range);
     Serial.print("Multiplier: ");
-    Serial.println(batt_percentage_multiplier);
+    Serial.print(batt_percentage_multiplier);
+    Serial.print("/");
+    Serial.println(settings.batt_multiplier);
     
 }
 
@@ -433,9 +449,49 @@ void setup() {
     digitalWrite(PIN_LIGHT, 1);
 }
 
+void powerDown() {
+    ADCSRA &= ~(1 << ADEN); // ADC OFF
+    do {
+        set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+        cli();
+        sleep_enable();
+        sleep_bod_disable();
+        sei();
+        sleep_cpu();
+        sleep_disable();
+        sei();
+    } while (0);
+    ADCSRA |= (1 << ADEN); // ADC ON again
+}
+
 void loop() {
     analogWrite(PIN_G, blinkG++);
     analogWrite(PIN_R, blinkR+=3);
     analogWrite(PIN_B, blinkB+=5);
-    delay(5);
+    delay(50);
+    loopCount++;
+    if (loopCount == 0) {
+        // turn off i2c
+        TWCR &= ~_BV(TWEN);
+        // turn off SPI
+        //SPI.end();
+    
+        // Stop all on portC
+        DDRC = 0;
+        PORTC = 0;
+    
+        // Stop all on portB, no pullups
+        // TODO: Keep sound amplifier off as well.
+        DDRB = 0;
+        PORTB = 0;
+
+        // After we turned off all peripherial connections, turn peripherial power OFF too.
+        PORTD = 0x84; // LED, sound, HWON to 0, display light to 1 that turns it off, pullup in PIN_INTERRUPT
+
+        Serial.end();
+        DDRD &= 0xfc; // pins to input
+        PORTD &= 0xfc; // disable pullups
+        powerDown();
+        
+    }
 }

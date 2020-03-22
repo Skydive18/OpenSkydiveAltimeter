@@ -120,6 +120,7 @@ void loadJumpProfile() {
 }
 
 void setup() {
+    analogReference(INTERNAL);
     // Configure keyboard and enable pullup resistors
     TIME_TMPL = PSTR("%02d:%02d");
     DDRC &= 0xf0; // PIN_BTN1, PIN_BTN2, PIN_BTN3, PIN_BAT_SENSE => input
@@ -1229,7 +1230,7 @@ void memoryDump(bool noComCheck) {
     LED_show(0, 0, 0);
     Serial.print(F("\nFLASH_END"));
 #endif
-    Serial.print(F("\nPEGASUS_END"));
+    Serial.print(F("\nPEGASUS_END\n"));
 }
 
 void loop() {
@@ -1273,10 +1274,12 @@ void loop() {
         time_while_btn_menu_pressed = 0;
     }
     
-    if ((interval_number & 127) == 0) {
+    if ((interval_number & 127) == 0 || altimeter_mode == MODE_PREFILL) {
         // Check and refresh battery meter
         batt = analogRead(PIN_BAT_SENSE);
-        rel_voltage = (int8_t)((batt - settings.batt_min_voltage) * settings.batt_multiplier / 100);
+        if (batt > 1020 && altimeter_mode == MODE_ON_EARTH)
+            analogReference(DEFAULT);
+        rel_voltage = (int8_t)((batt - settings.batt_min_voltage - 2) * settings.batt_multiplier / 100);
         if (rel_voltage < 0)
             rel_voltage = 0;
         if (rel_voltage > 100)
@@ -1319,6 +1322,7 @@ void loop() {
                 if (rtc.alarm_enable)
                     sprintf_P(textbuf, PSTR("&%1d' %02d:%02d@"), altimeter_mode, rtc.alarm_hour, rtc.alarm_minute);
                 else
+//                    sprintf_P(textbuf, PSTR("&%1d' %d"), altimeter_mode, batt);
                     sprintf_P(textbuf, PSTR("&%1d'"), altimeter_mode);
 #else            
                 sprintf_P(textbuf, PSTR("&%1d'"), altimeter_mode);
