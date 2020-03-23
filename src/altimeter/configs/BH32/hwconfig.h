@@ -69,11 +69,11 @@
 // FLASH page size is  32bytes for  24c32 ( 4K) and  24c64 ( 8K)
 //                     64bytes for 24c128 (16K) and 24c256 (32K)
 //                    128bytes for 24c512 (64K)
-#define FLASH__PAGE_SIZE 128
+#define FLASH__PAGE_SIZE 32
 
-//#define FLASH__PAGES 128 /* 24c32 */
+#define FLASH__PAGES 128 /* 24c32 */
 //#define FLASH__PAGES 256 /* 24c64, 24c128 */
-#define FLASH__PAGES 512 /* 24c256, 24c512 */
+//#define FLASH__PAGES 512 /* 24c256, 24c512 */
 
 // I2C addfess for flash chip. Note, the default 24cxx address is 0x50 = the same as PCF8583 uses.
 // Also note, the address of PCF8563 is 0x51.
