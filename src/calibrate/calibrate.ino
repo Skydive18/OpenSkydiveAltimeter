@@ -68,6 +68,9 @@ typedef struct {
     uint8_t volume:2;
     uint8_t sound_amplifier_power_on:1; // this value turns sound voltage gainer / amplifier ON
     uint8_t precision_in_freefall:2; // precision in freefall: 0=no rounding, 1=10m, 2=50m, 3=100m
+    uint8_t display_flipped:1; // 0 here means display is soldered in flipped position
+    uint8_t sound_amplifier_power_polarity:1; // write this to PB6 to turn sound amplifier power ON
+    uint8_t led_common_cathode:1; // 1 = common cathode, 0 = common anode
     //
     uint8_t volumemap[4];
     uint16_t stored_jumps;
@@ -202,11 +205,17 @@ void setup() {
     } while (digitalRead(PIN_BTN1) && digitalRead(PIN_BTN2) && digitalRead(PIN_BTN3));
 
     // Volume control adaptives
+    /*
     settings.volumemap[0] = 50;
     settings.volumemap[1] = 55;
     settings.volumemap[2] = 60;
     settings.volumemap[3] = 120;
-    
+    */
+    settings.volumemap[0] = 127;
+    settings.volumemap[1] = 64;
+    settings.volumemap[2] = 32;
+    settings.volumemap[3] = 0;
+  
     // Write battery calibration
     getBatteryAdaptives(); // once again after cable removed
     EEPROM.put(EEPROM_SETTINGS, settings);
@@ -224,8 +233,8 @@ void setup() {
     EEPROM.put(0x130, custom_hello_message);
     EEPROM.put(0x140, custom_bye_message);
 #else
-    uint8_t has_custom_hello_message = 0xff; // set to 0xff to disable
-    EEPROM.put(0x1f, has_custom_hello_message);
+//    uint8_t has_custom_hello_message = 0xff; // set to 0xff to disable
+//    EEPROM.put(0x1f, has_custom_hello_message);
 #endif
 
     // Write state machine profiles
