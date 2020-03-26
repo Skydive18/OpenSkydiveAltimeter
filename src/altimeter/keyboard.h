@@ -10,5 +10,5 @@
 #define BTN3_PRESSED (!(PINF & 0x20))
 #define BTN3_RELEASED !BTN3_PRESSED
 
-uint8_t getKeypress(uint16_t timeout = 20000); // timeout in 15ms chunks, default is 5 min
+uint8_t getKeypress(bool enable_repeat = false);
 #endif

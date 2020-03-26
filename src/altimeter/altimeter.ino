@@ -145,6 +145,7 @@ void loadJumpProfile() {
 
 void setup() {
     TIME_TMPL = PSTR("%02d:%02d");
+    analogReference(INTERNAL);
 
     // Configure keyboard and enable pullup resistors
     DDRF = 0; PORTF = 0x50; // BTN1 and BTN3 input, pullup
@@ -754,8 +755,8 @@ char getProfileChar(uint8_t profileid) {
 void current_jump_to_bigbuf(uint16_t jump_to_show) {
     uint16_t freefall_time = current_jump.deploy_time >> 1;
     int average_freefall_speed_ms = ((current_jump.exit_altitude - current_jump.deploy_altitude) << 1) / freefall_time;
-    int average_freefall_speed_kmh = (int)(3.6f * average_freefall_speed_ms);
-    int max_freefall_speed_kmh = (int)(3.6f * current_jump.max_freefall_speed_ms);
+    int average_freefall_speed_kmh = (36 * average_freefall_speed_ms) / 10;
+    int max_freefall_speed_kmh = (36 * current_jump.max_freefall_speed_ms) / 10;
     uint8_t day = current_jump.exit_timestamp.day;
     uint8_t month = current_jump.exit_timestamp.month;
     uint16_t year = current_jump.exit_timestamp.year;
@@ -1398,11 +1399,8 @@ bool SetTime(uint8_t &hour, uint8_t &minute, char* title) {
 }
 
 void memoryDump() {
-    sprintf_P(bigbuf, PSTR("\nPEGASUS_BEGIN\nPLATFORM %c%c%c%c\nVERSION " VERSION "\nLANG " LANGUAGE), PLATFORM_1, PLATFORM_2, PLATFORM_3, PLATFORM_4);
-    Serial.print(bigbuf);
-    // Dump settings
-    sprintf_P(bigbuf, PSTR("\nLOGBOOK %c %04x %u\nSNAPSHOT %c %04x %u %u\nROM_BEGIN"),
-
+    sprintf_P(bigbuf, PSTR("\nPEGASUS_BEGIN\nPLATFORM %c%c%c%c\nVERSION " VERSION "\nLANG " LANGUAGE "\nLOGBOOK %c %04x %u\nSNAPSHOT %c %04x %u %u\nROM_BEGIN"),
+    PLATFORM_1, PLATFORM_2, PLATFORM_3, PLATFORM_4,
 #if defined(LOGBOOK_ENABLE)
 #if LOGBOOK_LOCATION == LOCATION_FLASH
     'F', LOGBOOK_START, LOGBOOK_SIZE,
@@ -1452,7 +1450,7 @@ void memoryDump() {
     }
     Serial.print(F("\nFLASH_END"));
 #endif
-    Serial.print(F("\nPEGASUS_END"));
+    Serial.println(F("\nPEGASUS_END"));
 }
 
 void loop() {
@@ -1499,16 +1497,17 @@ void loop() {
     if ((interval_number & 127) == 0 || altimeter_mode == MODE_PREFILL) {
         // Check and refresh battery meter
         batt = analogRead(PIN_BAT_SENSE);
-        rel_voltage = (int8_t)((batt - settings.battGranulationD) * settings.battGranulationF);
+        rel_voltage = (int8_t)((batt - settings.batt_min_voltage - 2) * settings.batt_multiplier / 100);
         if (rel_voltage < 0)
             rel_voltage = 0;
         if (rel_voltage > 100)
             rel_voltage = 100;
-#ifdef ALARM_ENABLE
-        if (altimeter_mode == MODE_ON_EARTH || altimeter_mode == MODE_PREFILL || altimeter_mode == MODE_DUMB)
-            checkAlarm();
-#endif
     }
+
+#ifdef ALARM_ENABLE
+    if (altimeter_mode == MODE_ON_EARTH || altimeter_mode == MODE_PREFILL || altimeter_mode == MODE_DUMB)
+        checkAlarm();
+#endif
     
     processAltitude();
     if (altimeter_mode != previousPowerMode)
