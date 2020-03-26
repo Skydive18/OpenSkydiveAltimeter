@@ -535,8 +535,8 @@ char getProfileChar(uint8_t profileid) {
 void current_jump_to_bigbuf(uint16_t jump_to_show) {
     uint16_t freefall_time = current_jump.deploy_time >> 1;
     int average_freefall_speed_ms = ((current_jump.exit_altitude - current_jump.deploy_altitude) << 1) / freefall_time;
-    int average_freefall_speed_kmh = (int)(3.6f * average_freefall_speed_ms);
-    int max_freefall_speed_kmh = (int)(3.6f * current_jump.max_freefall_speed_ms);
+    int average_freefall_speed_kmh = (average_freefall_speed_ms * 36) / 10;
+    int max_freefall_speed_kmh = (current_jump.max_freefall_speed_ms * 36) / 10;
     uint8_t day = current_jump.exit_timestamp.day;
     uint8_t month = current_jump.exit_timestamp.month;
     uint16_t year = current_jump.exit_timestamp.year;
