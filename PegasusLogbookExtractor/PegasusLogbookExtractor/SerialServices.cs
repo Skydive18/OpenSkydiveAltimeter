@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.IO.Ports;
 using System.Management;
 using System.Threading;
@@ -49,6 +50,16 @@ namespace PegasusLogbookExtractor
                 port.DtrEnable = false; // 'DTR +
                 port.RtsEnable = false;
             }
+        }
+
+        public static string ReadLineEx(this SerialPort port)
+        {
+            return port?.ReadLine()?.Replace("\r", "");
+        }
+
+        public static string ReadLineEx(this StreamReader port)
+        {
+            return port?.ReadLine()?.Replace("\r", "");
         }
     }
 }

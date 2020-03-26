@@ -31,7 +31,7 @@
 #define MSG_LOGBOOK_VIEW "VView\n"
 #define MSG_LOGBOOK_REPLAY_JUMP "RGlobal test\n"
 #define MSG_LOGBOOK_CLEAR "CErase logbook\n"
-#define MSG_LOGBOOK_DELETE_LAST_JUMP "DDelete last\n"
+#define MSG_LOGBOOK_DELETE_LAST_JUMP "DDel latest\n"
 
 #define MSG_LOGBOOK_CLEAR_CONFIRM_TITLE "Erase logbook?\n"
 #define MSG_LOGBOOK_DELETE_LAST_JUMP_CONFIRM_TITLE "Delete last?\n"

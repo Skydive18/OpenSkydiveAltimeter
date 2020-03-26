@@ -91,7 +91,7 @@ bool checkAlarm();
 #endif
 void powerOff(bool verbose = true);
 
-void memoryDump(bool noComCheck = true);
+void memoryDump();
 void showSignals();
 
 
@@ -116,7 +116,6 @@ void loadJumpProfile() {
 }
 
 void setup() {
-    analogReference(INTERNAL);
     // Configure keyboard and enable pullup resistors
     TIME_TMPL = PSTR("%02d:%02d");
     DDRC &= 0xf0; // PIN_BTN1, PIN_BTN2, PIN_BTN3, PIN_BAT_SENSE => input
@@ -175,10 +174,11 @@ void setup() {
     if (myPressure.readAltitude() < 450) { // "Reset in airplane" - Disable greeting message if current altitude more than 450m
         DISPLAY_LIGHT_ON;
         Serial.begin(SERIAL_SPEED);
+        Serial.println(F("PEGASUS_OK"));
 #ifdef GREETING_ENABLE
         SET_MAX_VOL;
         delay(1000);
-        memoryDump(false);
+        memoryDump();
         sound(SIGNAL_WELCOME);
         
         // Show greeting message
@@ -201,8 +201,6 @@ void setup() {
 #else
         delay(3000); // wait for memory dump request
 #endif // GREETING_ENABLE
-        memoryDump(false);
-
         termSerial();
     }
     
@@ -773,7 +771,6 @@ void userMenu() {
                                 if (settings.stored_snapshots)
                                     settings.stored_snapshots--;
                                 EEPROM.put(EEPROM_SETTINGS, settings);
-                                return; // exit logbook menu
                             }
                             break;
                         }
@@ -1206,62 +1203,70 @@ bool SetTime(uint8_t &hour, uint8_t &minute, const char* title) {
     };
 }
 
-void memoryDump(bool noComCheck) {
-    if (!(noComCheck || (Serial.available() && Serial.read() == '?')))
+void memoryDump() {
+    if (!Serial.available())
         return;
-    sprintf_P(bigbuf, PSTR("\nPEGASUS_BEGIN\nPLATFORM %c%c%c%c\nVERSION " VERSION "\nLANG " LANGUAGE "\nLOGBOOK %c %04x %u\nSNAPSHOT %c %04x %u %u\nROM_BEGIN"),
-    PLATFORM_1, PLATFORM_2, PLATFORM_3, PLATFORM_4,
+    char cmd = Serial.read();
+    if (cmd == '?' || cmd == 'H') {
+        sprintf_P(bigbuf, PSTR("\nPEGASUS_BEGIN\nPLATFORM %c%c%c%c\nVERSION " VERSION "\nLANG " LANGUAGE "\nLOGBOOK %c %04x %u\nSNAPSHOT %c %04x %u %u\n"),
+        PLATFORM_1, PLATFORM_2, PLATFORM_3, PLATFORM_4,
 #if defined(LOGBOOK_ENABLE)
 #if LOGBOOK_LOCATION == LOCATION_FLASH
-    'F', LOGBOOK_START, LOGBOOK_SIZE,
+        'F', LOGBOOK_START, LOGBOOK_SIZE,
 #else
-    'E', LOGBOOK_START, LOGBOOK_SIZE,
+        'E', LOGBOOK_START, LOGBOOK_SIZE,
 #endif
 #else
-    'N', 0, 0,
+        'N', 0, 0,
 #endif
 
 #if defined(SNAPSHOT_ENABLE)
 #if SNAPSHOT_JOURNAL_LOCATION == LOCATION_FLASH
-    'F', SNAPSHOT_JOURNAL_START, SNAPSHOT_JOURNAL_SIZE, SNAPSHOT_SIZE
+        'F', SNAPSHOT_JOURNAL_START, SNAPSHOT_JOURNAL_SIZE, SNAPSHOT_SIZE
 #else
-    'E', SNAPSHOT_JOURNAL_START, SNAPSHOT_JOURNAL_SIZE, SNAPSHOT_SIZE
+        'E', SNAPSHOT_JOURNAL_START, SNAPSHOT_JOURNAL_SIZE, SNAPSHOT_SIZE
 #endif
 #else
-    'N', 0, 0, 0
+        'N', 0, 0, 0
 #endif
-    );
-    Serial.print(bigbuf);
-
-    uint16_t i;
-    for (i = 0; i < 1024; i++) {
-        if (! (i & 15)) {
-            sprintf_P(textbuf, PSTR("\n%04x:"), i);
-            Serial.print(textbuf);
-        }
-        sprintf_P(textbuf, PSTR(" %02x"), EEPROM.read(i));
-        Serial.print(textbuf);
+        );
+        Serial.print(bigbuf);
     }
-    Serial.print(F("\nROM_END"));
-
-#if defined(FLASH_PRESENT)
-    Serial.print(F("\nFLASH_BEGIN"));
-    for (uint16_t page = 0; page < FLASH__PAGES; page++) {
-        LED_show((page & 1) ? 255 : 0, 0, 0);
-        flashRom.readBytes(page * FLASH__PAGE_SIZE, FLASH__PAGE_SIZE, (uint8_t*)bigbuf);
-        for (i = 0; i < FLASH__PAGE_SIZE; i++) {
+    uint16_t i;
+    if (cmd == '?' || cmd == 'R') {
+        Serial.print(F("\nROM_BEGIN"));
+        for (i = 0; i < 1024; i++) {
             if (! (i & 15)) {
-                sprintf_P(textbuf, PSTR("\n%04x:"), i + (page *FLASH__PAGE_SIZE));
+                sprintf_P(textbuf, PSTR("\n%04x:"), i);
                 Serial.print(textbuf);
             }
-            sprintf_P(textbuf, PSTR(" %02x"), (uint8_t)(bigbuf[i]));
+            sprintf_P(textbuf, PSTR(" %02x"), EEPROM.read(i));
             Serial.print(textbuf);
         }
+        Serial.print(F("\nROM_END\n"));
     }
-    LED_show(0, 0, 0);
-    Serial.print(F("\nFLASH_END"));
+#if defined(FLASH_PRESENT)
+    if (cmd == '?' || cmd == 'R') {
+
+        Serial.print(F("\nFLASH_BEGIN"));
+        for (uint16_t page = 0; page < FLASH__PAGES; page++) {
+            LED_show((page & 1) ? 255 : 0, 0, 0);
+            flashRom.readBytes(page * FLASH__PAGE_SIZE, FLASH__PAGE_SIZE, (uint8_t*)bigbuf);
+            for (i = 0; i < FLASH__PAGE_SIZE; i++) {
+                if (! (i & 15)) {
+                    sprintf_P(textbuf, PSTR("\n%04x:"), i + (page *FLASH__PAGE_SIZE));
+                    Serial.print(textbuf);
+                }
+                sprintf_P(textbuf, PSTR(" %02x"), (uint8_t)(bigbuf[i]));
+                Serial.print(textbuf);
+            }
+        }
+        LED_show(0, 0, 0);
+        Serial.print(F("\nFLASH_END\n"));
+    }
 #endif
-    Serial.println(F("\nPEGASUS_END"));
+    if (cmd == '?' || cmd == 'H')
+        Serial.println(F("\nPEGASUS_END"));
 }
 
 void loop() {
@@ -1298,8 +1303,8 @@ void loop() {
     if ((interval_number & 127) == 0 || altimeter_mode == MODE_PREFILL) {
         // Check and refresh battery meter
         batt = analogRead(PIN_BAT_SENSE);
-        if (batt > 1020 && altimeter_mode == MODE_ON_EARTH)
-            analogReference(DEFAULT);
+        if (batt < 450 && altimeter_mode == MODE_PREFILL)
+            analogReference(INTERNAL);
         rel_voltage = (int8_t)((batt - settings.batt_min_voltage - 2) * settings.batt_multiplier / 100);
         if (rel_voltage < 0)
             rel_voltage = 0;

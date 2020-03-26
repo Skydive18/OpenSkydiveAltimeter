@@ -62,6 +62,8 @@ namespace PegasusLogbookExtractor
             {
                 SerialPort serialPort = null;
                 StreamReader inputFile = null;
+                string data = string.Empty;
+
                 if (fromFile)
                 {
                     inputFile = File.OpenText("pegasus.raw");
@@ -73,14 +75,32 @@ namespace PegasusLogbookExtractor
                     serialPort.Open();
                     Console.WriteLine("Resetting altimeter and initiate data transfer.");
                     serialPort.ToggleDTR();
-
-                    for (int i = 0; i < 25; ++i)
+                    serialPort.DiscardInBuffer();
+                    Thread.Sleep(2200); // wait for bootloader
+                    if (serialPort.BytesToRead > 0)
                     {
-                        serialPort.Write("?");
-                        Thread.Sleep(200);
-                        if (serialPort.BytesToRead > 0)
-                            break;
+                        // check for altimeter greeting
+                        data = serialPort.ReadLineEx();
+                        if (data != "PEGASUS_OK")
+                        {
+                            Console.WriteLine("Wrong greeting message from altimeter.\nPress any key to exit.");
+                            serialPort.ToggleDTR();
+                            Console.ReadKey();
+                            return;
+                        }
                     }
+                    else
+                    {
+                        Console.WriteLine("No greeting message from altimeter.\nPress any key to exit.");
+                        serialPort.ToggleDTR();
+                        Console.ReadKey();
+                        return;
+                    }
+
+                    Console.WriteLine("Greeting message received.");
+                    serialPort.Write("?");
+                    Thread.Sleep(1000);
+
                     if (serialPort.BytesToRead == 0)
                     {
                         Console.WriteLine("Cannot initiate data transfer.\nPress any key to exit.");
@@ -92,13 +112,12 @@ namespace PegasusLogbookExtractor
 
 
                 Console.WriteLine("Start data transfer.");
-                string data = string.Empty;
                 do
                 {
                     if (fromFile)
-                        data = inputFile.ReadLine();
+                        data = inputFile.ReadLineEx();
                     else
-                        data = serialPort.ReadLine();
+                        data = serialPort.ReadLineEx();
                     if (string.IsNullOrWhiteSpace(data))
                         continue;
                     if (!fromFile)
