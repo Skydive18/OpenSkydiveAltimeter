@@ -22,6 +22,7 @@ typedef struct {
 } jump_t;
 
 typedef struct {
+    uint16_t total_jumps;
     uint16_t batt_min_voltage; // Factory settings: min battery voltage, in items
     uint8_t batt_multiplier;
     uint8_t unused1;

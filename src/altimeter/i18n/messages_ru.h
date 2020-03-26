@@ -31,7 +31,7 @@
 #define MSG_LOGBOOK_VIEW "VПросмотр\n"
 #define MSG_LOGBOOK_REPLAY_JUMP "RТест всего\n"
 #define MSG_LOGBOOK_CLEAR "CОчистить журнал\n"
-#define MSG_LOGBOOK_DELETE_LAST_JUML "DУдалить крайний\n"
+#define MSG_LOGBOOK_DELETE_LAST_JUMP "DУдалить крайний\n"
 
 #define MSG_LOGBOOK_CLEAR_CONFIRM_TITLE "Очистить журнал?\n"
 #define MSG_LOGBOOK_DELETE_LAST_JUMP_CONFIRM_TITLE "Удалить крайний?\n"

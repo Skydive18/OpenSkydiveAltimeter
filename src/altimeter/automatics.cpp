@@ -241,15 +241,8 @@ void processAltitude() {
             altimeter_mode = MODE_ON_EARTH;
             // try to lock zero altitude
             altitude_to_show = 0;
-#ifdef SNAPSHOT_ENABLE
-            saveSnapshot();
-#endif
 #ifdef LOGBOOK_ENABLE
             saveJump();
-#endif
-#if defined(LOGBOOK_ENABLE) || defined(SNAPSHOT_ENABLE)
-            total_jumps++;
-            EEPROM.put(EEPROM_JUMP_COUNTER, total_jumps);
 #endif
         }
     }

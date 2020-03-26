@@ -70,10 +70,6 @@ int8_t rel_voltage; // ballery relative voltage, in percent (0-100). 0 relates t
 jump_t current_jump;
 #endif
 
-#if defined(LOGBOOK_ENABLE) || defined(SNAPSHOT_ENABLE)
-uint16_t total_jumps;
-#endif
-
 char textbuf[48];
 char bigbuf[SNAPSHOT_SIZE]; // also used in snapshot writer
 
@@ -144,12 +140,16 @@ void setup() {
     previous_altitude = CLEAR_PREVIOUS_ALTITUDE;
     vspeedPtr = 0;
     interval_number = 0;
-#if defined(LOGBOOK_ENABLE) || defined(SNAPSHOT_ENABLE)
-    EEPROM.get(EEPROM_JUMP_COUNTER, total_jumps);
-#endif
 
     EEPROM.get(EEPROM_SETTINGS, settings);
     loadJumpProfile();
+
+    if (settings.stored_jumps > settings.total_jumps) {
+        // First run => correct
+        settings.stored_jumps = settings.stored_snapshots = settings.total_jumps;
+        if (settings.stored_snapshots > SNAPSHOT_JOURNAL_SIZE)
+            settings.stored_snapshots = SNAPSHOT_JOURNAL_SIZE;
+    }
 
     LED_show(0, 0, 0);
 
@@ -548,7 +548,7 @@ void current_jump_to_bigbuf(uint16_t jump_to_show) {
     uint16_t max_freefall_speed_ms = current_jump.max_freefall_speed_ms;
 
     sprintf_P(bigbuf, MSG_JUMP_CONTENT,
-        jump_to_show, total_jumps, getProfileChar(current_jump.profile),
+        jump_to_show, settings.total_jumps, getProfileChar(current_jump.profile),
         day, month, year, hour, minute,
         exit_altitude, deploy_altitude,
         canopy_altitude, freefall_time,
@@ -685,6 +685,7 @@ void userMenu() {
 #ifdef TEST_JUMP_ENABLE
                         MSG_LOGBOOK_REPLAY_JUMP
 #endif
+                        MSG_LOGBOOK_DELETE_LAST_JUMP
                         MSG_LOGBOOK_CLEAR));
                     logbook_event = myMenu(bigbuf, logbook_event);
                     switch (logbook_event) {
@@ -693,15 +694,19 @@ void userMenu() {
                             break;
                         case 'V': {
                             // view logbook
-                            if (total_jumps == 0)
+                            if (settings.stored_jumps == 0) {
+                                LED_show(255, 0, 0, 500);
                                 break; // no jumps, nothing to show
-                            uint16_t jump_to_show = total_jumps;
+                            }
+                            uint16_t jump_to_show = settings.total_jumps;
+                            // calculate number of first jump to show
+                            uint16_t first_stored_jump = settings.total_jumps - settings.stored_jumps;
                             uint8_t logbook_view_event;
                             for (;;) {
-                                if (jump_to_show == 0 || (jump_to_show + LOGBOOK_SIZE) == total_jumps)
-                                    jump_to_show = total_jumps;
-                                if (jump_to_show > total_jumps)
-                                    jump_to_show = (total_jumps > LOGBOOK_SIZE) ? total_jumps - LOGBOOK_SIZE : 1;
+                                if (jump_to_show <= first_stored_jump)
+                                    jump_to_show = settings.total_jumps;
+                                if (jump_to_show > settings.total_jumps)
+                                    jump_to_show = first_stored_jump + 1;
 
                                 // Read jump from logbook
                                 loadJump(jump_to_show - 1);
@@ -727,6 +732,10 @@ void userMenu() {
 #endif
                             
                         case 'C': {
+                            if (settings.stored_jumps == 0) {
+                                LED_show(255, 0, 0, 500);
+                                break; // no jumps, nothing to show
+                            }
                             // Erase logbook
                             strcpy_P(bigbuf, PSTR(
                                 MSG_LOGBOOK_CLEAR_CONFIRM_TITLE
@@ -737,8 +746,33 @@ void userMenu() {
                                 return;
                             if (confirmCrearLogbook == 'Y') {
                                 // Really clear logbook
-                                total_jumps = 0;
-                                EEPROM.put(EEPROM_JUMP_COUNTER, total_jumps);
+                                settings.total_jumps = settings.stored_jumps = settings.stored_snapshots = 0;
+                                EEPROM.put(EEPROM_SETTINGS, settings);
+                                return; // exit logbook menu
+                            }
+                            break;
+                        }
+
+                        case 'D': {
+                            if (settings.stored_jumps == 0) {
+                                LED_show(255, 0, 0, 500);
+                                break; // no jumps, nothing to show
+                            }
+                            // Delete last jump
+                            strcpy_P(bigbuf, PSTR(
+                                MSG_LOGBOOK_DELETE_LAST_JUMP_CONFIRM_TITLE
+                                MSG_CONFIRM_NO
+                                MSG_CONFIRM_YES));
+                            char confirmDeleteLastJump = myMenu(bigbuf, ' ');
+                            if (confirmDeleteLastJump == 'z')
+                                return;
+                            if (confirmDeleteLastJump == 'Y') {
+                                // Really delete last jump
+                                settings.total_jumps--;
+                                settings.stored_jumps--;
+                                if (settings.stored_snapshots)
+                                    settings.stored_snapshots--;
+                                EEPROM.put(EEPROM_SETTINGS, settings);
                                 return; // exit logbook menu
                             }
                             break;
@@ -1175,11 +1209,8 @@ bool SetTime(uint8_t &hour, uint8_t &minute, const char* title) {
 void memoryDump(bool noComCheck) {
     if (!(noComCheck || (Serial.available() && Serial.read() == '?')))
         return;
-    sprintf_P(bigbuf, PSTR("\nPEGASUS_BEGIN\nPLATFORM %c%c%c%c\nVERSION " VERSION "\nLANG " LANGUAGE), PLATFORM_1, PLATFORM_2, PLATFORM_3, PLATFORM_4);
-    Serial.print(bigbuf);
-    // Dump settings
-    sprintf_P(bigbuf, PSTR("\nLOGBOOK %c %04x %u\nSNAPSHOT %c %04x %u %u\nROM_BEGIN"),
-
+    sprintf_P(bigbuf, PSTR("\nPEGASUS_BEGIN\nPLATFORM %c%c%c%c\nVERSION " VERSION "\nLANG " LANGUAGE "\nLOGBOOK %c %04x %u\nSNAPSHOT %c %04x %u %u\nROM_BEGIN"),
+    PLATFORM_1, PLATFORM_2, PLATFORM_3, PLATFORM_4,
 #if defined(LOGBOOK_ENABLE)
 #if LOGBOOK_LOCATION == LOCATION_FLASH
     'F', LOGBOOK_START, LOGBOOK_SIZE,
@@ -1230,7 +1261,7 @@ void memoryDump(bool noComCheck) {
     LED_show(0, 0, 0);
     Serial.print(F("\nFLASH_END"));
 #endif
-    Serial.print(F("\nPEGASUS_END\n"));
+    Serial.println(F("\nPEGASUS_END"));
 }
 
 void loop() {
@@ -1240,9 +1271,6 @@ void loop() {
     previous_altimeter_mode = altimeter_mode;
     bool refresh_display = (altimeter_mode != MODE_ON_EARTH);
 
-    // TODO. Opening menu when jump snapshot has not been saved leads to a broken snapshot.
-    // Either disable menu in automatic modes or erase snapshot in such cases.
-    // On 32u4 and Mega it is possible to separate buffers while on 328p it is not.
     if (BTN2_PRESSED) {
         time_while_backlight_on = 16;
         // Try to enter menu
@@ -1254,15 +1282,8 @@ void loop() {
         if (time_while_btn_menu_pressed > 6 && time_while_btn_menu_pressed < 10) {
             if (MODE_IN_JUMP) {
                 // Forcibly Save snapshot for debug purposes
-#ifdef SNAPSHOT_ENABLE
-                saveSnapshot();
-#endif
 #ifdef LOGBOOK_ENABLE
                 saveJump();
-#endif
-#if defined(LOGBOOK_ENABLE) || defined(SNAPSHOT_ENABLE)
-                total_jumps++;
-                EEPROM.put(EEPROM_JUMP_COUNTER, total_jumps);
 #endif
                 altimeter_mode = MODE_ON_EARTH;
             }
