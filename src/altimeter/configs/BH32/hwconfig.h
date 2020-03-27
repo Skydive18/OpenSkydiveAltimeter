@@ -1,7 +1,7 @@
 #ifndef __in_hwconfig_h
 #define __in_hwconfig_h
 
-#define VERSION "1.4 beta"
+#define VERSION "1.4"
 
 // ******************
 // Hardware constants
